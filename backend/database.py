@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 load_dotenv()
 
@@ -14,6 +15,15 @@ DATABASE_URL = (
 )
 
 engine = create_engine(DATABASE_URL)
+
+
+def get_db():
+    db = Session(engine)
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 with engine.connect() as connection:
     result = connection.execute(text("SELECT 1"))

@@ -1,8 +1,23 @@
+import os
+from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
+import jwt
+
 from sqlalchemy.orm import Session
 from pwdlib import PasswordHash
 
 from models import User
 from schemas.auth import UserRole
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY is not configured")
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
 password_hash = PasswordHash.recommended()
@@ -58,3 +73,41 @@ def register_user(
     db.refresh(user)
 
     return user
+
+
+def authenticate_user(
+    db: Session,
+    email: str,
+    password: str,
+):
+    user = (
+        db.query(User)
+        .filter(User.email == email)
+        .first()
+    )
+
+    if not user:
+        return None
+
+    if not password_hash.verify(password, user.password_hash):
+        return None
+
+    return user
+
+
+def create_access_token(user: User):
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+
+    payload = {
+        "sub": str(user.id),
+        "role": user.role,
+        "exp": expire,
+    }
+
+    return jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
