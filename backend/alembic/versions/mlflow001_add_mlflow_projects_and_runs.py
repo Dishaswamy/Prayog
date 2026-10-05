@@ -1,6 +1,6 @@
 """add mlflow projects and runs
 
-Revision ID: mlflow001
+Revision ID: 8c4a7f21d6b9
 Revises: 02e8c3adc41f
 Create Date: 2026-10-05
 """
@@ -9,10 +9,11 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
-revision: str = "mlflow001"
+revision: str = "8c4a7f21d6b9"
 down_revision: Union[str, Sequence[str], None] = "02e8c3adc41f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -43,11 +44,11 @@ def upgrade() -> None:
             nullable=False,
             server_default="CREATED",
         ),
-        sa.Column("environment", sa.JSON(), nullable=True),
-        sa.Column("hyperparameters", sa.JSON(), nullable=True),
-        sa.Column("metrics", sa.JSON(), nullable=True),
-        sa.Column("gpu_details", sa.JSON(), nullable=True),
-        sa.Column("results", sa.JSON(), nullable=True),
+        sa.Column("environment", postgresql.JSONB(), nullable=True),
+        sa.Column("hyperparameters", postgresql.JSONB(), nullable=True),
+        sa.Column("metrics", postgresql.JSONB(), nullable=True),
+        sa.Column("gpu_details", postgresql.JSONB(), nullable=True),
+        sa.Column("results", postgresql.JSONB(), nullable=True),
         sa.Column("started_at", sa.DateTime(), nullable=True),
         sa.Column("completed_at", sa.DateTime(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
