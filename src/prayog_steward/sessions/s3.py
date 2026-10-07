@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import Engine, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from prayog_steward.audit import Auditor
 from prayog_steward.clock import Clock
@@ -241,13 +242,15 @@ class S3Service:
                 ],
             )
             conn.execute(
-                response_cache.insert().values(
+                pg_insert(response_cache)
+                .values(
                     cache_key=key,
                     user_id=user,
                     attempt_id=attempt.attempt_id,
                     response=json.loads(json.dumps(answer.__dict__, default=str)),
                     created_at=now,
                 )
+                .on_conflict_do_nothing(index_elements=["cache_key"])  # a concurrent twin
             )
         self.auditor.by(
             principal,

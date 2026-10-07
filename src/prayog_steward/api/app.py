@@ -188,7 +188,11 @@ def build_router(steward: Steward) -> APIRouter:
             session.token,
             httponly=True,
             samesite="strict",
-            secure=request.url.scheme == "https",
+            secure=(
+                steward.settings.cookie_secure
+                if steward.settings.cookie_secure is not None
+                else request.url.scheme == "https"
+            ),
             path="/steward",
             max_age=int(steward.settings.s3_session_ttl.total_seconds()),
         )

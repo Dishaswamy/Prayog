@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from prayog_steward.ports import (
     AllocationRecord,
@@ -161,6 +162,24 @@ class FakeLedgerHistory:
         return sorted(mine, key=lambda e: e.at, reverse=True)[:limit]
 
 
+def empty_ports() -> Any:
+    """A ``--ports`` factory made of empty fakes: starts the API and Worker for smoke tests
+    (``python -m prayog_steward.entrypoints api --ports prayog_steward.fakes:empty_ports``)."""
+    from prayog_steward.container import Ports
+
+    return Ports(
+        runs=FakeRunReader(),
+        logs=FakeLogStore(),
+        principals=FakePrincipalResolver(),
+        authorizer=FakeAuthorizer(),
+        attempts=FakeRebuildAttempts(),
+        submissions=FakeSubmissionPort(),
+        audit=FakeAuditSink(),
+        allocations=FakeAllocationHistory(),
+        ledger=FakeLedgerHistory(),
+    )
+
+
 __all__ = [
     "FakeAllocationHistory",
     "FakeAuditSink",
@@ -172,4 +191,5 @@ __all__ = [
     "FakeRebuildAttempts",
     "FakeRunReader",
     "FakeSubmissionPort",
+    "empty_ports",
 ]

@@ -10,7 +10,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class StewardSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="STEWARD_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="STEWARD_", env_file=".env", extra="ignore", env_ignore_empty=True
+    )
 
     database_url: str = "postgresql+psycopg://steward:steward@localhost:5432/prayog"
     # Optional role WITH BYPASSRLS, used only by the retention purge and aggregate health
@@ -20,6 +22,9 @@ class StewardSettings(BaseSettings):
     runtime_timeout_seconds: float = 120.0
     public_base_url: str = "http://localhost:8000"  # where Steward links point (FR-STW-004)
     service_principal_id: str = "svc:steward"  # FR-AUTH-73
+    # Secure flag on the S3 session cookie. None = follow the request scheme; set True
+    # behind a TLS-terminating proxy, where the app itself sees plain http.
+    cookie_secure: bool | None = None
 
     # §16.2 Fault correlation
     correlation_window: timedelta = timedelta(hours=24)  # needs calibration (ADR-S08)

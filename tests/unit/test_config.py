@@ -36,3 +36,14 @@ def test_reads_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     s = StewardSettings(_env_file=None)  # type: ignore[call-arg]
     assert s.search_provider == "tavily"
     assert s.steward_link_ttl.total_seconds() == 600
+
+
+def test_env_example_loads_as_a_working_configuration() -> None:
+    """Copying .env.example to .env must give a valid configuration (empty = default)."""
+    from pathlib import Path
+
+    example = Path(__file__).resolve().parents[2] / ".env.example"
+    s = StewardSettings(_env_file=str(example))  # type: ignore[call-arg]
+    assert s.cookie_secure is None and s.maintenance_database_url is None
+    assert s.embedder == "hashing" and s.search_provider == "none"
+    assert s.steward_link_ttl == timedelta(minutes=15)
