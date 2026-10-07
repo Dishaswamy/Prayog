@@ -10,7 +10,7 @@ from alembic import command
 from alembic.config import Config
 
 ROOT = Path(__file__).resolve().parents[2]
-PRIVATE_TABLES = ["steward_links", "rag_chunks", "s3_messages", "response_cache"]
+RLS_TABLES = ["s3_sessions", "rag_chunks", "s3_messages", "response_cache"]
 
 
 @pytest.fixture(scope="module")
@@ -28,7 +28,7 @@ def test_version_table_lives_in_steward_schema(sql: str) -> None:
     assert "CREATE TABLE steward.alembic_version" in sql
 
 
-@pytest.mark.parametrize("table", PRIVATE_TABLES)
+@pytest.mark.parametrize("table", RLS_TABLES)
 def test_nfr_sec_002_every_private_table_forces_rls_default_deny(sql: str, table: str) -> None:
     assert f"ALTER TABLE steward_private.{table} FORCE ROW LEVEL SECURITY" in sql
     policy = re.search(
@@ -47,6 +47,9 @@ def test_nfr_sec_002_every_private_table_forces_rls_default_deny(sql: str, table
         "failure_events_append_only",
         "fault_evidence_consume_only",  # FR-GPU-163
         "proposals_decide_once",  # FR-GPU-167
+        "hardware_warnings_close_once",  # ST-07
+        "warning_evidence_append_only",
+        "steward_links_keep_owner",
     ],
 )
 def test_append_only_guarantees_are_installed(sql: str, trigger: str) -> None:

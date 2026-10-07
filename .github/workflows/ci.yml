@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       db:
-        image: pgvector/pgvector:pg15
+        image: postgres:15
         env:
           POSTGRES_USER: steward
           POSTGRES_PASSWORD: steward

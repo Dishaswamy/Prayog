@@ -1,63 +1,22 @@
-"""Database-enforced guarantees, against a real PostgreSQL + pgvector.
-
-Needs STEWARD_TEST_DATABASE_URL pointing at a superuser connection to a scratch database.
-The schema is rebuilt for the module, and RLS is exercised through a non-superuser role,
-because superusers bypass row-level security.
-"""
+"""Database-enforced guarantees, exercised as the non-superuser application role."""
 
 from __future__ import annotations
 
-import os
 import uuid
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
-from alembic import command
-from alembic.config import Config
-from sqlalchemy import Connection, Engine, create_engine, text
+from sqlalchemy import Connection, Engine, inspect, text
 from sqlalchemy.exc import DBAPIError
 
-pytestmark = pytest.mark.postgres
-
-ROOT = Path(__file__).resolve().parents[2]
-APP_ROLE = "steward_app_test"
-
-
-@pytest.fixture(scope="module")
-def engine() -> Iterator[Engine]:
-    url = os.environ["STEWARD_TEST_DATABASE_URL"]
-    eng = create_engine(url)
-    with eng.begin() as c:
-        c.execute(text("DROP SCHEMA IF EXISTS steward_private CASCADE"))
-        c.execute(text("DROP SCHEMA IF EXISTS steward CASCADE"))
-    cfg = Config(str(ROOT / "alembic.ini"))
-    cfg.set_main_option("script_location", str(ROOT / "src/prayog_steward/db/migrations"))
-    cfg.set_main_option("sqlalchemy.url", url)
-    command.upgrade(cfg, "head")
-    with eng.begin() as c:
-        c.execute(text(f"DROP ROLE IF EXISTS {APP_ROLE}"))
-        c.execute(text(f"CREATE ROLE {APP_ROLE} NOSUPERUSER NOBYPASSRLS"))
-        c.execute(text(f"GRANT USAGE ON SCHEMA steward, steward_private TO {APP_ROLE}"))
-        c.execute(
-            text(
-                f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "
-                f"steward, steward_private TO {APP_ROLE}"
-            )
-        )
-    yield eng
-    with eng.begin() as c:
-        c.execute(text(f"DROP OWNED BY {APP_ROLE}"))
-        c.execute(text(f"DROP ROLE {APP_ROLE}"))
-    eng.dispose()
+from prayog_steward.db.engine import set_rls_user
+from prayog_steward.db.models import PRIVATE, STEWARD, metadata
 
 
 @pytest.fixture
-def conn(engine: Engine) -> Iterator[Connection]:
-    """A connection acting as the application role, rolled back after each test."""
-    with engine.connect() as c:
+def conn(app_engine: Engine) -> Iterator[Connection]:
+    with app_engine.connect() as c:
         tx = c.begin()
-        c.execute(text(f"SET LOCAL ROLE {APP_ROLE}"))
         yield c
         tx.rollback()
 
@@ -65,16 +24,18 @@ def conn(engine: Engine) -> Iterator[Connection]:
 def _as_user(c: Connection, user_id: str | None) -> None:
     if user_id is None:
         c.execute(text("RESET app.user_id"))
+    elif user_id == "":
+        c.execute(text("SELECT set_config('app.user_id', '', true)"))
     else:
-        c.execute(text("SELECT set_config('app.user_id', :u, true)"), {"u": user_id})
+        set_rls_user(c, user_id)
 
 
 def _insert_message(c: Connection, user_id: str, attempt_id: str) -> None:
     c.execute(
         text(
             "INSERT INTO steward_private.s3_messages"
-            " (message_id, user_id, attempt_id, role, content)"
-            " VALUES (:id, :u, :a, 'user', '{}'::jsonb)"
+            " (message_id, user_id, attempt_id, role, content, created_at)"
+            " VALUES (:id, :u, :a, 'user', '{}'::jsonb, now())"
         ),
         {"id": uuid.uuid4(), "u": user_id, "a": attempt_id},
     )
@@ -82,6 +43,23 @@ def _insert_message(c: Connection, user_id: str, attempt_id: str) -> None:
 
 def _count_messages(c: Connection) -> int:
     return int(c.execute(text("SELECT count(*) FROM steward_private.s3_messages")).scalar_one())
+
+
+def test_models_match_the_migrated_schema(admin_engine: Engine) -> None:
+    """models.py is what queries use; the migration is the DDL of record."""
+    insp = inspect(admin_engine)
+    for table in metadata.sorted_tables:
+        assert table.schema in (STEWARD, PRIVATE)
+        live = {c["name"] for c in insp.get_columns(table.name, schema=table.schema)}
+        assert live == {c.name for c in table.columns}, table.fullname
+
+
+def test_app_role_cannot_bypass_rls(app_engine: Engine) -> None:
+    with app_engine.connect() as c:
+        row = c.execute(
+            text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user")
+        ).one()
+    assert tuple(row) == (False, False)
 
 
 def test_a03_nfr_sec_002_each_user_sees_only_their_rows(conn: Connection) -> None:
@@ -117,43 +95,60 @@ def test_nfr_sec_001_owner_and_attempt_are_immutable(conn: Connection) -> None:
 
 
 def test_nfr_gpu_057_diagnoses_are_append_only(conn: Connection) -> None:
-    did = uuid.uuid4()
     conn.execute(
         text(
-            "INSERT INTO steward.diagnoses (diagnosis_id, run_id, owner_id, outcome, claims,"
-            " matching_earlier_failures, stripped_count, agent_id, agent_version)"
-            " VALUES (:d, 'r1', 'u1', 'ok', '[]', '{}', 0, 'stub', '0')"
+            "INSERT INTO steward.diagnoses (diagnosis_id, run_id, project_id, owner_id, outcome,"
+            " claims, matching_earlier_failures, stripped_count, agent_id, agent_version,"
+            " created_at) VALUES (:d, 'r1', 'p1', 'u1', 'ok', '[]', '{}', 0, 'stub', '0', now())"
         ),
-        {"d": did},
+        {"d": uuid.uuid4()},
     )
     with pytest.raises(DBAPIError):
         conn.execute(text("UPDATE steward.diagnoses SET outcome = 'refused'"))
 
 
-def test_fr_gpu_164_only_one_open_warning_per_unit(conn: Connection) -> None:
-    insert = text(
-        "INSERT INTO steward.hardware_warnings (warning_id, unit_signature, node_id)"
-        " VALUES (:w, 'n1/gpu0', 'n1')"
-    )
-    conn.execute(insert, {"w": uuid.uuid4()})
-    with pytest.raises(DBAPIError):
-        conn.execute(insert, {"w": uuid.uuid4()})
-
-
-def test_fr_gpu_163_closing_a_warning_needs_a_reason(conn: Connection) -> None:
+def _open_warning(conn: Connection, unit: str) -> uuid.UUID:
     wid = uuid.uuid4()
     conn.execute(
         text(
-            "INSERT INTO steward.hardware_warnings (warning_id, unit_signature, node_id)"
-            " VALUES (:w, 'n1/gpu1', 'n1')"
+            "INSERT INTO steward.hardware_warnings (warning_id, unit_signature, node_id, opened_at)"
+            " VALUES (:w, :u, 'n1', now())"
         ),
-        {"w": wid},
+        {"w": wid, "u": unit},
     )
+    return wid
+
+
+def test_fr_gpu_164_only_one_open_warning_per_unit(conn: Connection) -> None:
+    _open_warning(conn, "n1/gpu0")
+    with pytest.raises(DBAPIError):
+        _open_warning(conn, "n1/gpu0")
+
+
+def test_fr_gpu_163_closing_a_warning_needs_a_reason(conn: Connection) -> None:
+    wid = _open_warning(conn, "n1/gpu1")
     with pytest.raises(DBAPIError):
         conn.execute(
             text(
                 "UPDATE steward.hardware_warnings SET state = 'DISMISSED', closed_at = now(),"
                 " closed_by = 'admin' WHERE warning_id = :w"
+            ),
+            {"w": wid},
+        )
+
+
+def test_closed_warning_cannot_be_reopened(conn: Connection) -> None:
+    wid = _open_warning(conn, "n1/gpu2")
+    close = text(
+        "UPDATE steward.hardware_warnings SET state = :s, closed_at = now(), closed_by = 'admin',"
+        " close_reason = 'checked' WHERE warning_id = :w"
+    )
+    conn.execute(close, {"s": "DISMISSED", "w": wid})
+    with pytest.raises(DBAPIError):
+        conn.execute(
+            text(
+                "UPDATE steward.hardware_warnings SET state = 'OPEN', closed_at = NULL"
+                " WHERE warning_id = :w"
             ),
             {"w": wid},
         )

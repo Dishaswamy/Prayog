@@ -1,7 +1,7 @@
 # Local development stack. The Steward API and Runtime services are added in Phase 2.
 services:
   db:
-    image: pgvector/pgvector:pg15
+    image: postgres:15
     environment:
       POSTGRES_USER: steward
       POSTGRES_PASSWORD: steward
