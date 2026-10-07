@@ -1,7 +1,8 @@
 """HTTP face of the Runtime: ``POST /invoke``. Run with ``uvicorn steward_runtime.app:app``.
 
 Configured from the environment only, since it may not import server code (ADR-S01):
-``STEWARD_REASONING`` (stub | claude), ``STEWARD_MODEL``, ``STEWARD_EFFORT``.
+``STEWARD_REASONING`` (claude | heuristic | stub), ``STEWARD_MODEL``, ``STEWARD_EFFORT``,
+``ANTHROPIC_API_KEY``.
 """
 
 from __future__ import annotations
@@ -27,6 +28,10 @@ def build_reasoning() -> ReasoningPort:
             model=os.environ.get("STEWARD_MODEL", "claude-opus-5-5"),
             effort=effort,  # type: ignore[arg-type]  # checked against Effort above
         )
+    if os.environ.get("STEWARD_REASONING") == "heuristic":
+        from steward_runtime.heuristic import HeuristicReasoning
+
+        return HeuristicReasoning()
     return StubReasoning()
 
 

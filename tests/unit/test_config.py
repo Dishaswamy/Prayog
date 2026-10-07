@@ -31,7 +31,8 @@ def test_section_16_7_invariants_are_enforced(override: dict[str, object]) -> No
 
 
 def test_reads_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("STEWARD_REASONING", "claude")
-    monkeypatch.setenv("STEWARD_EFFORT", "high")
+    monkeypatch.setenv("STEWARD_SEARCH_PROVIDER", "tavily")
+    monkeypatch.setenv("STEWARD_STEWARD_LINK_TTL", "PT10M")
     s = StewardSettings(_env_file=None)  # type: ignore[call-arg]
-    assert (s.reasoning, s.effort) == ("claude", "high")
+    assert s.search_provider == "tavily"
+    assert s.steward_link_ttl.total_seconds() == 600

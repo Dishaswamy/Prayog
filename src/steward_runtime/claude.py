@@ -19,6 +19,12 @@ AGENT_ID = "prayog-steward"
 _FALLBACK_BETA = "server-side-fallback-2026-07-01"
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 
+# Structured-output formats, built once with the SDK's own schema transform.
+_FORMATS: dict[Any, Any] = {
+    ctx: {"type": "json_schema", "schema": anthropic.transform_schema(t.model_json_schema())}
+    for ctx, t in RESULT_TYPES.items()
+}
+
 
 class ClaudeReasoning:
     def __init__(
@@ -67,8 +73,11 @@ class ClaudeReasoning:
                 "extra_headers": {"anthropic-beta": _FALLBACK_BETA},
                 "extra_body": {"fallbacks": "default"},
             }
+        result_type = RESULT_TYPES[ctx]
         try:
-            message = self._client.messages.parse(
+            # messages.create (not .parse): a refusal must be recognised from stop_reason
+            # before anything tries to parse the (empty) text.
+            message = self._client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 # Frozen per-context prompt, cached across invocations.
@@ -85,8 +94,7 @@ class ClaudeReasoning:
                         "content": render_case(request.payload.model_dump_json(indent=1)),
                     }
                 ],
-                output_format=RESULT_TYPES[ctx],
-                output_config={"effort": self.effort},
+                output_config={"effort": self.effort, "format": _FORMATS[ctx]},
                 **extra,
             )
         except (
@@ -96,18 +104,20 @@ class ClaudeReasoning:
         ) as exc:
             return self._response(request, InvokeOutcome.UNAVAILABLE, detail=type(exc).__name__)
         except anthropic.APIStatusError as exc:
-            # 4xx other than rate limits: our request is wrong. Never retried as "down".
+            # Other API errors (e.g. overloaded 529, bad request 400): never retried as data.
             return self._response(
                 request, InvokeOutcome.UNAVAILABLE, detail=f"api status {exc.status_code}"
             )
-        except ValidationError:
-            return self._response(request, InvokeOutcome.MALFORMED, detail="output failed schema")
 
         if message.stop_reason == "refusal":
             return self._response(request, InvokeOutcome.REFUSED, detail="model refusal")
         if message.stop_reason == "max_tokens":
             return self._response(request, InvokeOutcome.MALFORMED, detail="output truncated")
-        parsed = message.parsed_output
-        if parsed is None:
-            return self._response(request, InvokeOutcome.MALFORMED, detail="no parsed output")
+        text = next((b.text for b in message.content if b.type == "text"), None)
+        if not text:
+            return self._response(request, InvokeOutcome.MALFORMED, detail="no text output")
+        try:
+            parsed = result_type.model_validate_json(text)
+        except ValidationError:
+            return self._response(request, InvokeOutcome.MALFORMED, detail="output failed schema")
         return self._response(request, InvokeOutcome.OK, result=parsed.model_dump(mode="json"))

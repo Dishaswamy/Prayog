@@ -21,7 +21,13 @@ Read `docs/CONTEXT.md` before changing behaviour. It holds the Steward requireme
 ## Commands
 
 ```bash
-python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # Windows; use .venv/bin on Linux/macOS
+python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # Windows; .venv/bin elsewhere
+python tools/dev_postgres.py start                                 # local PostgreSQL, no Docker
+export STEWARD_TEST_DATABASE_URL=$(python tools/dev_postgres.py url)
 .venv/Scripts/python -m pytest
 .venv/Scripts/ruff check . && .venv/Scripts/mypy && .venv/Scripts/lint-imports
+.venv/Scripts/python tools/check_trace.py
+.venv/Scripts/python tools/demo.py        # http://127.0.0.1:8000/demo
 ```
+
+Integration with the other sub-teams is described in `docs/INTEGRATION.md`; keep it current when ports or entry points change.

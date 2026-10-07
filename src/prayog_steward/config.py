@@ -43,10 +43,8 @@ class StewardSettings(BaseSettings):
     search_timeout_seconds: float = 8.0
     search_max_results: int = 3
 
-    # Reasoning (ADR-S02) and search (ADR-S06)
-    reasoning: Literal["stub", "claude"] = "stub"
-    model: str = "claude-opus-5-5"
-    effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+    # Web search (ADR-S06). The model, effort and API key are the Runtime's settings,
+    # read by that process (steward_runtime.app), never by the server.
     search_provider: Literal["none", "tavily", "brave"] = "none"
 
     # Coordinator retries (NFR-GPU-055: the Steward being down never blocks anything)

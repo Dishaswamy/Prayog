@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steward demo</title>
+<link rel="stylesheet" href="/steward/ui/style.css">
+<script src="/demo/demo.js" defer></script>
+</head>
+<body>
+<header class="bar"><div><h1>Steward demo</h1>
+<p class="sub">Signed in as <strong id="who">{{who}}</strong> · development only</p></div>
+<div class="meta">
+  <a href="/demo/login/alice">alice</a> · <a href="/demo/login/bob">bob</a> ·
+  <a href="/demo/login/root">root (admin)</a></div>
+</header>
+<main>
+  <section class="turn">
+    <p class="q">1 · A run fails (live-demo scenario 3)</p>
+    <p class="muted">Seals a failed run for alice. The worker diagnoses it with cited evidence and
+      may propose a fix that alice must approve.</p>
+    <button data-post="/demo/failed-run">Fail a run</button>
+    <button data-get="/steward/proposals" class="ghost">alice's proposals</button>
+    <button data-approve class="ghost">Approve first pending proposal</button>
+  </section>
+  <section class="turn">
+    <p class="q">2 · Failures from two labs on one GPU (scenario 4)</p>
+    <p class="muted">The server raises a hardware warning at the threshold; Steward's correlation
+      is attached as advice. Sign in as root to review it.</p>
+    <button data-post="/demo/hardware">Fail runs on one GPU</button>
+    <button data-get="/steward/admin/warnings" class="ghost">Admin: warnings</button>
+    <button data-get="/steward/admin/health" class="ghost">Admin: health</button>
+  </section>
+  <section class="turn">
+    <p class="q">3 · A rebuild fails (S3), a rebuild succeeds (S4)</p>
+    <p class="muted">Creates a failed rebuild attempt and the single-use link the CLI would print.
+      Open it as alice; try it as bob to see the identity check.</p>
+    <button data-post="/demo/rebuild">Fail a rebuild</button>
+    <p id="link"></p>
+    <button data-optimize class="ghost">Optimize the successful attempt</button>
+  </section>
+  <section class="turn">
+    <p class="q">Audit log (latest)</p>
+    <button data-get="/demo/audit" class="ghost">Show audit records</button>
+  </section>
+  <pre id="out">Pick a user above, then try a scenario.</pre>
+</main>
+</body>
+</html>

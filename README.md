@@ -1,45 +1,62 @@
 # prayog-steward
 
-The **Steward**, Prayog's AI agent (CS455 Group 3). One subsystem, four invocation contexts (Integrated Spec ID-05):
+The **Steward**, Prayog's AI agent (CS455 Group 3). One subsystem with four invocation contexts (Integrated Spec ID-05), all governed by one rule: **the Steward reads and reasons; it never writes.** The server writes every record, after validating what the model said.
 
-| Context | Trigger | Output |
+| Context | Trigger | What happens |
 |---|---|---|
-| **S1** Run-failure diagnosis | A run ends `FAILED` | Cited diagnosis for the owner, a separate hardware finding for the admin, and an optional corrected job that needs the owner's approval |
-| **S2** Fault correlation | The server sees failures from ≥ 2 users on one unit within 24 h | Advisory judgement attached to a hardware warning |
-| **S3** Rebuild diagnosis | A `--rebuild` attempt reaches `REBUILD_FAILED` | Interactive diagnosis over a user-isolated RAG pipeline, opened by a single-use link |
-| **S4** Optimisation advisory | `prayog steward optimize` on a `REBUILD_SUCCESS` attempt | Advisory architecture and hyperparameter suggestions |
+| **S1** Run-failure diagnosis | A run is sealed `FAILED` | The Worker builds sanitised, scoped input and calls the model. It stores a diagnosis whose uncited claims are stripped, an enum-only hardware finding for the admin, and optionally a bounded corrected-job proposal. The owner sees the exact diff and GPU-hours and approves through ordinary submission. |
+| **S2** Fault correlation | ≥ 2 users fail on one GPU within 24 h | The **server** raises the warning deterministically. The model's correlation over a metadata-only bundle is attached as advice. Only an admin closes it, with a reason. |
+| **S3** Rebuild diagnosis | A `--rebuild` attempt ends `REBUILD_FAILED` | The CLI prints a single-use, 15-minute link. The browser session's answers come from the user's own records only (row-level security, partitioned by attempt), plus allow-listed web search. Steps are text only, never executed. |
+| **S4** Optimisation advisory | `prayog steward optimize` on `REBUILD_SUCCESS` | Advisory suggestions from the run's metrics and the user's own history. |
 
-Governing principle: **the Steward reads and reasons; it never writes.** The server writes every record.
+## Try it in two minutes
+
+```bash
+python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # .venv/bin on Linux/macOS
+python tools/dev_postgres.py start      # throwaway PostgreSQL from your installed binaries
+python tools/demo.py                    # rule-based reasoning; add --claude for the real model
+```
+
+Open <http://127.0.0.1:8000/demo>. It runs the live-demo scenarios: a failed run diagnosed with an approvable fix, a hardware warning from two labs, and a failed rebuild opening the interactive session. With Docker: `docker compose up --build`.
 
 ## Layout
 
 ```
-src/steward_contracts/   Pydantic contracts shared by server and runtime (inputs, results, claims)
-src/prayog_steward/      server side: coordinator, gateway, evidence, warnings, sessions, rag, search, api, db
-src/steward_runtime/     the reasoning adapter (ClaudeReasoning, StubReasoning); no DB access
-docs/                    CONTEXT.md (requirements), decisions/ (ADR-S01…), traceability.md
-tests/                   unit/ integration/ security/ acceptance/ eval/
+src/steward_contracts/    Pydantic contracts shared by server and runtime (leaf package)
+src/prayog_steward/       server side, the only writer
+  hooks.py                on_run_sealed: called inside the platform's seal transaction
+  coordinator/            task outbox, S1/S2 processing, validation, bounded proposals
+  gateway.py              scoped, sanitised model input (the only path from data to model)
+  hardware.py             warning threshold, lifecycle, admin view
+  owner.py                diagnoses and proposal approval
+  sessions/               S3 links and sessions, isolated RAG context, S3 chat, S4 optimize
+  rag/                    sanitiser, embeddings, chunking
+  api/                    FastAPI router, standalone app, static S3 UI
+  cli.py                  `prayog steward ...` Typer sub-app
+  retention.py            purge on deactivation and after the retention period
+  db/                     tables and Alembic migrations (RLS, append-only triggers)
+src/steward_runtime/      the model adapters: ClaudeReasoning, HeuristicReasoning, StubReasoning
+docs/                     CONTEXT.md, INTEGRATION.md, decisions/ADR-S01…S09, traceability.md
+tools/                    dev_postgres.py, demo.py, evaluate.py, check_trace.py
+eval/                     S1 evaluation cases (seed set is synthetic)
+tests/                    unit/ (offline) and integration/ (real PostgreSQL, real RLS)
 ```
 
-## Getting started
+## Development
 
 ```bash
-python -m venv .venv
-.venv/Scripts/pip install -e ".[dev]"     # .venv/bin/pip on Linux/macOS
-.venv/Scripts/python -m pytest            # offline, uses StubReasoning
+python tools/dev_postgres.py start
+export STEWARD_TEST_DATABASE_URL=$(python tools/dev_postgres.py url)
+python -m pytest                    # without the variable, database tests are skipped
+ruff check . && mypy && lint-imports && python tools/check_trace.py
+python tools/evaluate.py [--claude]
 ```
 
-Tests marked `postgres` need PostgreSQL 15 + pgvector. Start it with `docker compose up -d db` and set `STEWARD_TEST_DATABASE_URL`. CI runs them against a service container.
+CI runs all of the above against PostgreSQL 15 on every push and PR.
 
-## Status
+## Documents
 
-| Phase | Scope | State |
-|---|---|---|
-| 0 | Bootstrap: docs, tooling, CI | done |
-| 1 | Contracts, ports + fakes, reasoning port, DB schema | done (Postgres tests run in CI) |
-| 2 | S1 end to end | — |
-| 3 | S2 and hardware warnings | — |
-| 4 | Sanitiser, RAG foundation, links | — |
-| 5 | S3 interactive diagnosis and web UI | — |
-| 6 | S4 optimize | — |
-| 7 | Hardening, retention, evaluation | — |
+- [docs/INTEGRATION.md](docs/INTEGRATION.md): what the other sub-teams implement and call. **Start here to merge.**
+- [docs/CONTEXT.md](docs/CONTEXT.md): the requirements this subsystem implements.
+- [docs/decisions/](docs/decisions/): how the spec's gaps were resolved (ADR-S01…S09).
+- [docs/traceability.md](docs/traceability.md): requirement → code → test.

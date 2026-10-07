@@ -21,7 +21,7 @@ class FakeMessages:
         self.reply, self.error = reply, error
         self.kwargs: dict[str, Any] = {}
 
-    def parse(self, **kwargs: Any) -> Any:
+    def create(self, **kwargs: Any) -> Any:
         self.kwargs = kwargs
         if self.error is not None:
             raise self.error
@@ -33,7 +33,10 @@ def _claude(messages: FakeMessages) -> ClaudeReasoning:
 
 
 def _reply(stop_reason: str, parsed: Any) -> SimpleNamespace:
-    return SimpleNamespace(stop_reason=stop_reason, parsed_output=parsed)
+    text = parsed.model_dump_json() if parsed is not None else ""
+    return SimpleNamespace(
+        stop_reason=stop_reason, content=[SimpleNamespace(type="text", text=text)]
+    )
 
 
 def test_ok_reply_becomes_contract_dict_with_versioned_agent() -> None:
@@ -45,7 +48,7 @@ def test_ok_reply_becomes_contract_dict_with_versioned_agent() -> None:
     assert response.outcome is InvokeOutcome.OK
     assert response.result == parsed.model_dump(mode="json")
     assert PROMPT_VERSION in response.agent_version  # stored with the diagnosis (FR-GPU-160)
-    assert messages.kwargs["output_format"] is S1Result
+    assert messages.kwargs["output_config"]["format"]["type"] == "json_schema"
     assert messages.kwargs["model"] == "claude-opus-5-5"
 
 
