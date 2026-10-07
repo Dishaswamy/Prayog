@@ -1,0 +1,37 @@
+from datetime import timedelta
+
+import pytest
+from pydantic import ValidationError
+
+from prayog_steward.config import StewardSettings
+
+
+def test_defaults_match_integrated_spec_section_16() -> None:
+    s = StewardSettings(_env_file=None)  # type: ignore[call-arg]
+    assert s.correlation_window == timedelta(hours=24)
+    assert s.min_distinct_users_for_warning == 2
+    assert s.warning_cooldown == timedelta(hours=24)
+    assert s.max_evidence_bundle_rows == 50
+    assert s.steward_link_ttl == timedelta(minutes=15)
+    assert s.rag_retention_period == timedelta(days=90)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"steward_link_ttl": timedelta(0)},
+        {"rag_retention_period": timedelta(0)},
+        {"min_distinct_users_for_warning": 1},
+        {"max_evidence_bundle_rows": 1},
+    ],
+)
+def test_section_16_7_invariants_are_enforced(override: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        StewardSettings(_env_file=None, **override)  # type: ignore[call-arg]
+
+
+def test_reads_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STEWARD_REASONING", "claude")
+    monkeypatch.setenv("STEWARD_EFFORT", "high")
+    s = StewardSettings(_env_file=None)  # type: ignore[call-arg]
+    assert (s.reasoning, s.effort) == ("claude", "high")

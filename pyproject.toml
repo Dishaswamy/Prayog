@@ -1,0 +1,91 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "prayog-steward"
+version = "0.1.0"
+description = "Steward AI subsystem for Prayog (CS455 Group 3): contexts S1-S4"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "fastapi>=0.115",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "httpx>=0.27",
+    "typer>=0.12",
+    "anthropic>=0.70",
+]
+
+[project.optional-dependencies]
+# Local embeddings for the RAG pipeline (ADR-S06). Heavy (pulls torch), so opt-in.
+rag = ["sentence-transformers>=3.0"]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "import-linter>=2.0",
+    "uvicorn>=0.30",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/steward_contracts", "src/prayog_steward", "src/steward_runtime"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "postgres: needs a PostgreSQL + pgvector database (STEWARD_TEST_DATABASE_URL)",
+    "live_llm: calls the real Claude API (needs ANTHROPIC_API_KEY); never run in CI",
+]
+addopts = "-m 'not live_llm'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["steward_contracts", "prayog_steward", "steward_runtime", "factories"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["steward_contracts", "prayog_steward", "steward_runtime"]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*", "sentence_transformers.*"]
+ignore_missing_imports = true
+
+# SADD §11.1 import rules, enforced in CI with `lint-imports`.
+[tool.importlinter]
+root_packages = ["steward_contracts", "prayog_steward", "steward_runtime"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Runtime imports no server code and holds no write path (SADD rule 5, ADR-S01)"
+type = "forbidden"
+source_modules = ["steward_runtime"]
+forbidden_modules = ["prayog_steward", "sqlalchemy", "psycopg", "alembic"]
+
+[[tool.importlinter.contracts]]
+name = "Contracts are a leaf: shared by server and runtime, import neither"
+type = "forbidden"
+source_modules = ["steward_contracts"]
+forbidden_modules = ["prayog_steward", "steward_runtime"]
+
+[[tool.importlinter.contracts]]
+name = "Server code never imports the runtime; it talks to it over the ReasoningPort"
+type = "forbidden"
+source_modules = ["prayog_steward"]
+forbidden_modules = ["steward_runtime"]
