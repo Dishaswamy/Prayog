@@ -60,3 +60,4 @@ CI runs all of the above against PostgreSQL 15 on every push and PR.
 - [docs/CONTEXT.md](docs/CONTEXT.md): the requirements this subsystem implements.
 - [docs/decisions/](docs/decisions/): how the spec's gaps were resolved (ADR-S01…S09).
 - [docs/traceability.md](docs/traceability.md): requirement → code → test.
+- [docs/STATUS.md](docs/STATUS.md): what is built, what was verified and how, what is left.
