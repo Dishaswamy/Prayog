@@ -86,11 +86,20 @@ class TelemetryView:
     summary: dict[str, float]  # e.g. peak_memory_gb, mean_util_pct; numbers only
 
 
+PLATFORM_ADMIN = "platform_admin"  # role name; the access sub-team owns the vocabulary (ID-01)
+
+
 @dataclass(frozen=True)
 class Principal:
     principal_id: str
     kind: PrincipalKind
     lab: str | None = None
+    roles: frozenset[str] = frozenset()
+    session_id: str | None = None  # the authenticated session this request belongs to
+
+    @property
+    def is_platform_admin(self) -> bool:
+        return self.kind is PrincipalKind.USER and PLATFORM_ADMIN in self.roles
 
 
 @dataclass(frozen=True)
@@ -111,6 +120,7 @@ class SubmissionRequest:
     job_spec: JobSpec
     parent_run_id: str
     approving_user: str
+    idempotency_key: str  # the proposal ID: a retried approval never queues twice
 
 
 @dataclass(frozen=True)
@@ -192,6 +202,15 @@ class Authorizer(Protocol):
 
     def may_submit(self, user_id: str, project_id: str) -> bool:
         """DEP-03 submit predicate (open; owned by the ledger sub-team)."""
+        ...
+
+    def may_read_project(self, user_id: str, project_id: str) -> bool:
+        """Owner, or the Professor supervising the owner (FR-AUTH-63, ID-07). Never a
+        Platform Admin by virtue of the role (NFR-AUTH-18)."""
+        ...
+
+    def session_active(self, session_id: str) -> bool:
+        """False after logout or revocation (ID-12). Binds Steward links to a live session."""
         ...
 
 

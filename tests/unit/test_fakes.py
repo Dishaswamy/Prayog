@@ -33,7 +33,9 @@ def test_requested_gpu_hours_is_gpus_times_walltime() -> None:
 def test_submission_port_can_simulate_rejection() -> None:
     port = FakeSubmissionPort(reject_reason="quota exceeded")
     spec = JobSpec("python t.py", (), gpu_count=1, walltime_minutes=10, image_digest="d")
-    receipt = port.submit(SubmissionRequest("p1", spec, parent_run_id="r1", approving_user="u1"))
+    receipt = port.submit(
+        SubmissionRequest("p1", spec, parent_run_id="r1", approving_user="u1", idempotency_key="k")
+    )
     assert not receipt.accepted
     assert receipt.reason == "quota exceeded"
     assert port.submitted == []

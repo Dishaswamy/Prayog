@@ -52,6 +52,10 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# Sample logs and SQL in tests are realistic, not wrapped.
+"tests/**" = ["E501"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["steward_contracts", "prayog_steward", "steward_runtime", "factories"]
 

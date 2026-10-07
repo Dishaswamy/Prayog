@@ -52,8 +52,17 @@ def init() -> None:
     if (DATA / "PG_VERSION").exists():
         return
     DATA.mkdir(exist_ok=True)
-    _run(_bin("initdb"), "-D", str(DATA), "-U", "postgres", "--auth=trust", "-E", "UTF8",
-         "--locale=C")
+    _run(
+        _bin("initdb"),
+        "-D",
+        str(DATA),
+        "-U",
+        "postgres",
+        "--auth=trust",
+        "-E",
+        "UTF8",
+        "--locale=C",
+    )
     with open(DATA / "postgresql.conf", "a", encoding="utf-8") as conf:
         conf.write(f"\nport = {PORT}\nlisten_addresses = '127.0.0.1'\n")
 
@@ -74,7 +83,14 @@ def start() -> None:
             stderr=subprocess.DEVNULL,
         )
     created = _run(
-        _bin("psql"), "-h", "127.0.0.1", "-p", str(PORT), "-U", "postgres", "-tAc",
+        _bin("psql"),
+        "-h",
+        "127.0.0.1",
+        "-p",
+        str(PORT),
+        "-U",
+        "postgres",
+        "-tAc",
         f"SELECT 1 FROM pg_database WHERE datname = '{DB}'",
     )
     if created.stdout.strip() != "1":

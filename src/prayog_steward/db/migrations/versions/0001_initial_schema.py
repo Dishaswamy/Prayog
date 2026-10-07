@@ -9,7 +9,8 @@ Raw SQL on purpose: the guarantees live in the database, not in application code
 - Append-only failure events, diagnoses and findings (NFR-GPU-057, FR-GPU-160).
 - Evidence rows can only gain ``consumed_at``, once (FR-GPU-163).
 - A proposal is decided once and its content never changes; proposals are retained (FR-GPU-167).
-- One OPEN warning per unit signature (FR-GPU-164); closing needs an actor and a reason (FR-GPU-163).
+- One OPEN warning per unit signature (FR-GPU-164); closing needs an actor and a reason
+  (FR-GPU-163).
 - RLS default-deny on every private table that holds diagnostic context (NFR-SEC-002, 004).
   With no ``app.user_id`` set, ``current_setting(..., true)`` is NULL or '' and no row
   matches (``user_id <> ''`` is a CHECK). ``user_id``/``attempt_id`` are immutable

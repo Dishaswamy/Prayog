@@ -13,7 +13,13 @@ class StewardSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="STEWARD_", env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://steward:steward@localhost:5432/prayog"
+    # Optional role WITH BYPASSRLS, used only by the retention purge and aggregate health
+    # counts (NFR-SEC-008, FR-ML-005). Never used on a request path.
+    maintenance_database_url: str | None = None
     runtime_url: str = "http://localhost:8100"
+    runtime_timeout_seconds: float = 120.0
+    public_base_url: str = "http://localhost:8000"  # where Steward links point (FR-STW-004)
+    service_principal_id: str = "svc:steward"  # FR-AUTH-73
 
     # §16.2 Fault correlation
     correlation_window: timedelta = timedelta(hours=24)  # needs calibration (ADR-S08)
@@ -24,6 +30,18 @@ class StewardSettings(BaseSettings):
     # §16.4 Steward and ledger
     steward_link_ttl: timedelta = timedelta(minutes=15)
     rag_retention_period: timedelta = timedelta(days=90)
+    s3_session_ttl: timedelta = timedelta(minutes=60)  # interactive session after the link
+
+    # RAG pipeline (ADR-S06, ADR-S09)
+    embedder: str = "hashing"  # or "st:BAAI/bge-small-en-v1.5" with the [rag] extra
+    rag_top_k: int = 6
+    rag_max_candidates: int = 2_000
+    rag_chunk_chars: int = 800
+    ledger_entries_limit: int = 50
+    s3_history_turns: int = 6
+    search_api_key: str | None = None
+    search_timeout_seconds: float = 8.0
+    search_max_results: int = 3
 
     # Reasoning (ADR-S02) and search (ADR-S06)
     reasoning: Literal["stub", "claude"] = "stub"
@@ -34,6 +52,12 @@ class StewardSettings(BaseSettings):
     # Coordinator retries (NFR-GPU-055: the Steward being down never blocks anything)
     task_max_attempts: int = 5
     task_backoff_base: timedelta = timedelta(seconds=30)
+    task_lease: timedelta = timedelta(minutes=5)  # a crashed worker's task is retried after this
+    worker_poll_seconds: float = 2.0
+
+    # Proposal bounds the server enforces whatever the model says (ADR-S04)
+    max_gpu_count: int = 8
+    max_walltime_minutes: int = 48 * 60  # L4: guests may hold a node for at most 48 h
 
     # S1 input bounds: keep the prompt small and the bundle predictable
     earlier_runs_limit: int = 10
@@ -54,4 +78,6 @@ class StewardSettings(BaseSettings):
             raise ValueError("correlation_window must be > 0 and warning_cooldown >= 0")
         if self.max_evidence_bundle_rows < self.min_distinct_users_for_warning:
             raise ValueError("max_evidence_bundle_rows must hold at least the threshold rows")
+        if self.s3_session_ttl <= timedelta(0) or self.task_lease <= timedelta(0):
+            raise ValueError("s3_session_ttl and task_lease must be > 0")
         return self

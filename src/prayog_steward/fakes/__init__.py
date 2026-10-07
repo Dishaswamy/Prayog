@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from prayog_steward.ports import (
     AllocationRecord,
@@ -64,9 +64,22 @@ class FakePrincipalResolver:
 
 
 @dataclass
+class FakeClock:
+    current: datetime = field(default_factory=lambda: datetime(2026, 10, 1, 12, tzinfo=UTC))
+
+    def now(self) -> datetime:
+        return self.current
+
+    def advance(self, delta: timedelta) -> None:
+        self.current += delta
+
+
+@dataclass
 class FakeAuthorizer:
     inactive_users: set[str] = field(default_factory=set)
     project_owners: dict[str, str] = field(default_factory=dict)  # project_id -> owner
+    supervisors: dict[str, set[str]] = field(default_factory=dict)  # professor -> students
+    ended_sessions: set[str] = field(default_factory=set)
 
     def authorization_active(self, user_id: str) -> bool:
         return user_id not in self.inactive_users
@@ -74,6 +87,13 @@ class FakeAuthorizer:
     def may_submit(self, user_id: str, project_id: str) -> bool:
         # DEP-03 is open; the baseline is "the owner may submit".
         return self.project_owners.get(project_id) == user_id
+
+    def may_read_project(self, user_id: str, project_id: str) -> bool:
+        owner = self.project_owners.get(project_id)
+        return owner == user_id or owner in self.supervisors.get(user_id, set())
+
+    def session_active(self, session_id: str) -> bool:
+        return session_id not in self.ended_sessions
 
 
 @dataclass
@@ -91,12 +111,17 @@ class FakeRebuildAttempts:
 class FakeSubmissionPort:
     submitted: list[SubmissionRequest] = field(default_factory=list)
     reject_reason: str | None = None  # set to simulate quota or validation failure
+    by_key: dict[str, str] = field(default_factory=dict)
 
     def submit(self, request: SubmissionRequest) -> SubmissionReceipt:
         if self.reject_reason is not None:
             return SubmissionReceipt(accepted=False, reason=self.reject_reason)
+        if request.idempotency_key in self.by_key:  # a retried approval
+            return SubmissionReceipt(accepted=True, job_id=self.by_key[request.idempotency_key])
         self.submitted.append(request)
-        return SubmissionReceipt(accepted=True, job_id=f"job-{len(self.submitted)}")
+        job_id = f"job-{len(self.submitted)}"
+        self.by_key[request.idempotency_key] = job_id
+        return SubmissionReceipt(accepted=True, job_id=job_id)
 
 
 @dataclass
@@ -140,6 +165,7 @@ __all__ = [
     "FakeAllocationHistory",
     "FakeAuditSink",
     "FakeAuthorizer",
+    "FakeClock",
     "FakeLedgerHistory",
     "FakeLogStore",
     "FakePrincipalResolver",
