@@ -3,39 +3,27 @@ import sys
 
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
-from sqlalchemy.engine import URL
 from alembic import context
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+# Make the backend folder importable (models.py, database.py)
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(BACKEND_DIR)
 
-from models import Base
-
-ENV_FILE = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../.env")
-)
-
+# Load .env BEFORE importing database.py (it reads env vars at import time)
+ENV_FILE = os.path.abspath(os.path.join(BACKEND_DIR, "../.env"))
 load_dotenv(ENV_FILE)
 
-print("ENV FILE:", ENV_FILE)
-print("POSTGRES_HOST:", os.getenv("POSTGRES_HOST"))
-print("POSTGRES_PORT:", os.getenv("POSTGRES_PORT"))
+from database import DATABASE_URL  # noqa: E402  same URL the app uses
+from models import Base             # noqa: E402  imports all models
 
 config = context.config
-
-DATABASE_URL = URL.create(
-    drivername="postgresql",
-    username=os.getenv("POSTGRES_USER"),
-    password=os.getenv("POSTGRES_PASSWORD"),
-    host=os.getenv("POSTGRES_HOST"),
-    port=int(os.getenv("POSTGRES_PORT")),
-    database=os.getenv("POSTGRES_DB"),
+config.set_main_option(
+    "sqlalchemy.url",
+    DATABASE_URL.render_as_string(hide_password=False).replace("%", "%%"),
 )
 
-url_str = DATABASE_URL.render_as_string(hide_password=False)
-config.set_main_option("sqlalchemy.url", url_str.replace("%", "%%"))
-
 target_metadata = Base.metadata
-print("TABLES:", Base.metadata.tables.keys())
+
 
 def run_migrations_offline():
     context.configure(
@@ -43,6 +31,7 @@ def run_migrations_offline():
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_server_default=True,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -55,7 +44,11 @@ def run_migrations_online():
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_server_default=True,   # detect changed defaults (e.g. UTC timestamps)
+        )
         with context.begin_transaction():
             context.run_migrations()
 

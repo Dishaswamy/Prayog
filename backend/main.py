@@ -1,82 +1,49 @@
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
-from models import User
-from logic.dependencies import get_current_user
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
-from database import get_db
-from schemas.auth import UserRegister, UserLogin
-from logic.auth import (
-    register_user,
-    authenticate_user,
-    create_access_token,
+from database import engine
+from logic.errors import AppError
+from routers.access_requests import router as access_requests_router
+from routers.auth import router as auth_router
+from routers.professors import router as professors_router
+
+
+# Tables are created/changed ONLY by Alembic:  alembic upgrade head
+app = FastAPI(title="Prayog API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # your frontend URL(s)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
-app = FastAPI()
+# Every AppError raised in logic/ becomes a proper HTTP response here,
+# so routes don't need try/except blocks.
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    return JSONResponse(status_code=exc.status_code, content={"detail": str(exc)})
+
+
+app.include_router(auth_router)
+app.include_router(professors_router)
+app.include_router(access_requests_router)
 
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
-
-
-@app.post("/auth/register")
-def register(
-    user: UserRegister,
-    db: Session = Depends(get_db),
-):
+    # Checks the API is up AND Postgres is reachable
     try:
-        new_user = register_user(
-            db=db,
-            email=user.email,
-            password=user.password,
-            role=user.role,
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "database": "unreachable"},
         )
-
-        return {
-            "message": "User registered successfully",
-            "user_id": new_user.user_id,
-            "email": new_user.email,
-            "role": new_user.role,
-        }
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e),
-        )
-
-
-@app.post("/auth/login")
-def login(
-    user: UserLogin,
-    db: Session = Depends(get_db),
-):
-    authenticated_user = authenticate_user(
-        db=db,
-        email=user.email,
-        password=user.password,
-    )
-
-    if not authenticated_user:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password",
-        )
-
-    access_token = create_access_token(authenticated_user)
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
-
-@app.get("/auth/me")
-def get_me(
-    current_user: User = Depends(get_current_user),
-):
-    return {
-        "user_id": current_user.user_id,
-        "email": current_user.email,
-        "role": current_user.role,
-    }
+    return {"status": "ok", "database": "ok"}

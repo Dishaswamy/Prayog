@@ -1,13 +1,11 @@
 import jwt
-
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from models import User
-from logic.auth import SECRET_KEY, ALGORITHM
 from database import get_db
-
+from logic.auth import ALGORITHM, SECRET_KEY
+from models import User
 
 security = HTTPBearer()
 
@@ -15,42 +13,26 @@ security = HTTPBearer()
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
-):
-    token = credentials.credentials
-
+) -> User:
     try:
         payload = jwt.decode(
-            token,
+            credentials.credentials,
             SECRET_KEY,
             algorithms=[ALGORITHM],
         )
-
-        user_id = payload.get("sub")
-
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-
+        user_id = int(payload["sub"])
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired",
         )
-
-    except jwt.InvalidTokenError:
+    except (jwt.InvalidTokenError, KeyError, ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
         )
 
-    user = (
-        db.query(User)
-        .filter(User.id == int(user_id))
-        .first()
-    )
-
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,3 +40,19 @@ def get_current_user(
         )
 
     return user
+
+
+def require_roles(*roles: str):
+    """
+    Route guard. Usage:
+        current_user: User = Depends(require_roles("ADMIN"))
+    """
+    def checker(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires role: {', '.join(roles)}",
+            )
+        return current_user
+
+    return checker

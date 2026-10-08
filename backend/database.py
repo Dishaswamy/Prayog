@@ -1,30 +1,40 @@
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
+from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
 
-DATABASE_URL = (
-    f"postgresql://{os.getenv('POSTGRES_USER')}:"
-    f"{os.getenv('POSTGRES_PASSWORD')}@"
-    f"{os.getenv('POSTGRES_HOST')}:"
-    f"{os.getenv('POSTGRES_PORT')}/"
-    f"{os.getenv('POSTGRES_DB')}"
+
+def _require(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"{name} is not set in .env")
+    return value
+
+
+DATABASE_URL = URL.create(
+    drivername="postgresql+psycopg2",
+    username=_require("POSTGRES_USER"),
+    password=_require("POSTGRES_PASSWORD"),   # special characters are escaped safely
+    host=_require("POSTGRES_HOST"),
+    port=int(os.getenv("POSTGRES_PORT", "5432")),
+    database=_require("POSTGRES_DB"),
 )
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,   # checks a connection is alive before using it (avoids errors after Postgres restarts)
+)
+
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def get_db():
-    db = Session(engine)
+    db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-
-with engine.connect() as connection:
-    result = connection.execute(text("SELECT 1"))
-    print(result.scalar())
