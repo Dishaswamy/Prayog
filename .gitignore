@@ -217,3 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .DS_Store
+
+# Private ML Flow artifacts and interrupted uploads
+backend/artifacts/
+*.upload

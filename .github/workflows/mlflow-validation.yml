@@ -1,0 +1,83 @@
+name: ML Flow validation
+
+'on':
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feature/ml-flow-lifecycle]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prayog
+          POSTGRES_PASSWORD: prayog-test-password
+          POSTGRES_DB: prayog_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prayog -d prayog_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_USER: prayog
+      POSTGRES_PASSWORD: prayog-test-password
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: prayog_test
+      JWT_SECRET_KEY: ci-only-secret-not-for-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Compile backend Python files
+        working-directory: backend
+        run: python -m compileall -q .
+      - name: Run local artifact storage smoke test
+        working-directory: backend
+        env:
+          PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-storage-smoke
+        run: python mlflow_storage_smoke.py
+      - name: Apply migrations to clean PostgreSQL
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Verify schema has no pending migration
+        working-directory: backend
+        run: alembic check
+      - name: Run lifecycle unit tests
+        working-directory: backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
+        run: pytest -q
+
+      - name: Build isolated worker runtime image
+        run: docker build -t prayog-ml-runtime:python3.12 -f backend/worker/Dockerfile backend/worker
+
+      - name: Run real Docker worker smoke tests
+        working-directory: backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
+          PRAYOG_RUN_DOCKER_SMOKE: "1"
+          PRAYOG_WORKER_IMAGE: prayog-ml-runtime:python3.12
+        run: pytest -q tests/test_mlflow_worker_docker.py
+
+      - name: Run authenticated API-to-worker end-to-end test
+        working-directory: backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
+          PRAYOG_RUN_E2E: "1"
+          PRAYOG_WORKER_IMAGE: prayog-ml-runtime:python3.12
+          PRAYOG_WORKER_TIMEOUT_SECONDS: "15"
+        run: pytest -q tests/test_mlflow_e2e.py
