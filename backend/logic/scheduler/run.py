@@ -37,6 +37,7 @@ def run_ticks(
 
 if __name__ == "__main__":  # pragma: no cover
     from database import SessionLocal
+    from logic.scheduler.config import load_config
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    run_ticks(SessionLocal)
+    run_ticks(SessionLocal, load_config())          # an invalid configuration stops here (NFR-GPU-062)

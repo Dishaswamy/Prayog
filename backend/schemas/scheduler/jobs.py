@@ -22,13 +22,37 @@ class SubmissionOut(BaseModel):
     message: str
 
 
+class JobEdit(BaseModel):
+    """Only the fields sent are changed. Same checks as a submission (FR-GPU-130)."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    gpus: Any = Field(default=None, description="Positive whole number of GPUs on one node")
+    walltime: Any = Field(default=None, description="HH:MM", examples=["02:00"])
+    snapshot_hash: str | None = Field(default=None, max_length=128, description="New snapshot after a config change")
+
+
 class JobOut(BaseModel):
     id: int
     state: str
     queue_reason: str | None       # why it is still QUEUED (FR-GPU-021)
+    p0_free_at: datetime | None    # QUEUED on busy own-lab units: guaranteed free by (FR-GPU-108)
     gpus: int
     walltime: str                  # HH:MM
     submitted_at: datetime
     node_id: int | None            # SCHEDULED or RUNNING: where (FR-GPU-022)
     node_name: str | None
     unit_indexes: list[int]
+
+
+class MemberUsage(BaseModel):
+    user_id: str                   # public ID, as on the account
+    consumed_gpu_hours: float
+
+
+class QuotaOut(BaseModel):
+    """The sponsorship's GPU-hour cap and its use (FR-GPU-178)."""
+    cap_gpu_hours: float
+    consumed_gpu_hours: float
+    committed_gpu_hours: float     # requested by QUEUED, SCHEDULED and RUNNING jobs
+    remaining_gpu_hours: float
+    members: list[MemberUsage]
