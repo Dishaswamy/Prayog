@@ -15,6 +15,7 @@ load_dotenv(ENV_FILE)
 
 from database import DATABASE_URL  # noqa: E402  same URL the app uses
 from models import Base             # noqa: E402  imports all models
+import scheduler.models             # noqa: E402,F401  registers the GPU scheduling tables on Base
 
 config = context.config
 config.set_main_option(
