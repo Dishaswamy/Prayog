@@ -16,7 +16,12 @@ from steward_runtime.stub import StubReasoning
 
 
 def build_reasoning() -> ReasoningPort:
-    if os.environ.get("STEWARD_REASONING", "stub") == "claude":
+    """Unset means ``heuristic``. The stub must be asked for by name, and an unknown value
+    stops startup: either one silently in production would store placeholder diagnoses."""
+    mode = os.environ.get("STEWARD_REASONING", "").strip().lower() or "heuristic"
+    if mode not in ("claude", "heuristic", "stub"):
+        raise ValueError(f"STEWARD_REASONING must be claude, heuristic or stub, not {mode!r}")
+    if mode == "claude":
         from typing import get_args
 
         from steward_runtime.claude import ClaudeReasoning, Effort
@@ -28,7 +33,7 @@ def build_reasoning() -> ReasoningPort:
             model=os.environ.get("STEWARD_MODEL", "claude-opus-5-5"),
             effort=effort,  # type: ignore[arg-type]  # checked against Effort above
         )
-    if os.environ.get("STEWARD_REASONING") == "heuristic":
+    if mode == "heuristic":
         from steward_runtime.heuristic import HeuristicReasoning
 
         return HeuristicReasoning()

@@ -41,7 +41,7 @@ python -m integration.steward_worker                  # Steward worker: diagnose
 uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runtime (model adapter)
 ```
 
-The Runtime uses Claude with `STEWARD_REASONING=claude` and `ANTHROPIC_API_KEY`. Use `heuristic` (rule-based) without a key. For a single process during development, set `STEWARD_INPROCESS_REASONING=heuristic` and skip the Runtime.
+The Runtime uses Claude with `STEWARD_REASONING=claude` and `ANTHROPIC_API_KEY`. Without a key it uses `heuristic` (rule-based), which is also the default when the variable is unset; an unknown value stops the Runtime at startup. For a single process during development, set `STEWARD_INPROCESS_REASONING=heuristic` and skip the Runtime.
 
 The node agent does not exist yet. `python -m scripts.simulate_agent fail <job_id> --log-file run.log` plays its part: it starts and ends a placed job through `lifecycle.release()`, exactly as the agent will.
 

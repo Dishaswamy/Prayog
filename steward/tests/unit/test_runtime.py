@@ -10,8 +10,9 @@ from fastapi.testclient import TestClient
 
 from factories import s1_request, s3_request
 from steward_contracts import Context, InvokeOutcome, InvokeResponse, S1Result
-from steward_runtime.app import create_app
+from steward_runtime.app import build_reasoning, create_app
 from steward_runtime.claude import ClaudeReasoning
+from steward_runtime.heuristic import HeuristicReasoning
 from steward_runtime.prompts import PROMPT_VERSION, SYSTEM_PROMPTS
 from steward_runtime.stub import StubReasoning, valid_result
 
@@ -95,3 +96,15 @@ def test_runtime_http_endpoint_rejects_unknown_fields() -> None:
     client = TestClient(create_app(StubReasoning()))
     body = {**s1_request().model_dump(mode="json"), "sudo": True}
     assert client.post("/invoke", json=body).status_code == 422
+
+
+def test_runtime_defaults_to_heuristic_and_refuses_unknown_modes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STEWARD_REASONING", raising=False)
+    assert isinstance(build_reasoning(), HeuristicReasoning)
+    monkeypatch.setenv("STEWARD_REASONING", " Stub ")
+    assert isinstance(build_reasoning(), StubReasoning)
+    monkeypatch.setenv("STEWARD_REASONING", "heuristics")
+    with pytest.raises(ValueError, match="STEWARD_REASONING"):
+        build_reasoning()

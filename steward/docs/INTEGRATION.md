@@ -125,7 +125,7 @@ The first use of BGE downloads the model (~440 MB) from Hugging Face. If that fa
 
 ## 4. Configuration
 
-Every setting is an environment variable prefixed `STEWARD_`; see [`config.py`](../src/prayog_steward/config.py) and `.env.example`. The spec's parameters (§16.2, §16.4) have the spec's defaults and invariants. The Runtime is configured separately: `STEWARD_REASONING=claude|heuristic|stub`, `STEWARD_MODEL`, `STEWARD_EFFORT`, `ANTHROPIC_API_KEY`.
+Every setting is an environment variable prefixed `STEWARD_`; see [`config.py`](../src/prayog_steward/config.py) and `.env.example`. The spec's parameters (§16.2, §16.4) have the spec's defaults and invariants. The Runtime is configured separately: `STEWARD_REASONING=claude|heuristic|stub` (default `heuristic`; `stub` only when named, and any other value stops startup), `STEWARD_MODEL`, `STEWARD_EFFORT`, `ANTHROPIC_API_KEY`.
 
 ## 5. Processes
 
