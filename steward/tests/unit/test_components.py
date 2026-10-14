@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+import sys
+import threading
+import time
+from types import ModuleType
 
 import httpx
 import pytest
@@ -10,7 +14,7 @@ import pytest
 from factories import REQUESTS, s1_request
 from prayog_steward.cli import StewardClient, report_rebuild_failure
 from prayog_steward.coordinator.validation import validate_response
-from prayog_steward.rag.embed import HashingEmbedder, chunk, cosine
+from prayog_steward.rag.embed import HashingEmbedder, SentenceTransformerEmbedder, chunk, cosine
 from prayog_steward.rag.sanitiser import ErrorFacts
 from prayog_steward.reasoning_client import HttpReasoning
 from prayog_steward.search import SearchResult, SearchState, WebSearch, build_query
@@ -161,6 +165,32 @@ def test_hashing_embedder_ranks_lexically_related_text_higher() -> None:
     )
     assert cosine(q, near) > cosine(q, far)
     assert abs(cosine(near, near) - 1.0) < 1e-9
+
+
+def test_sentence_transformer_model_loads_once_under_concurrent_first_use(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loads: list[str] = []
+
+    class SlowModel:
+        def __init__(self, name: str, device: str) -> None:
+            time.sleep(0.2)  # wide window for a second loader to slip in
+            loads.append(name)
+
+        def encode(self, texts: list[str], **kwargs: object) -> list[list[float]]:
+            return [[1.0, 0.0] for _ in texts]
+
+    fake = ModuleType("sentence_transformers")
+    fake.SentenceTransformer = SlowModel  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake)
+
+    embedder = SentenceTransformerEmbedder("BAAI/bge-base-en-v1.5")
+    threads = [threading.Thread(target=embedder.embed_query, args=(["q"],)) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert loads == ["BAAI/bge-base-en-v1.5"]
 
 
 def test_chunking_respects_size_and_covers_all_lines() -> None:

@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+import threading
 from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any, Protocol
@@ -66,6 +67,7 @@ class SentenceTransformerEmbedder:
     def __init__(self, model: str = "BAAI/bge-small-en-v1.5") -> None:
         self._model_name = model
         self._model: Any = None  # loaded on first use: building services stays cheap
+        self._load_lock = threading.Lock()
         self.name = f"st:{model}"
         # BGE v1.5 retrieves best with this instruction on queries (not on passages).
         self._query_prefix = (
@@ -74,12 +76,19 @@ class SentenceTransformerEmbedder:
             else ""
         )
 
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    def _loaded(self) -> Any:
+        """One load per process. The API's warm-up thread and the first requests race
+        for it; without the lock each of them loaded its own copy of the model."""
         if self._model is None:
-            from sentence_transformers import SentenceTransformer
+            with self._load_lock:
+                if self._model is None:
+                    from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self._model_name, device="cpu")
-        vectors = self._model.encode(list(texts), normalize_embeddings=True, batch_size=16)
+                    self._model = SentenceTransformer(self._model_name, device="cpu")
+        return self._model
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        vectors = self._loaded().encode(list(texts), normalize_embeddings=True, batch_size=16)
         return [[float(x) for x in v] for v in vectors]
 
     def embed_query(self, texts: Sequence[str]) -> list[list[float]]:
