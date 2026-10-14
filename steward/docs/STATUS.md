@@ -19,7 +19,18 @@ The Steward now lives in `steward/` of the team repository; its history is kept 
    - After restart the Worker's retry finished the diagnosis within 10 seconds.
 5. **Knowledge base:** after ingesting the 15-paper seed into `prayog_live`, S4 on a successful rebuild cited Smith (hyper-parameters) and LAMB with arXiv links. The first query after a restart used to take over 10 s while BGE loaded; `install_steward` now warms the model in a background thread, and the first query takes 0.17 s.
 
-**Still not verified:** a live Claude call (no API key on the dev machine), the Docker images, a CI run on GitHub, and the real ~100-case evaluation.
+**Defects found by live evaluation and fixed** (each with a test):
+- Steward timestamps came back as `+05:30` on a Postgres whose TimeZone is IST. Steward sessions now run in UTC, as the platform's API.md requires.
+- The heuristic adapter listed every earlier failed run as "failed the same way". It now lists only earlier failures of the same class. Live check: a library-version failure matched only the earlier library-version run.
+- With `STEWARD_REASONING` unset, the Runtime silently used the stub, which stored "Stub diagnosis." placeholders. It now defaults to the heuristic and refuses unknown values at startup.
+
+**Also checked:**
+- The platform migrations have a single head, and `b7e4c1a9d2f0` downgrades and re-upgrades cleanly.
+- The audit log refuses UPDATE and DELETE even for a superuser.
+- The Steward's database role has no privileges on any platform table.
+- The API reference is [API.md](API.md).
+
+**Still not verified:** a live Claude call (no API key on the dev machine), the Docker images, a CI run on GitHub, and the real ~100-case evaluation. Without a key, live proposals cannot appear: the heuristic's only proposal (batch size) is not a platform field ([SADD_CONFORMANCE.md](SADD_CONFORMANCE.md), deviation 3).
 
 ## Built (2026-10-08)
 

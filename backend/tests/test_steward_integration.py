@@ -105,6 +105,25 @@ def test_steward_routes_use_the_platform_jwt(client: Any, world: dict) -> None:
     assert client.get("/steward/admin/warnings", headers=admin).json() == []
 
 
+def test_a_token_the_platform_refuses_is_refused_by_the_steward(
+    client: Any, world: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Token validity is the platform's get_current_user, so a revocation rule added
+    there (e.g. on password reset) also closes the Steward's routes."""
+    from fastapi import HTTPException
+
+    import integration.steward_bridge as bridge
+
+    alice = login(client, "alice", world["password"])
+    assert client.get("/steward/proposals", headers=alice).status_code == 200
+
+    def revoked(*args: Any, **kwargs: Any) -> Any:
+        raise HTTPException(status_code=401, detail="Token revoked")
+
+    monkeypatch.setattr(bridge, "get_current_user", revoked)
+    assert client.get("/steward/proposals", headers=alice).status_code == 401
+
+
 # ── S1: the run-seal hook, diagnosis, visibility ────────────────────────
 
 def test_a_failed_run_is_sealed_for_the_steward_in_the_release(client: Any, world: dict) -> None:

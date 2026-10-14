@@ -11,7 +11,8 @@ Mapping decisions (see steward/docs/INTEGRATION.md, "Prayog backend"):
 - Project   = (owner, project_ref). There is no projects table yet, so a project is
               scoped to its owner: two users who type the same project_ref never see
               each other's runs. project_id = "u<user id>:<project_ref or ->".
-- Principal = the JWT's user. principal_id is str(users.id); ADMIN maps to the
+- Principal = the JWT's user, accepted exactly when the platform's get_current_user
+              accepts the token. principal_id is str(users.id); ADMIN maps to the
               Platform Admin role; the session is (sub, exp) of the token.
 - Job spec  = what a platform job carries: GPUs, walltime, snapshot. Proposals may
               change only gpu_count and walltime_minutes (settings.proposal_fields).
@@ -31,7 +32,8 @@ from functools import lru_cache
 from typing import Any
 
 import jwt
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 from prayog_steward.clock import Clock, SystemClock
 from prayog_steward.config import StewardSettings
 from prayog_steward.container import Ports, Steward, build
@@ -61,6 +63,7 @@ from steward_contracts import ReasoningPort
 import models as orm
 from database import DATABASE_URL, SessionLocal
 from logic.auth import ALGORITHM, SECRET_KEY
+from logic.dependencies import get_current_user
 from logic.errors import AppError
 from logic.scheduler.domain import JobState, ReleaseReason
 from logic.scheduler.lifecycle import ReleaseResult, register_release_hook
@@ -240,21 +243,25 @@ class PlatformLogStore:
 # ── identity and authorization ──────────────────────────────────────────
 
 class JwtPrincipalResolver:
-    """The platform's bearer token (logic.auth). Expired or invalid: no principal."""
+    """The platform's bearer token. A token is valid exactly when the platform's own
+    check (logic.dependencies.get_current_user) accepts it, so rules added there, such
+    as revoking tokens on a password reset, cover the Steward's routes too."""
 
     def __init__(self, sessions: Any = SessionLocal) -> None:
         self.sessions = sessions
 
     def resolve(self, credential: str) -> Principal | None:
         try:
-            payload = jwt.decode(credential, SECRET_KEY, algorithms=[ALGORITHM])
-            user_pk = int(payload["sub"])
-            exp = int(payload["exp"])
+            exp = int(jwt.decode(credential, SECRET_KEY, algorithms=[ALGORITHM])["exp"])
         except (jwt.InvalidTokenError, KeyError, ValueError, TypeError):
             return None
         with self.sessions() as session:
-            user = session.get(orm.User, user_pk)
-            if user is None:
+            try:
+                user = get_current_user(
+                    HTTPAuthorizationCredentials(scheme="Bearer", credentials=credential),
+                    db=session,
+                )
+            except HTTPException:
                 return None
             lab = session.scalar(
                 select(orm.Lab.name)
