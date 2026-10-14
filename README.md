@@ -9,7 +9,7 @@ Experiment ledger, Steward agent and fair GPU scheduling for campus ML research 
 | **Steward** (AI agent: run diagnosis, hardware warnings, rebuild help, optimisation) | `steward/` (package `prayog_steward`), wired in by `backend/integration/steward_bridge.py` | Steward |
 | Rebuild attempts (interim, until the ledger lands) | `backend/logic/rebuild.py`, `backend/routers/rebuilds.py` | ledger sub-team |
 
-API reference: [API.md](API.md) (auth and access requests), [steward/docs/INTEGRATION.md](steward/docs/INTEGRATION.md) (Steward), interactive docs at `/docs`.
+API reference: [API.md](API.md) (auth and access requests), [steward/docs/API.md](steward/docs/API.md) (Steward and rebuilds), [steward/docs/INTEGRATION.md](steward/docs/INTEGRATION.md) (how the Steward is wired in), interactive docs at `/docs`.
 
 ## Setup
 
