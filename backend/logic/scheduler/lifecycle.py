@@ -12,8 +12,15 @@ module owns only the allocation and its accounting. Both lock the job row and wa
 for it (no SKIP LOCKED): unlike a pass, the caller must act on this particular job.
 After a release commits, the caller triggers a pass (Trigger.RUN_END) so the freed
 units are used.
+
+Release hooks (register_release_hook) run inside the release transaction, each in its
+own savepoint, so a subsystem that records the end of a run (the Steward, SADD §8.3)
+commits atomically with it. A failing hook is rolled back to its savepoint and logged;
+the release itself always commits (NFR-GPU-055: scheduling never depends on the Steward).
 """
 
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -24,6 +31,8 @@ import models as orm
 from logic.errors import ConflictError, NotFoundError
 from logic.scheduler.claim import ClaimInvariantError, utc_now
 from logic.scheduler.domain import JobState, ReleaseReason
+
+log = logging.getLogger("prayog.scheduler")
 
 REQUEUE = {ReleaseReason.NODE_FAILURE, ReleaseReason.DISPATCH_TIMEOUT}
 # Runs ending this way are charged to the consumer lab; INTERRUPTED (node failure) is not (FR-GPU-143).
@@ -51,6 +60,27 @@ class ReleaseResult:
     charged: bool
 
 
+@dataclass(frozen=True)
+class RunReport:
+    """What the node agent reports when a run ends (FR-GPU-146). Optional: cancel,
+    walltime and node failure release without one."""
+    exit_code: int | None = None
+    failure_category: str | None = None
+    log_tail: str | None = None          # the end of stdout/stderr; kept at most LOG_TAIL_LIMIT
+
+
+LOG_TAIL_LIMIT = 64 * 1024
+
+ReleaseHook = Callable[[Session, ReleaseResult, ReleaseReason, datetime], None]
+RELEASE_HOOKS: list[ReleaseHook] = []
+
+
+def register_release_hook(hook: ReleaseHook) -> None:
+    """Run hook(session, result, reason, now) inside every release transaction."""
+    if hook not in RELEASE_HOOKS:
+        RELEASE_HOOKS.append(hook)
+
+
 def mark_running(session: Session, job_id: int, now: datetime | None = None) -> orm.Allocation:
     """The agent confirmed the start: SCHEDULED -> RUNNING, acknowledged_at = now."""
     now = now or utc_now()
@@ -68,21 +98,50 @@ def mark_running(session: Session, job_id: int, now: datetime | None = None) -> 
     return allocation
 
 
-def release(session: Session, job_id: int, reason: ReleaseReason, now: datetime | None = None) -> ReleaseResult:
+def release(
+    session: Session,
+    job_id: int,
+    reason: ReleaseReason,
+    now: datetime | None = None,
+    report: RunReport | None = None,
+) -> ReleaseResult:
     """
     End the job's live allocation. Terminal reasons move the job to the matching
     terminal state; NODE_FAILURE and DISPATCH_TIMEOUT return it to QUEUED with its
     original submit time and the reason recorded (FR-GPU-126, 135; NFR-GPU-016).
     An allocation is never released twice (NFR-GPU-061): a second call is refused.
+    The agent's report, if any, is stored with the release (run_results), and the
+    release hooks run before the commit.
     """
     now = now or utc_now()
+    reason = ReleaseReason(reason)
     try:
-        result = _release(session, job_id, ReleaseReason(reason), now)
+        result = _release(session, job_id, reason, now)
+        if report is not None:
+            session.add(orm.RunResult(
+                allocation_id=result.allocation_id,
+                job_id=job_id,
+                exit_code=report.exit_code,
+                failure_category=report.failure_category,
+                log_tail=report.log_tail[-LOG_TAIL_LIMIT:] if report.log_tail else None,
+            ))
+            session.flush()
+        _run_release_hooks(session, result, reason, now)
         session.commit()
     except BaseException:
         session.rollback()
         raise
     return result
+
+
+def _run_release_hooks(session: Session, result: ReleaseResult, reason: ReleaseReason, now: datetime) -> None:
+    for hook in RELEASE_HOOKS:
+        try:
+            with session.begin_nested():          # a savepoint: a failing hook undoes only itself
+                hook(session, result, reason, now)
+        except Exception:
+            log.exception("release hook %s failed for job %s; the release still commits",
+                          getattr(hook, "__name__", hook), result.job_id)
 
 
 def _release(session: Session, job_id: int, reason: ReleaseReason, now: datetime) -> ReleaseResult:
