@@ -225,7 +225,7 @@ def finish_run(
             code_artifact, _ = get_verified_artifact(
                 db, code_artifact_id, user.id, item.experiment_id, "CODE"
             )
-        except (BadRequestError, NotFoundError):
+        except (BadRequestError, NotFoundError, OSError):
             warnings.append("Code snapshot artifact was unavailable or failed integrity verification.")
     else:
         warnings.append("No code snapshot artifact was supplied.")
@@ -235,7 +235,7 @@ def finish_run(
             weights_artifact, _ = get_verified_artifact(
                 db, weights_artifact_id, user.id, item.experiment_id, "WEIGHTS"
             )
-        except (BadRequestError, NotFoundError):
+        except (BadRequestError, NotFoundError, OSError):
             warnings.append("Weights artifact was unavailable or failed integrity verification.")
 
     if logs_artifact_id:
@@ -243,7 +243,7 @@ def finish_run(
             logs_artifact, _ = get_verified_artifact(
                 db, logs_artifact_id, user.id, item.experiment_id, "LOG"
             )
-        except (BadRequestError, NotFoundError):
+        except (BadRequestError, NotFoundError, OSError):
             warnings.append("Log artifact was unavailable or failed integrity verification.")
 
     expected_metrics = item.environment.get("expected_metrics", [])
