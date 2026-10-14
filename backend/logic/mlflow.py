@@ -329,7 +329,10 @@ def create_rebuild(db: Session, snapshot_id: str, user: User, environment: dict)
             get_verified_artifact(db, snapshot.weights_artifact_id, user.id, snapshot.experiment_id, "WEIGHTS")
     except (BadRequestError, NotFoundError) as exc:
         raise BadRequestError(f"REBUILD_REJECTED: required artifact validation failed ({exc})") from exc
-    rebuild_environment = environment or snapshot.dependencies
+    rebuild_environment = {
+        **(environment or snapshot.dependencies),
+        "scheduler_label": f"reproduces:{snapshot.run_id}",
+    }
     execution = ModelRun(
         experiment_id=snapshot.experiment_id,
         project_id=snapshot.project_id,
