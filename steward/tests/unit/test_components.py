@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -33,6 +35,21 @@ def test_heuristic_classifies_oom_and_proposes_halving_the_batch() -> None:
     result = HeuristicReasoning().invoke(request).result
     assert result is not None and result["classification"] == "oom"
     assert result["proposal"]["changes"][0]["new_value"] == "128"
+
+
+def test_heuristic_matches_only_earlier_failures_of_the_same_class() -> None:
+    def earlier(run: str, end: str, previous: str | None) -> Record:
+        body = json.dumps({"end": end, "previous_diagnosis": previous}, sort_keys=True)
+        return Record(record_id=f"earlier:{run}", kind=RecordKind.EARLIER_RUN, body=body)
+
+    request = s1_request(
+        earlier("a", "FAILED", "oom"),
+        earlier("b", "FAILED", "library_version"),
+        earlier("c", "FAILED", None),
+        earlier("d", "SUCCEEDED", "oom"),
+    )
+    result = HeuristicReasoning().invoke(request).result
+    assert result is not None and result["matching_earlier_failures"] == ["earlier:a"]
 
 
 def test_heuristic_never_cites_without_evidence() -> None:

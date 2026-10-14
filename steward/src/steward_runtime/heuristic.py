@@ -117,10 +117,15 @@ class HeuristicReasoning:
     def _s1(self, p: S1Input) -> dict[str, Any]:
         cls, why, cite = _match(p.records)
         claims = [{"text": why, "cites": [cite]}] if cite else []
+        # "Failed the same way": an earlier failure whose own diagnosis had this class.
+        same_class = f'"previous_diagnosis": "{cls}"'
         earlier = [
             r.record_id
             for r in p.records
-            if r.kind is RecordKind.EARLIER_RUN and '"end": "FAILED"' in r.body
+            if r.kind is RecordKind.EARLIER_RUN
+            and cls != "unknown"
+            and '"end": "FAILED"' in r.body
+            and same_class in r.body
         ][:3]
         proposal = None
         batch = _batch_size(p.records)

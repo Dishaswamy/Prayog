@@ -15,7 +15,11 @@ from sqlalchemy import Connection, Engine, create_engine, text
 
 
 def make_engine(url: str) -> Engine:
-    return create_engine(url, pool_pre_ping=True, future=True)
+    # Sessions run in UTC, so timestamps read back carry +00:00 whatever the server's
+    # TimeZone is (the platform API returns UTC throughout).
+    return create_engine(
+        url, pool_pre_ping=True, future=True, connect_args={"options": "-c timezone=UTC"}
+    )
 
 
 def set_rls_user(conn: Connection, user_id: str) -> None:

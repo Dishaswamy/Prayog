@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import Connection, Engine, inspect, text
 from sqlalchemy.exc import DBAPIError
 
-from prayog_steward.db.engine import set_rls_user
+from prayog_steward.db.engine import make_engine, set_rls_user
 from prayog_steward.db.models import PRIVATE, STEWARD, metadata
 
 
@@ -52,6 +53,16 @@ def test_models_match_the_migrated_schema(admin_engine: Engine) -> None:
         assert table.schema in (STEWARD, PRIVATE)
         live = {c["name"] for c in insp.get_columns(table.name, schema=table.schema)}
         assert live == {c.name for c in table.columns}, table.fullname
+
+
+def test_steward_sessions_read_timestamps_in_utc(app_url: str) -> None:
+    engine = make_engine(app_url)
+    try:
+        with engine.connect() as c:
+            assert c.execute(text("SHOW timezone")).scalar() == "UTC"
+            assert c.execute(text("SELECT now()")).scalar().utcoffset() == timedelta(0)
+    finally:
+        engine.dispose()
 
 
 def test_app_role_cannot_bypass_rls(app_engine: Engine) -> None:
