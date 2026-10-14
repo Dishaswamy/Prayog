@@ -134,7 +134,7 @@ class ModelSnapshot(Base):
     code_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     dependencies: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     hyperparameters: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    completeness_reasons: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    completeness_reasons: Mapped[list] = mapped_column(JSON, default=list, server_default=text("'[]'::json"), nullable=False)
     weights_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     code_artifact_id: Mapped[str | None] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=True)
     weights_artifact_id: Mapped[str | None] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=True)
