@@ -59,6 +59,7 @@ class PassResult:
     pairs_per_class: dict[PriorityClass, int]
     placed: dict[int, ClaimOutcome]               # job id -> its successful claim
     reasons: dict[int, QueueReason]               # job id -> why it is still QUEUED
+    failed_claims: int = 0                        # claim attempts that did not place (NFR-GPU-051)
 
 
 def run_pass(
@@ -77,9 +78,10 @@ def run_pass(
 
         breakdowns = {j.job_id: score_job(j, now, usage.get(j.lab_id, NO_USAGE), total_decayed, cfg) for j in jobs}
         result = _Pass(session, str(uuid4()), str(trigger), now, jobs, nodes, breakdowns).run()
-        _record_reasons(session, result.reasons)
+        seconds = time.perf_counter() - started
+        _record(session, result, now, seconds)
 
-    _log(result, time.perf_counter() - started)
+    _log(result, seconds)
     return result
 
 
@@ -109,6 +111,7 @@ class _Pass:
         self.placed: dict[int, ClaimOutcome] = {}
         self.taken_elsewhere: set[int] = set()                  # another pass holds the job
         self.claim_failures: dict[int, QueueReason] = {}
+        self.failed_claims = 0
         self.pairs_per_class: dict[PriorityClass, int] = {}
 
     def run(self) -> PassResult:
@@ -121,6 +124,7 @@ class _Pass:
             pairs_per_class=self.pairs_per_class,
             placed=self.placed,
             reasons=self._queue_reasons(),
+            failed_claims=self.failed_claims,
         )
 
     def _round(self, cls: PriorityClass) -> None:
@@ -142,6 +146,7 @@ class _Pass:
                     self.placed[job.job_id] = outcome
                     self._take(node_id, outcome.unit_ids)
                     break
+                self.failed_claims += 1
                 if outcome.status == ClaimStatus.JOB_UNAVAILABLE:
                     self.taken_elsewhere.add(job.job_id)
                     break
@@ -174,6 +179,21 @@ class _Pass:
         return reasons
 
 
+def _record(session: Session, result: PassResult, started_at: datetime, seconds: float) -> None:
+    """The pass row (A-74, metrics) and the queue reasons, in one transaction."""
+    session.add(orm.SchedulingPass(
+        pass_id=result.pass_id,
+        trigger=result.trigger,
+        started_at=started_at,
+        duration_ms=round(seconds * 1000, 3),
+        queued=result.queued,
+        placed=len(result.placed),
+        claim_failures=result.failed_claims,
+    ))
+    _record_reasons(session, result.reasons)
+    session.commit()
+
+
 def _record_reasons(session: Session, reasons: dict[int, QueueReason]) -> None:
     """Write each reason only if the job is still QUEUED (another pass may have placed it since)."""
     for job_id, reason in reasons.items():
@@ -183,7 +203,6 @@ def _record_reasons(session: Session, reasons: dict[int, QueueReason]) -> None:
             .values(state_reason=reason)
             .execution_options(synchronize_session=False)
         )
-    session.commit()
 
 
 def _log(result: PassResult, seconds: float) -> None:
@@ -195,5 +214,6 @@ def _log(result: PassResult, seconds: float) -> None:
         "queued": result.queued,
         "pairs_per_class": {cls.name: n for cls, n in result.pairs_per_class.items()},
         "placed": len(result.placed),
+        "failed_claims": result.failed_claims,
         "reasons": dict(Counter(str(r) for r in result.reasons.values())),
     }))

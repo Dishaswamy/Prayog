@@ -42,6 +42,16 @@ class JobState(StrEnum):
     WALLTIME_EXCEEDED = "WALLTIME_EXCEEDED"
 
 
+class ReleaseReason(StrEnum):
+    """Why an allocation ended. The first four end the job; the last two put it back in the queue."""
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    WALLTIME_EXCEEDED = "WALLTIME_EXCEEDED"
+    CANCELLED = "CANCELLED"
+    NODE_FAILURE = "NODE_FAILURE"            # node went DOWN: requeued, not charged (FR-GPU-135, 143)
+    DISPATCH_TIMEOUT = "DISPATCH_TIMEOUT"    # never acknowledged: requeued, never started (FR-GPU-126)
+
+
 class PriorityClass(IntEnum):
     """Lower value = higher priority. Classes are settled in this order."""
     P0 = 0  # reserved: the node belongs to the job's lab

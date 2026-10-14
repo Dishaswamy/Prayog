@@ -100,9 +100,10 @@ def load_usage(
 ) -> tuple[dict[int, LabUsage], float]:
     """
     Each lab's usage when the pass starts, and the pool's total decayed usage.
-    Decayed usage counts everything a lab consumed (FR-GPU-047); served and
+    Decayed usage counts everything a lab was charged for (FR-GPU-047); served and
     consumed count only runs across labs inside the contribution window
-    (FR-GPU-048). A course job's lab is its sponsorship group (FR-GPU-120).
+    (FR-GPU-048). An uncharged (interrupted) run still counts as served for the
+    host lab (FR-GPU-143). A course job's lab is its sponsorship group (FR-GPU-120).
     """
     window_start = now - timedelta(days=cfg.contribution_window_days)
     decayed_hours: dict[int, float] = defaultdict(float)
@@ -111,14 +112,16 @@ def load_usage(
 
     rows = session.execute(select(
         orm.UsageEntry.consumer_lab_id, orm.UsageEntry.provider_lab_id,
-        orm.UsageEntry.gpu_seconds, orm.UsageEntry.ended_at,
+        orm.UsageEntry.gpu_seconds, orm.UsageEntry.ended_at, orm.UsageEntry.charged,
     ))
-    for consumer, provider, gpu_seconds, ended_at in rows:
+    for consumer, provider, gpu_seconds, ended_at, charged in rows:
         hours = gpu_seconds / 3600
-        decayed_hours[consumer] += decayed(hours, (now - ended_at).total_seconds(), cfg)
+        if charged:
+            decayed_hours[consumer] += decayed(hours, (now - ended_at).total_seconds(), cfg)
         if ended_at > window_start and consumer != provider:
             served[provider] += hours
-            consumed[consumer] += hours
+            if charged:
+                consumed[consumer] += hours
 
     labs = decayed_hours.keys() | served.keys()
     usage = {lab: LabUsage(decayed_hours[lab], served[lab], consumed[lab]) for lab in labs}

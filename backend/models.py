@@ -22,7 +22,7 @@ from sqlalchemy import (
 UTC_NOW = text("(now() AT TIME ZONE 'utc')")
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from logic.scheduler.domain import AccountType, DonationMode, JobState, NodeState
+from logic.scheduler.domain import AccountType, DonationMode, JobState, NodeState, ReleaseReason
 
 
 class Base(DeclarativeBase):
@@ -311,6 +311,8 @@ class Allocation(Base):
     __tablename__ = "allocations"
     __table_args__ = (
         Index("ux_allocations_live", "job_id", unique=True, postgresql_where=LIVE),   # I2
+        CheckConstraint(f"release_reason IN {_one_of(ReleaseReason)}", name="ck_alloc_release_reason"),
+        CheckConstraint("(released_at IS NULL) = (release_reason IS NULL)", name="ck_alloc_released_with_reason"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -321,6 +323,7 @@ class Allocation(Base):
     # means the claim is released and the job requeued (FR-GPU-126)
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     released_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # FR-GPU-057
+    release_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
 
 class AllocationUnit(Base):
@@ -362,8 +365,29 @@ class SchedulingDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
 
 
+class SchedulingPass(Base):
+    """One row per scheduling pass: what it saw and did (A-74, NFR-GPU-051). Insert-only."""
+    __tablename__ = "scheduling_passes"
+    __table_args__ = (
+        Index("ix_sp_started_at", "started_at"),
+    )
+
+    pass_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    trigger: Mapped[str] = mapped_column(String(30), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    duration_ms: Mapped[float] = mapped_column(Double, nullable=False)
+    queued: Mapped[int] = mapped_column(Integer, nullable=False)
+    placed: Mapped[int] = mapped_column(Integer, nullable=False)
+    claim_failures: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class UsageEntry(Base):
-    """GPU time of one finished run, for fair share (decayed) and contribution (windowed)."""
+    """
+    GPU time of one run, written when its allocation is released: units x
+    (confirmed end - confirmed start), FR-GPU-100. Charged runs count towards the
+    consumer lab's fair share and consumption; an interrupted run is not charged,
+    but a guest run always counts as served for the host lab (FR-GPU-143).
+    """
     __tablename__ = "usage_entries"
     __table_args__ = (
         CheckConstraint("gpu_seconds >= 0", name="ck_usage_gpu_seconds"),
@@ -376,3 +400,4 @@ class UsageEntry(Base):
     provider_lab_id: Mapped[int] = mapped_column(ForeignKey("labs.id"), nullable=False)
     gpu_seconds: Mapped[float] = mapped_column(Double, nullable=False)
     ended_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    charged: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), nullable=False)
