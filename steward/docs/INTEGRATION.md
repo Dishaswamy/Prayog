@@ -113,7 +113,7 @@ python -m prayog_steward.knowledge search "loss diverges with a large batch"
 
 Add papers by arXiv ID (`fetch --ids ...`), by topic (`fetch --topic ... --max N`) or as a folder of PDFs (`ingest --pdf-dir`). Re-ingesting is idempotent. API and Worker pick up corpus changes within a minute.
 
-The first use of BGE downloads the model (~440 MB) from Hugging Face. If that fails with a "CAS Client Error", set `HF_HUB_DISABLE_XET=1` to use the plain HTTP download path. Air-gapped hosts can pre-populate the Hugging Face cache and set `HF_HUB_OFFLINE=1`.
+The first use of BGE downloads the model (~440 MB) from Hugging Face. If that fails with a "CAS Client Error", set `HF_HUB_DISABLE_XET=1` to use the plain HTTP download path. Air-gapped hosts can pre-populate the Hugging Face cache and set `HF_HUB_OFFLINE=1`; once the model is cached, that also saves the Hub checks (about 5 s) on every start. The API loads the model in a background thread at startup. On a laptop CPU this takes tens of seconds, mostly importing torch. S3 and S4 requests in that window wait for that single load rather than failing; the CLI allows 180 s.
 
 ## 3. Database
 
