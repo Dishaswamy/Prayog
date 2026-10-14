@@ -4,7 +4,7 @@
 
 The Steward now lives in `steward/` of the team repository; its history is kept by a subtree merge. It is wired into the real backend by `backend/integration/steward_bridge.py`. What that means and where each piece lives: [INTEGRATION.md §0](INTEGRATION.md#0-status-in-this-repository-2026-10-15-integrated). How the result conforms to the SADD, and the four deviations the merge required: [SADD_CONFORMANCE.md](SADD_CONFORMANCE.md).
 
-**Tests.** `backend/tests` holds 14 end-to-end tests on real PostgreSQL. They use real registration, access approval by professor and admin, `/jobs` submissions placed by real scheduling passes, and runs ended through `lifecycle.release()`. Disabling the seal-hook registration makes 7 of them fail, so they exercise the integration rather than pass vacuously. The Steward's own suite passes in the merged environment: 218 tests, plus lint, strict types, import rules and traceability.
+**Tests.** `backend/tests` holds 15 end-to-end tests on real PostgreSQL. They use real registration, access approval by professor and admin, `/jobs` submissions placed by real scheduling passes, and runs ended through `lifecycle.release()`. Disabling the seal-hook registration makes 7 of them fail, so they exercise the integration rather than pass vacuously. The Steward's own suite passes in the merged environment: 222 tests, plus lint, strict types, import rules and traceability. Both suites pass from a fresh clone under Python 3.12 (CI's version) and 3.13.
 
 **Observed live** (four separate processes: API :8000, Steward Runtime :8100, Steward Worker, scheduler tick, on database `prayog_live`):
 1. **S1:** alice submitted a 2-GPU job, the triggered pass placed it on n1, and the simulated agent failed it with an OOM log. The Worker, through the Runtime over HTTP, produced a diagnosis citing the log; the planted API key was absent from it.
@@ -23,6 +23,8 @@ The Steward now lives in `steward/` of the team repository; its history is kept 
 - Steward timestamps came back as `+05:30` on a Postgres whose TimeZone is IST. Steward sessions now run in UTC, as the platform's API.md requires.
 - The heuristic adapter listed every earlier failed run as "failed the same way". It now lists only earlier failures of the same class. Live check: a library-version failure matched only the earlier library-version run.
 - With `STEWARD_REASONING` unset, the Runtime silently used the stub, which stored "Stub diagnosis." placeholders. It now defaults to the heuristic and refuses unknown values at startup.
+- On a cold start, the warm-up thread and the first request each loaded the BGE model, which pushed one S4 call past 60 s. The model now loads once. A cold start still takes about 40 s on this laptop, mostly importing torch; requests in that window wait for the single load.
+- The bridge decoded JWTs itself. It now asks the platform's `get_current_user`, so token revocation added there (on password reset, as API.md promises) also covers `/steward`.
 
 **Also checked:**
 - The platform migrations have a single head, and `b7e4c1a9d2f0` downgrades and re-upgrades cleanly.
