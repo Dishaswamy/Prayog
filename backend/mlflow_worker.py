@@ -102,12 +102,77 @@ def claim_next_first_time_run(db: Session, worker_id: str) -> int | None:
 
 
 def claim_next_job(db: Session, worker_id: str) -> tuple[str, int] | None:
-    run_id = claim_next_first_time_run(db, worker_id)
-    if run_id is not None:
-        return "FIRST_TIME", run_id
-    rebuild_id = claim_next_rebuild(db, worker_id)
-    if rebuild_id is not None:
-        return "REBUILD", rebuild_id
+    # Compare both job classes on their queue-entry timestamp. Neither rebuilds
+    # nor first-time runs get a class-based priority advantage.
+    for _ in range(5):
+        run = (
+            db.query(ModelRun)
+            .filter(
+                ModelRun.status == "QUEUED",
+                ModelRun.run_type == "FIRST_TIME",
+                ModelRun.code_artifact_id.is_not(None),
+                ModelRun.worker_id.is_(None),
+            )
+            .order_by(ModelRun.started_at, ModelRun.id)
+            .first()
+        )
+        attempt = (
+            db.query(RebuildAttempt)
+            .filter(
+                RebuildAttempt.state == "REBUILD_INITIATED",
+                RebuildAttempt.worker_id.is_(None),
+            )
+            .order_by(RebuildAttempt.initiated_at, RebuildAttempt.id)
+            .first()
+        )
+        candidates = []
+        if run is not None:
+            candidates.append((run.started_at or run.created_at, run.id, "FIRST_TIME"))
+        if attempt is not None:
+            candidates.append((attempt.initiated_at or attempt.created_at, attempt.id, "REBUILD"))
+        if not candidates:
+            db.rollback()
+            return None
+
+        _, job_id, job_type = min(candidates, key=lambda item: (item[0], item[1], item[2]))
+        now = utcnow()
+        if job_type == "FIRST_TIME":
+            claimed = (
+                db.query(ModelRun)
+                .filter(
+                    ModelRun.id == job_id,
+                    ModelRun.status == "QUEUED",
+                    ModelRun.run_type == "FIRST_TIME",
+                    ModelRun.code_artifact_id.is_not(None),
+                    ModelRun.worker_id.is_(None),
+                )
+                .with_for_update(skip_locked=True)
+                .first()
+            )
+            if claimed is not None:
+                claimed.status = "RUNNING"
+                claimed.started_at = now
+                claimed.worker_id = worker_id
+                claimed.worker_claimed_at = now
+        else:
+            claimed = (
+                db.query(RebuildAttempt)
+                .filter(
+                    RebuildAttempt.id == job_id,
+                    RebuildAttempt.state == "REBUILD_INITIATED",
+                    RebuildAttempt.worker_id.is_(None),
+                )
+                .with_for_update(skip_locked=True)
+                .first()
+            )
+            if claimed is not None:
+                claimed.worker_id = worker_id
+                claimed.worker_claimed_at = now
+        if claimed is not None:
+            db.commit()
+            return job_type, job_id
+        db.rollback()
+
     return None
 
 
