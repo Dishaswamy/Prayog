@@ -3,7 +3,8 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from logic.mlflow import finish_run
+from logic.errors import BadRequestError
+from logic.mlflow import create_rebuild, finish_run
 
 
 class SnapshotStorageFailureTests(TestCase):
