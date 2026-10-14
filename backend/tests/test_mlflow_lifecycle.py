@@ -141,7 +141,7 @@ class MLFlowLifecycleTests(unittest.TestCase):
         self.assertIs(result, run)
         self.db.commit.assert_called_once()
 
-    def test_successful_run_finishes_degraded_when_snapshot_artifact_is_missing(self):
+    def test_successful_run_with_missing_code_persists_incomplete_snapshot(self):
         run = self.running_run()
         self.set_owned_item(run)
 
@@ -150,11 +150,14 @@ class MLFlowLifecycleTests(unittest.TestCase):
         self.assertEqual(result.status, "SUCCEEDED")
         self.assertEqual(result.logging_state, "DEGRADED")
         self.assertIn("No code snapshot artifact was supplied.", result.logging_warnings)
+        snapshot = self.db.add.call_args.args[0]
+        self.assertEqual(snapshot.state, "INCOMPLETE")
+        self.assertIsNone(snapshot.code_artifact_id)
+        self.assertIn("No code snapshot artifact was supplied.", snapshot.completeness_reasons)
         self.db.commit.assert_called_once()
-        self.db.add.assert_not_called()
 
     @patch("logic.mlflow.get_verified_artifact")
-    def test_failed_run_can_preserve_available_weights_without_snapshot(self, verify):
+    def test_failed_run_can_preserve_available_weights_in_incomplete_snapshot(self, verify):
         run = self.running_run()
         self.set_owned_item(run)
         weights = SimpleNamespace(id="weights-1", sha256="b" * 64)
@@ -169,11 +172,13 @@ class MLFlowLifecycleTests(unittest.TestCase):
         self.assertEqual(result.status, "FAILED")
         self.assertEqual(result.weights_artifact_id, "weights-1")
         self.assertEqual(result.logging_state, "DEGRADED")
-        self.db.add.assert_not_called()
+        snapshot = self.db.add.call_args.args[0]
+        self.assertEqual(snapshot.state, "INCOMPLETE")
+        self.assertEqual(snapshot.weights_artifact_id, "weights-1")
         self.db.commit.assert_called_once()
 
     @patch("logic.mlflow.get_verified_artifact")
-    def test_failed_first_time_run_does_not_require_steward_or_snapshot(self, verify):
+    def test_failed_first_time_run_does_not_require_steward(self, verify):
         run = self.running_run()
         self.set_owned_item(run)
 
@@ -184,8 +189,27 @@ class MLFlowLifecycleTests(unittest.TestCase):
 
         self.assertEqual(run.status, "FAILED")
         self.assertIsNotNone(run.finished_at)
-        self.db.add.assert_not_called()
+        snapshot = self.db.add.call_args.args[0]
+        self.assertEqual(snapshot.state, "INCOMPLETE")
         verify.assert_not_called()
+
+
+    def test_missing_expected_metrics_make_snapshot_incomplete(self):
+        run = self.running_run()
+        run.environment = {"python": "3.12", "expected_metrics": ["loss", "accuracy"]}
+        self.set_owned_item(run)
+        metric_query = MagicMock()
+        metric_query.filter.return_value = metric_query
+        metric_query.distinct.return_value = metric_query
+        metric_query.all.return_value = [("loss",)]
+        self.db.query.side_effect = [self.db.query.return_value, metric_query]
+
+        result = finish_run(self.db, 3, self.user, {"status": "SUCCEEDED", "code_artifact_id": None})
+
+        self.assertEqual(result.logging_state, "DEGRADED")
+        snapshot = self.db.add.call_args.args[0]
+        self.assertEqual(snapshot.state, "INCOMPLETE")
+        self.assertTrue(any("accuracy" in reason for reason in snapshot.completeness_reasons))
 
     def test_rebuild_terminal_state_cannot_be_changed(self):
         attempt = SimpleNamespace(id=11, user_id=7, state="REBUILD_FAILED")

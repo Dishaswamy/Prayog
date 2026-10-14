@@ -246,27 +246,44 @@ def finish_run(
         except (BadRequestError, NotFoundError):
             warnings.append("Log artifact was unavailable or failed integrity verification.")
 
-    can_record_snapshot = code_artifact is not None and (
+    expected_metrics = item.environment.get("expected_metrics", [])
+    if isinstance(expected_metrics, list) and expected_metrics:
+        recorded_metrics = {
+            row[0] for row in db.query(RunMetric.name).filter(
+                RunMetric.run_id == item.id,
+                RunMetric.user_id == user.id,
+            ).distinct().all()
+        }
+        missing_metrics = sorted({name for name in expected_metrics if isinstance(name, str) and name.strip()} - recorded_metrics)
+        if missing_metrics:
+            warnings.append("Missing expected metrics: " + ", ".join(missing_metrics))
+
+    snapshot_complete = code_artifact is not None and (
         not weights_artifact_id or weights_artifact is not None
+    ) and (not logs_artifact_id or logs_artifact is not None) and not (
+        isinstance(expected_metrics, list) and any(
+            warning.startswith("Missing expected metrics:") for warning in warnings
+        )
     )
-    if can_record_snapshot:
-        db.add(ModelSnapshot(
-            snapshot_id=str(uuid4()),
-            experiment_id=item.experiment_id,
-            project_id=item.project_id,
-            model_id=item.model_id,
-            run_id=item.id,
-            user_id=user.id,
-            state="RECORDED",
-            code_uri=f"artifact:{code_artifact.id}",
-            code_sha256=code_artifact.sha256,
-            dependencies=item.environment,
-            hyperparameters=item.hyperparameters,
-            weights_uri=f"artifact:{weights_artifact.id}" if weights_artifact else None,
-            code_artifact_id=code_artifact.id,
-            weights_artifact_id=weights_artifact.id if weights_artifact else None,
-            logs_artifact_id=logs_artifact.id if logs_artifact else None,
-        ))
+    snapshot_reasons = list(warnings)
+    db.add(ModelSnapshot(
+        snapshot_id=str(uuid4()),
+        experiment_id=item.experiment_id,
+        project_id=item.project_id,
+        model_id=item.model_id,
+        run_id=item.id,
+        user_id=user.id,
+        state="RECORDED" if snapshot_complete else "INCOMPLETE",
+        code_uri=f"artifact:{code_artifact.id}" if code_artifact else None,
+        code_sha256=code_artifact.sha256 if code_artifact else None,
+        dependencies=item.environment,
+        hyperparameters=item.hyperparameters,
+        completeness_reasons=snapshot_reasons,
+        weights_uri=f"artifact:{weights_artifact.id}" if weights_artifact else None,
+        code_artifact_id=code_artifact.id if code_artifact else None,
+        weights_artifact_id=weights_artifact.id if weights_artifact else None,
+        logs_artifact_id=logs_artifact.id if logs_artifact else None,
+    ))
 
     item.status = status
     item.code_artifact_id = code_artifact.id if code_artifact else None
