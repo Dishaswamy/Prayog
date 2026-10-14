@@ -4,7 +4,7 @@
 
 The Steward now lives in `steward/` of the team repository; its history is kept by a subtree merge. It is wired into the real backend by `backend/integration/steward_bridge.py`. What that means and where each piece lives: [INTEGRATION.md §0](INTEGRATION.md#0-status-in-this-repository-2026-10-15-integrated). How the result conforms to the SADD, and the four deviations the merge required: [SADD_CONFORMANCE.md](SADD_CONFORMANCE.md).
 
-**Tests.** `backend/tests` holds 13 end-to-end tests on real PostgreSQL. They use real registration, access approval by professor and admin, `/jobs` submissions placed by real scheduling passes, and runs ended through `lifecycle.release()`. Disabling the seal-hook registration makes 7 of them fail, so they exercise the integration rather than pass vacuously. The Steward's own suite passes in the merged environment: 218 tests, plus lint, strict types, import rules and traceability.
+**Tests.** `backend/tests` holds 14 end-to-end tests on real PostgreSQL. They use real registration, access approval by professor and admin, `/jobs` submissions placed by real scheduling passes, and runs ended through `lifecycle.release()`. Disabling the seal-hook registration makes 7 of them fail, so they exercise the integration rather than pass vacuously. The Steward's own suite passes in the merged environment: 218 tests, plus lint, strict types, import rules and traceability.
 
 **Observed live** (four separate processes: API :8000, Steward Runtime :8100, Steward Worker, scheduler tick, on database `prayog_live`):
 1. **S1:** alice submitted a 2-GPU job, the triggered pass placed it on n1, and the simulated agent failed it with an OOM log. The Worker, through the Runtime over HTTP, produced a diagnosis citing the log; the planted API key was absent from it.
@@ -17,6 +17,7 @@ The Steward now lives in `steward/` of the team repository; its history is kept 
 4. **Outage:**
    - With the Runtime killed, a failed run still sealed (task PENDING), new jobs still scheduled, and admin health showed `runtime_reachable: false`.
    - After restart the Worker's retry finished the diagnosis within 10 seconds.
+5. **Knowledge base:** after ingesting the 15-paper seed into `prayog_live`, S4 on a successful rebuild cited Smith (hyper-parameters) and LAMB with arXiv links. The first query after a restart used to take over 10 s while BGE loaded; `install_steward` now warms the model in a background thread, and the first query takes 0.17 s.
 
 **Still not verified:** a live Claude call (no API key on the dev machine), the Docker images, a CI run on GitHub, and the real ~100-case evaluation.
 

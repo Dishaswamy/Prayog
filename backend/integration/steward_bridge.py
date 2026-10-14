@@ -646,7 +646,25 @@ def install_steward(app: FastAPI) -> bool:
 
     mount(app, steward)
     register_release_hook(seal_hook)
+    _warm_knowledge(steward)
     return True
+
+
+def _warm_knowledge(steward: Steward) -> None:
+    """Load the knowledge index and embedding model off the request path. A semantic
+    embedder takes seconds to load; without this the first S3/S4 request pays for it."""
+    if steward.knowledge is None:
+        return
+    knowledge = steward.knowledge
+
+    def warm() -> None:
+        try:
+            if knowledge.size:
+                knowledge.embedder.embed_query(["warm up"])
+        except Exception:
+            log.warning("knowledge warm-up failed", exc_info=True)
+
+    threading.Thread(target=warm, name="steward-knowledge-warmup", daemon=True).start()
 
 
 __all__ = [
