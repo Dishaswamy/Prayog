@@ -16,12 +16,14 @@ from prayog_steward.audit import Auditor
 from prayog_steward.config import StewardSettings
 from prayog_steward.coordinator.validation import validate_response
 from prayog_steward.gateway import Gateway
+from prayog_steward.knowledge.index import KnowledgeIndex, reference_records
 from prayog_steward.ports import LedgerHistory, Principal, RebuildAttempts, RebuildState, RunReader
 from prayog_steward.sessions.links import AccessDenied, Denial
 from steward_contracts import (
     InvokeOutcome,
     InvokeRequest,
     ReasoningPort,
+    Record,
     RecordKind,
     S4Input,
     S4Result,
@@ -36,6 +38,7 @@ class S4Answer:
     attempt_id: str
     suggestions: list[dict[str, Any]] = field(default_factory=list)
     notices: list[str] = field(default_factory=list)
+    sources: dict[str, dict[str, str | None]] = field(default_factory=dict)
 
 
 class OptimizeService:
@@ -49,7 +52,9 @@ class OptimizeService:
         reasoning: ReasoningPort,
         auditor: Auditor,
         settings: StewardSettings,
+        knowledge: KnowledgeIndex | None = None,
     ) -> None:
+        self.knowledge = knowledge
         self.attempts = attempts
         self.runs = runs
         self.ledger = ledger
@@ -78,7 +83,7 @@ class OptimizeService:
                 f"prayog steward optimize requires REBUILD_SUCCESS; this attempt is "
                 f"{attempt.state.value}.",
             )
-        records = []
+        records: list[Record] = []
         run = self.runs.get_run(attempt.run_id) if attempt.run_id else None
         if run is not None and run.owner_id == principal.principal_id:
             records.append(self.gateway.run_record(run))
@@ -96,6 +101,14 @@ class OptimizeService:
                 continue
             kind = RecordKind.METRICS if entry.kind == "metrics" else RecordKind.CONFIG
             records.append(self.gateway.record(f"led:{entry.entry_id}", kind, entry.body))
+
+        references, ref_titles = reference_records(
+            self.knowledge,
+            self._literature_query(records),
+            self.settings.knowledge_top_k + 1,
+            self.settings.knowledge_min_score,
+        )
+        records.extend(references)
 
         request = InvokeRequest(
             invocation_id=str(uuid.uuid4()),
@@ -120,9 +133,40 @@ class OptimizeService:
         notices = ["These suggestions are advisory. Nothing has been changed or run."]
         if not validated.result.suggestions:
             notices.append("No evidence-backed suggestions were found for this run.")
+        by_id = {r.record_id: r for r in records}
+        used = sorted({c for s in validated.result.suggestions for c in s.cites})
+        if any(by_id[c].kind is RecordKind.REFERENCE for c in used if c in by_id):
+            notices.append(
+                "Suggestions citing papers apply published findings; they are not measurements "
+                "of your run."
+            )
         return S4Answer(
             "ok",
             attempt_id,
             suggestions=[s.model_dump(mode="json") for s in validated.result.suggestions],
             notices=notices,
+            sources={
+                c: {
+                    "kind": by_id[c].kind.value,
+                    "url": by_id[c].source_url,
+                    "title": ref_titles.get(c),
+                }
+                for c in used
+                if c in by_id
+            },
         )
+
+    @staticmethod
+    def _literature_query(records: list[Record]) -> str:
+        """What the run is about, for local retrieval only: its sanitised configuration and
+        metric names, plus the advice topics S4 covers."""
+        parts = [
+            r.body[:600]
+            for r in records
+            if r.kind in (RecordKind.RUN, RecordKind.CONFIG, RecordKind.METRICS)
+        ]
+        parts.append(
+            "improve training: learning rate schedule, batch size, optimizer, "
+            "regularization, mixed precision"
+        )
+        return " ".join(parts)

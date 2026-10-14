@@ -17,6 +17,7 @@ from prayog_steward.config import StewardSettings
 from prayog_steward.coordinator.service import Coordinator
 from prayog_steward.db.engine import make_engine
 from prayog_steward.gateway import Gateway
+from prayog_steward.knowledge.index import KnowledgeIndex
 from prayog_steward.owner import OwnerService
 from prayog_steward.ports import (
     AllocationHistory,
@@ -72,6 +73,7 @@ class Steward:
     links: LinkService
     s3: S3Service
     s4: OptimizeService
+    knowledge: KnowledgeIndex | None = field(default=None)
     maintenance_engine: Engine | None = field(default=None)
 
 
@@ -85,6 +87,7 @@ def build(
     clock: Clock | None = None,
     embedder: Embedder | None = None,
     search: WebSearch | None = None,
+    knowledge_embedder: Embedder | None = None,
 ) -> Steward:
     engine = engine or make_engine(settings.database_url)
     if maintenance_engine is None and settings.maintenance_database_url:
@@ -102,6 +105,12 @@ def build(
     )
     gateway = Gateway(
         runs=ports.runs, logs=ports.logs, sanitiser=sanitiser, settings=settings, auditor=auditor
+    )
+    # The paper corpus (ADR-S10). Loaded lazily on first search; an empty corpus is fine.
+    knowledge = (
+        KnowledgeIndex(engine, knowledge_embedder or build_embedder(settings.knowledge_embedder))
+        if settings.knowledge_enabled
+        else None
     )
     context = AttemptContext(
         gateway=gateway,
@@ -159,6 +168,7 @@ def build(
             search=search,
             reasoning=reasoning,
             auditor=auditor,
+            knowledge=knowledge,
         ),
         s4=OptimizeService(
             attempts=ports.attempts,
@@ -168,6 +178,8 @@ def build(
             reasoning=reasoning,
             auditor=auditor,
             settings=settings,
+            knowledge=knowledge,
         ),
+        knowledge=knowledge,
         maintenance_engine=maintenance_engine,
     )

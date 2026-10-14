@@ -45,6 +45,14 @@ class StewardSettings(BaseSettings):
     ledger_entries_limit: int = 50
     s3_history_turns: int = 6
     search_api_key: str | None = None
+
+    # Knowledge base of reference papers (ADR-S10). "auto" = BGE-base when
+    # sentence-transformers is installed, else hashing. Ingest and query must match.
+    knowledge_enabled: bool = True
+    knowledge_embedder: str = "auto"
+    knowledge_top_k: int = 3
+    # Relevance floor; None = calibrated per embedder (KnowledgeIndex.default_min_score).
+    knowledge_min_score: float | None = None
     search_timeout_seconds: float = 8.0
     search_max_results: int = 3
 

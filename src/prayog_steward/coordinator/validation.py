@@ -74,7 +74,10 @@ def _sourced_claim_ok(claim: SourcedClaim, scope: dict[str, RecordKind | None]) 
     kinds = {scope[c] for c in claim.cites}
     if claim.provenance is Provenance.EXTERNAL:
         return kinds == {RecordKind.EXTERNAL}
-    return RecordKind.EXTERNAL not in kinds  # internal claims may not rest on web results
+    if claim.provenance is Provenance.LITERATURE:
+        return kinds == {RecordKind.REFERENCE}
+    # Internal claims are about the user's own records, never the web or the literature.
+    return not kinds & {RecordKind.EXTERNAL, RecordKind.REFERENCE}
 
 
 def _strip_s1(result: S1Result, scope: dict[str, RecordKind | None]) -> tuple[S1Result, int]:

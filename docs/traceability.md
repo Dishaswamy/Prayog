@@ -58,6 +58,19 @@
 | FR-STW-006, A05, A26 owner's REBUILD_SUCCESS only; own permitted data | `sessions.s4` | `test_a05_optimize_on_success_uses_only_own_permitted_data`, `test_s4_suggestions_need_citations` | done |
 | A06, A15, A27, FR-STW-007 refused for FAILED/CANCELLED or another user | `sessions.s4` | `test_optimize_is_refused_outside_its_preconditions` | done |
 
+## Knowledge base (ADR-S10)
+
+| Requirement | Code | Tests | Status |
+|---|---|---|---|
+| Ported cleaning and chunking, with the notebook's defects fixed | `knowledge.text` | `test_references_are_cut_only_at_a_late_heading`, `test_hyphenation_is_repaired_only_across_line_breaks`, `test_captions_tables_page_numbers_and_arxiv_stamps_are_removed`, `test_word_chunks_overlap_and_drop_tiny_tails` | done |
+| arXiv metadata and PDFs | `knowledge.arxiv` | `test_arxiv_feed_is_parsed_into_metadata` | done |
+| Ingest: real PDFs, sanitised chunks, idempotent | `knowledge.store` | `test_pdfs_are_extracted_chunked_sanitised_and_stored`, `test_reingest_is_idempotent_and_changes_replace_chunks` | done |
+| Corpus is read-only to the request path | migration 0002 | `test_application_role_can_read_but_never_change_the_corpus` | done |
+| Retrieval ranks the relevant paper; diverse hits | `knowledge.index` | `test_index_ranks_the_relevant_paper_first` | done |
+| FR-STW-017 literature kept apart from user records and the web | `coordinator.validation` | `test_literature_claims_must_rest_on_reference_records_only` | done |
+| S3 and S4 cite papers; sources show title and link | `sessions.s3`, `sessions.s4` | `test_s3_answer_cites_papers_with_literature_provenance`, `test_s4_suggestions_cite_papers_and_list_them_as_sources`, `test_model_input_carries_reference_records`, `test_heuristic_uses_literature_and_passes_validation` | done |
+| Corpus listing for signed-in users | `api` `/steward/knowledge/documents` | `test_documents_endpoint_lists_the_corpus` | done |
+
 ## Cross-cutting
 
 | Requirement | Code | Tests | Status |

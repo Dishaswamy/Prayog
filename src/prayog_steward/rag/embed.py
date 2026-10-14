@@ -22,7 +22,13 @@ _WORD = re.compile(r"[A-Za-z][a-z]+|[A-Z]+(?![a-z])|\d+(?:\.\d+)*")
 class Embedder(Protocol):
     name: str
 
-    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed passages (documents, chunks)."""
+        ...
+
+    def embed_query(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed search queries. Some models (BGE) want an instruction prefix here."""
+        ...
 
 
 def _normalise(vec: list[float]) -> list[float]:
@@ -52,20 +58,45 @@ class HashingEmbedder:
             out.append(_normalise(vec))
         return out
 
+    def embed_query(self, texts: Sequence[str]) -> list[list[float]]:
+        return self.embed(texts)
+
 
 class SentenceTransformerEmbedder:
     def __init__(self, model: str = "BAAI/bge-small-en-v1.5") -> None:
-        from sentence_transformers import SentenceTransformer
-
-        self._model: Any = SentenceTransformer(model, device="cpu")
+        self._model_name = model
+        self._model: Any = None  # loaded on first use: building services stays cheap
         self.name = f"st:{model}"
+        # BGE v1.5 retrieves best with this instruction on queries (not on passages).
+        self._query_prefix = (
+            "Represent this sentence for searching relevant passages: "
+            if "bge" in model.lower() and "en" in model.lower()
+            else ""
+        )
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        vectors = self._model.encode(list(texts), normalize_embeddings=True)
+        if self._model is None:
+            from sentence_transformers import SentenceTransformer
+
+            self._model = SentenceTransformer(self._model_name, device="cpu")
+        vectors = self._model.encode(list(texts), normalize_embeddings=True, batch_size=16)
         return [[float(x) for x in v] for v in vectors]
+
+    def embed_query(self, texts: Sequence[str]) -> list[list[float]]:
+        return self.embed([self._query_prefix + t for t in texts])
+
+
+def sentence_transformers_available() -> bool:
+    from importlib.util import find_spec
+
+    return find_spec("sentence_transformers") is not None
 
 
 def build_embedder(kind: str) -> Embedder:
+    """``hashing``, ``st:<model>``, or ``auto`` (BGE-base if sentence-transformers is
+    installed, hashing otherwise). Both ingest and query must use the same embedder."""
+    if kind == "auto":
+        kind = "st:BAAI/bge-base-en-v1.5" if sentence_transformers_available() else "hashing"
     if kind == "hashing":
         return HashingEmbedder()
     if kind.startswith("st:"):

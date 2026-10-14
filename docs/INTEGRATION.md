@@ -83,6 +83,21 @@ purge_user(
 )  # personal Steward state only (A35); diagnoses and projects stay
 ```
 
+### f. Knowledge base of reference papers (ADR-S10)
+
+S3 and S4 cite published papers from a shared corpus. Build it once per environment, with the owner or maintenance role (the app role is read-only on it):
+
+```bash
+pip install -e ".[knowledge]"                                         # PyMuPDF + BGE embeddings
+python -m prayog_steward.knowledge fetch --ids-file knowledge/seed_arxiv.txt
+STEWARD_DATABASE_URL=<owner url> python -m prayog_steward.knowledge ingest
+python -m prayog_steward.knowledge search "loss diverges with a large batch"
+```
+
+Add papers by arXiv ID (`fetch --ids ...`), by topic (`fetch --topic ... --max N`) or as a folder of PDFs (`ingest --pdf-dir`). Re-ingesting is idempotent. API and Worker pick up corpus changes within a minute.
+
+The first use of BGE downloads the model (~440 MB) from Hugging Face. If that fails with a "CAS Client Error", set `HF_HUB_DISABLE_XET=1` to use the plain HTTP download path. Air-gapped hosts can pre-populate the Hugging Face cache and set `HF_HUB_OFFLINE=1`.
+
 ## 3. Database
 
 - PostgreSQL 15+. **No extensions** (ADR-S09).

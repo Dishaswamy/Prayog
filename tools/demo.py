@@ -100,11 +100,32 @@ ModuleNotFoundError: No module named 'timm.layers.fancy_attention'
 XID_LOG = "NCCL WARN Cuda failure 'unspecified launch failure'\nXid 79: GPU has fallen off the bus"
 
 
+def ensure_demo_database(dev_url: str) -> str:
+    """A database of its own, so the test suite (which rebuilds schemas in the dev
+    database) never wipes the demo's embedded paper corpus."""
+    url = make_url(dev_url)
+    server = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    with server.connect() as c:
+        if not c.execute(text("SELECT 1 FROM pg_database WHERE datname = 'prayog_demo'")).scalar():
+            c.execute(text("CREATE DATABASE prayog_demo"))
+    server.dispose()
+    return url.set(database="prayog_demo").render_as_string(hide_password=False)
+
+
+DEMO_TABLES = (
+    "steward.warning_evidence, steward.hardware_warnings, steward.proposals, "
+    "steward.hardware_findings, steward.diagnoses, steward.fault_evidence, "
+    "steward.failure_events, steward.steward_tasks, steward_private.steward_links, "
+    "steward_private.s3_sessions, steward_private.rag_chunks, steward_private.s3_messages, "
+    "steward_private.response_cache"
+)
+
+
 def prepare_database(admin_url: str) -> str:
+    """Migrate to head and clear the demo's own state. The knowledge corpus is kept, so
+    papers are embedded once, not on every start."""
     engine = create_engine(admin_url)
     with engine.begin() as c:
-        c.execute(text("DROP SCHEMA IF EXISTS steward_private CASCADE"))
-        c.execute(text("DROP SCHEMA IF EXISTS steward CASCADE"))
         if not c.execute(
             text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": APP_ROLE}
         ).scalar():
@@ -119,6 +140,15 @@ def prepare_database(admin_url: str) -> str:
     cfg.set_main_option("sqlalchemy.url", admin_url.replace("%", "%%"))
     os.environ["STEWARD_APP_ROLE"] = APP_ROLE
     command.upgrade(cfg, "head")
+    with engine.begin() as c:
+        c.execute(text(f"TRUNCATE {DEMO_TABLES}"))
+        # Grants are idempotent; they cover databases migrated before a table existed.
+        c.execute(
+            text(
+                f"GRANT SELECT ON steward.knowledge_documents, "
+                f"steward.knowledge_chunks TO {APP_ROLE}"
+            )
+        )
     return (
         make_url(admin_url)
         .set(username=APP_ROLE, password=APP_PASSWORD)
@@ -315,6 +345,45 @@ def demo_app(steward: Steward) -> FastAPI:
     return app
 
 
+def seed_knowledge(steward: Steward, admin_url: str) -> None:
+    """Ingest cached papers (``python -m prayog_steward.knowledge fetch ...``) if the corpus
+    has none for the active embedder. Writes go through the admin URL: the app role is
+    read-only on the corpus."""
+    if steward.knowledge is None:
+        return
+    cache = ROOT / ".knowledge_cache"
+    pdfs = sorted(cache.glob("*.pdf"))
+    if steward.knowledge.size or not pdfs:
+        print(
+            f"knowledge base: {steward.knowledge.size} chunks ({steward.knowledge.embedder.name})"
+        )
+        return
+    from prayog_steward.knowledge.store import document_from_pdf, ingest
+    from prayog_steward.rag.sanitiser import Sanitiser
+
+    writer = create_engine(admin_url)
+    print(
+        f"knowledge base: embedding {len(pdfs)} papers with "
+        f"{steward.knowledge.embedder.name} (first start only)..."
+    )
+    for pdf in pdfs:
+        try:
+            result = ingest(
+                writer,
+                document_from_pdf(pdf),
+                steward.knowledge.embedder,
+                Sanitiser(),
+                datetime.now(UTC),
+            )
+        except Exception as exc:  # one bad PDF must not stop the demo
+            print(f"  skipped {pdf.name}: {type(exc).__name__}")
+            continue
+        print(f"  {result.chunks:3d} chunks  {result.title}")
+    steward.knowledge.refresh_seconds = 0
+    print(f"knowledge base: {steward.knowledge.size} chunks")
+    steward.knowledge.refresh_seconds = 60
+
+
 def reasoning(use_claude: bool) -> ReasoningPort:
     if use_claude:
         from steward_runtime.claude import ClaudeReasoning
@@ -337,7 +406,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    admin_url = os.environ.get("STEWARD_DEMO_ADMIN_URL", dev_postgres.URL)
+    admin_url = os.environ.get("STEWARD_DEMO_ADMIN_URL") or ensure_demo_database(dev_postgres.URL)
     app_url = prepare_database(admin_url)
     settings = StewardSettings(
         _env_file=None,
@@ -356,6 +425,7 @@ def main() -> None:
     else:
         port = reasoning(args.claude)
     steward = build(settings, make_ports(), reasoning=port, clock=SystemClock())
+    seed_knowledge(steward, admin_url)
     stop = threading.Event()
     threading.Thread(target=run_worker, args=(steward, stop), daemon=True).start()
     mode = "Runtime over HTTP" if args.http_runtime else ("Claude" if args.claude else "rule-based")

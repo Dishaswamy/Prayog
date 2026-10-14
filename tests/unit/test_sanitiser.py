@@ -92,6 +92,10 @@ def test_ansi_and_progress_bar_rewrites_are_collapsed() -> None:
     assert S.sanitise("\x1b[32mok\x1b[0m\r50%\r100%").text == "100%"
 
 
+def test_nul_and_control_bytes_are_dropped_but_layout_kept() -> None:
+    assert S.sanitise("a\x00b\x07c\td\ne").text == "abc\td\ne"
+
+
 def test_very_long_lines_are_truncated() -> None:
     out = Sanitiser(max_line_chars=10).sanitise("x" * 50).text
     assert out == "x" * 10 + " [...]"

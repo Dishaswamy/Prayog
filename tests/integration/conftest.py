@@ -17,6 +17,10 @@ from alembic.config import Config
 from sqlalchemy import Engine, create_engine, make_url, text
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# Shared API fixture: the full Steward over HTTP with fakes (used by several test modules).
+from test_api import world  # noqa: E402, F401
+
 APP_ROLE = "steward_app_test"
 APP_PASSWORD = "steward_app_test"  # test-only role on a scratch database
 
@@ -71,6 +75,8 @@ def app_engine(app_url: str) -> Iterator[Engine]:
 
 
 TABLES = [
+    "steward.knowledge_chunks",
+    "steward.knowledge_documents",
     "steward.warning_evidence",
     "steward.hardware_warnings",
     "steward.proposals",

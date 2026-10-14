@@ -13,6 +13,7 @@ class Provenance(StrEnum):
 
     INTERNAL = "internal"  # the user's own ML Flow / ledger evidence
     EXTERNAL = "external"  # web results: never presented as guaranteed fact
+    LITERATURE = "literature"  # published papers in the knowledge base (ADR-S10)
     REASONING = "reasoning"  # general reasoning over the error, no evidence cited
 
 

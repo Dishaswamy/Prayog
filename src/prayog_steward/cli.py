@@ -101,6 +101,9 @@ def optimize(attempt_id: str, api_url: ApiUrl = "http://localhost:8000", token: 
         typer.echo(f"note: {notice}")
     for i, s in enumerate(answer.get("suggestions", []), 1):
         typer.echo(f"{i}. [{s['kind']}] {s['text']}  (evidence: {', '.join(s['cites'])})")
+    for rid, src in answer.get("sources", {}).items():
+        if src.get("title"):
+            typer.echo(f"   {rid}: {src['title']}  {src.get('url') or ''}")
 
 
 @app.command()

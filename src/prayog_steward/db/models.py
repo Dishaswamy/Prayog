@@ -15,6 +15,7 @@ from sqlalchemy import (
     ARRAY,
     REAL,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -240,4 +241,38 @@ response_cache = Table(
     Column("response", JSONB, nullable=False),
     _ts("created_at"),
     schema=PRIVATE,
+)
+
+# ------------------------------------------------------------------ knowledge base (ADR-S10)
+# Shared public literature: no RLS; the application role may only read it.
+
+knowledge_documents = Table(
+    "knowledge_documents",
+    metadata,
+    Column("doc_id", Uuid, primary_key=True),
+    _text("source", unique=True),  # 'arxiv:<id>' or 'file:<sha256>'
+    _text("title"),
+    Column("authors", ARRAY(Text), nullable=False),
+    _text("url", nullable=True),
+    Column("published", Date, nullable=True),
+    _text("content_sha256"),
+    _ts("ingested_at"),
+    schema=STEWARD,
+)
+
+knowledge_chunks = Table(
+    "knowledge_chunks",
+    metadata,
+    Column("chunk_id", Uuid, primary_key=True),
+    Column(
+        "doc_id",
+        Uuid,
+        ForeignKey(f"{STEWARD}.knowledge_documents.doc_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("seq", Integer, nullable=False),
+    _text("text"),
+    _text("embedder"),
+    Column("embedding", ARRAY(REAL), nullable=False),
+    schema=STEWARD,
 )

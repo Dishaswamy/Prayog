@@ -165,7 +165,7 @@ class AttemptContext:
         ][-pinned_log_chunks:]  # the tail of the log is where the error is
         pinned_keys = {(r.source_ref, r.seq) for r in pinned}
         rest = [r for r in candidates if (r.source_ref, r.seq) not in pinned_keys]
-        (qvec,) = self.embedder.embed([query])
+        (qvec,) = self.embedder.embed_query([query])
         ranked = sorted(rest, key=lambda r: cosine(qvec, r.embedding), reverse=True)[:k]
         multi = len(attempt_ids) > 1
         return [

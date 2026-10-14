@@ -32,6 +32,7 @@ class RecordKind(StrEnum):
     METRICS = "metrics"  # permitted metrics of a run (S4, ADR-S08)
     CONFIG = "config"  # hyperparameters / job configuration
     EXTERNAL = "external"  # web search result (FR-STW-017)
+    REFERENCE = "reference"  # passage from the curated paper corpus (ADR-S10)
 
 
 class Record(Frozen):
@@ -44,4 +45,4 @@ class Record(Frozen):
     record_id: str
     kind: RecordKind
     body: str
-    source_url: str | None = None  # set only for EXTERNAL records
+    source_url: str | None = None  # set for EXTERNAL and REFERENCE records

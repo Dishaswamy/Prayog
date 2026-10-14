@@ -184,6 +184,14 @@ class HeuristicReasoning:
                     "cites": [ledger[0].record_id],
                 }
             )
+        for ref in [r for r in p.records if r.kind is RecordKind.REFERENCE][:2]:
+            claims.append(
+                {
+                    "text": f"Related published work: {_title(ref)}.",
+                    "provenance": "literature",
+                    "cites": [ref.record_id],
+                }
+            )
         for ext in [r for r in p.records if r.kind is RecordKind.EXTERNAL][:1]:
             claims.append(
                 {
@@ -242,4 +250,18 @@ class HeuristicReasoning:
                     "cites": [run[0].record_id],
                 }
             )
+        for ref in [r for r in p.records if r.kind is RecordKind.REFERENCE][:2]:
+            anchor = (metrics or run)[:1]
+            out.append(
+                {
+                    "kind": "training_setup",
+                    "text": f"Consider the guidance in '{_title(ref)}' for this configuration.",
+                    "cites": [ref.record_id, *(a.record_id for a in anchor)],
+                }
+            )
         return {"suggestions": out}
+
+
+def _title(record: Record) -> str:
+    """Reference records start with the paper title on their first line."""
+    return record.body.splitlines()[0].strip()[:160] if record.body else ""

@@ -38,6 +38,7 @@ from prayog_steward.hardware import (
     list_warnings,
     warning_detail,
 )
+from prayog_steward.knowledge.store import list_documents
 from prayog_steward.owner import Conflict, Forbidden, NotFound
 from prayog_steward.ports import Principal, PrincipalKind
 from prayog_steward.sessions.links import AccessDenied, ActiveSession, Denial
@@ -276,6 +277,9 @@ def build_router(steward: Steward) -> APIRouter:
             "task_queue": tasks.queue_depth(steward.engine),
             "embedder": steward.embedder.name,
             "search_provider": steward.settings.search_provider,
+            "knowledge": None
+            if steward.knowledge is None
+            else {"embedder": steward.knowledge.embedder.name, "chunks": steward.knowledge.size},
         }
         if steward.maintenance_engine is not None:
             from sqlalchemy import text
@@ -291,6 +295,16 @@ def build_router(steward: Steward) -> APIRouter:
                 ).one()
             health["rag"] = {"chunks": row.chunks, "bytes": row.bytes, "sessions": row.sessions}
         return health
+
+    # ------------------------------------------------------------ knowledge base (ADR-S10)
+
+    @router.get("/knowledge/documents")
+    def knowledge_documents(who: Caller) -> Any:
+        """The reference papers the Steward can cite. Public literature, so any signed-in
+        user may list it; nobody can change it over HTTP."""
+        if steward.knowledge is None:
+            return []
+        return _json(list_documents(steward.engine, steward.knowledge.embedder.name))
 
     @router.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

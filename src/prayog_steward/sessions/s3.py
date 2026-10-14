@@ -26,6 +26,7 @@ from prayog_steward.coordinator.validation import validate_response
 from prayog_steward.db.engine import private_tx
 from prayog_steward.db.models import response_cache, s3_messages
 from prayog_steward.gateway import Gateway
+from prayog_steward.knowledge.index import KnowledgeIndex, reference_records
 from prayog_steward.ports import Principal, RebuildAttempts, RebuildState, RunReader
 from prayog_steward.rag.sanitiser import Sanitiser, extract_error_facts
 from prayog_steward.search import SearchState, WebSearch
@@ -80,6 +81,7 @@ class S3Service:
         gateway: Gateway,
         sanitiser: Sanitiser,
         search: WebSearch,
+        knowledge: KnowledgeIndex | None = None,
         reasoning: ReasoningPort,
         auditor: Auditor,
     ) -> None:
@@ -92,6 +94,7 @@ class S3Service:
         self.gateway = gateway
         self.sanitiser = sanitiser
         self.search = search
+        self.knowledge = knowledge
         self.reasoning = reasoning
         self.auditor = auditor
 
@@ -173,6 +176,13 @@ class S3Service:
         run = self.runs.get_run(attempt.run_id) if attempt.run_id else None
         facts = extract_error_facts(error_text, run.job_spec.env_pins if run else ())
         found = self.search.lookup(facts)
+        # Literature: local retrieval over the paper corpus, by question and error class.
+        references, ref_titles = reference_records(
+            self.knowledge,
+            f"{question} {facts.exception_class or ''}".strip(),
+            self.settings.knowledge_top_k,
+            self.settings.knowledge_min_score,
+        )
         external = [
             Record(
                 record_id=f"web:{i}",
@@ -187,7 +197,7 @@ class S3Service:
             payload=S3Input(
                 attempt_id=attempt.attempt_id,
                 question=question,
-                records=records + external,
+                records=records + references + external,
                 history=history,
                 search_status=SearchStatus(found.state.value),
             ),
@@ -217,7 +227,9 @@ class S3Service:
                 search=found.state.value,
             )
 
-        answer = self._answer(attempt.attempt_id, validated.result, request, found.state)
+        answer = self._answer(
+            attempt.attempt_id, validated.result, request, found.state, ref_titles
+        )
         with private_tx(self.engine, user) as conn:
             now = self.clock.now()
             conn.execute(
@@ -261,7 +273,12 @@ class S3Service:
         return answer
 
     def _answer(
-        self, attempt_id: str, turn: S3Turn, request: InvokeRequest, search: SearchState
+        self,
+        attempt_id: str,
+        turn: S3Turn,
+        request: InvokeRequest,
+        search: SearchState,
+        ref_titles: dict[str, str],
     ) -> S3Answer:
         payload = request.payload
         assert isinstance(payload, S3Input)
@@ -276,6 +293,11 @@ class S3Service:
             notices.append(
                 "Statements marked external come from the web and are not guaranteed to be correct."
             )
+        if any(c.provenance.value == "literature" for c in turn.claims):
+            notices.append(
+                "Statements marked literature summarise published papers; they are general "
+                "findings, not measurements of your run."
+            )
         return S3Answer(
             outcome="ok",
             attempt_id=attempt_id,
@@ -284,7 +306,11 @@ class S3Service:
             evidence_found=turn.evidence_found,
             search=search.value,
             sources={
-                rid: {"kind": by_id[rid].kind.value, "url": by_id[rid].source_url}
+                rid: {
+                    "kind": by_id[rid].kind.value,
+                    "url": by_id[rid].source_url,
+                    "title": ref_titles.get(rid),
+                }
                 for rid in sorted(used)
                 if rid in by_id
             },

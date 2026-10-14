@@ -10,6 +10,21 @@ All four contexts work end to end against a real PostgreSQL, behind the HTTP API
 - **S4:** owner's REBUILD_SUCCESS only; own permitted ledger data; advisory output.
 - **Cross-cutting:** sanitiser in front of every egress, retention purge, audit events, security headers, CSRF, no stack traces, retries with leases, outage handling.
 
+## Update 2026-10-14: knowledge base integrated (ADR-S10)
+
+The team's `Scientific-RAG-System` notebooks are now part of the Steward as a shared knowledge base of reference papers.
+- **What changed:**
+  - The notebook code is ported into `prayog_steward.knowledge`: arXiv fetch, PDF extraction and cleaning, chunking, BGE embeddings.
+  - The corpus is stored in PostgreSQL (migration 0002, read-only to the app role) and searched in memory.
+  - S3 and S4 cite papers with a server-enforced "literature" provenance. Generation stays on our Claude adapter; Gemini/LangChain and Qdrant were not adopted.
+- **Defects fixed while porting:**
+  - The references cut could drop most of a paper.
+  - De-hyphenation merged unrelated words.
+  - NUL bytes from real PDFs crashed inserts.
+- **Corpus:** the seed is 15 papers chosen for what the Steward diagnoses (299 chunks). Relevance was calibrated on it: BGE scores ≥ 0.62 for relevant queries and ≤ 0.53 for unrelated ones, so the floor is 0.58. A dependency-error question cites no papers; a warmup question cites Goyal et al. and LAMB.
+- **Tests:** 216 pass, 113 traced to requirements, including real PDFs through ingest → index → S3/S4 over HTTP on PostgreSQL.
+- **Action needed outside this repo:** `RAG.ipynb` in the teammate's repository contains a hard-coded Google API key. It must be revoked and scrubbed from that repo's history.
+
 ## Verified
 
 | Check | Result |

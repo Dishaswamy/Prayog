@@ -114,6 +114,7 @@ def world(app_engine: Engine, admin_engine: Engine) -> dict[str, Any]:
         clock=clock,
         embedder=HashingEmbedder(),
         search=WebSearch(provider),
+        knowledge_embedder=HashingEmbedder(),
     )
     # alice: a failed rebuild a1 (run ra1), a successful one a2; bob: failed rebuild b1
     for rid, owner, project, end in [

@@ -22,6 +22,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+# NUL and other C0 controls except tab/newline/CR: binary junk in logs, rejected by PostgreSQL.
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1a\x1c-\x1f\x7f]")
 
 
 @dataclass(frozen=True)
@@ -152,7 +154,7 @@ class Sanitiser:
 
     def sanitise(self, raw: str) -> Sanitised:
         counts: Counter[str] = Counter()
-        text = _ANSI.sub("", raw).replace("\r\n", "\n")
+        text = _CONTROL.sub("", _ANSI.sub("", raw)).replace("\r\n", "\n")
         # Progress bars rewrite the line with \r; keep only the last state.
         text = "\n".join(line.rsplit("\r", 1)[-1] for line in text.split("\n"))
         text = self._strip_source(text, counts)

@@ -7,13 +7,16 @@ The **Steward**, Prayog's AI agent (CS455 Group 3). One subsystem with four invo
 | **S1** Run-failure diagnosis | A run is sealed `FAILED` | The Worker builds sanitised, scoped input and calls the model. It stores a diagnosis whose uncited claims are stripped, an enum-only hardware finding for the admin, and optionally a bounded corrected-job proposal. The owner sees the exact diff and GPU-hours and approves through ordinary submission. |
 | **S2** Fault correlation | ≥ 2 users fail on one GPU within 24 h | The **server** raises the warning deterministically. The model's correlation over a metadata-only bundle is attached as advice. Only an admin closes it, with a reason. |
 | **S3** Rebuild diagnosis | A `--rebuild` attempt ends `REBUILD_FAILED` | The CLI prints a single-use, 15-minute link. The browser session's answers come from the user's own records only (row-level security, partitioned by attempt), plus allow-listed web search. Steps are text only, never executed. |
-| **S4** Optimisation advisory | `prayog steward optimize` on `REBUILD_SUCCESS` | Advisory suggestions from the run's metrics and the user's own history. |
+| **S4** Optimisation advisory | `prayog steward optimize` on `REBUILD_SUCCESS` | Advisory suggestions from the run's metrics and the user's own history, citing published papers where they apply. |
+
+S3 and S4 also draw on a **knowledge base of reference papers** (integrated from the team's Scientific-RAG-System; ADR-S10). Claims resting on it are labelled *Literature* and link the arXiv paper.
 
 ## Try it in two minutes
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"   # .venv/bin on Linux/macOS
 python tools/dev_postgres.py start      # throwaway PostgreSQL from your installed binaries
+python -m prayog_steward.knowledge fetch --ids-file knowledge/seed_arxiv.txt   # optional: papers
 python tools/demo.py                    # rule-based reasoning; add --claude for the real model
 ```
 
@@ -31,6 +34,7 @@ src/prayog_steward/       server side, the only writer
   owner.py                diagnoses and proposal approval
   sessions/               S3 links and sessions, isolated RAG context, S3 chat, S4 optimize
   rag/                    sanitiser, embeddings, chunking
+  knowledge/              paper corpus: arXiv fetch, PDF extraction, ingest, search
   api/                    FastAPI router, standalone app, static S3 UI
   cli.py                  `prayog steward ...` Typer sub-app
   retention.py            purge on deactivation and after the retention period

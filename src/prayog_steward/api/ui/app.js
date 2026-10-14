@@ -10,6 +10,7 @@ const statusEl = $("status");
 const PROVENANCE = {
   internal: ["Your records", "badge internal"],
   external: ["Web · not guaranteed", "badge external"],
+  literature: ["Literature", "badge literature"],
   reasoning: ["General reasoning", "badge reasoning"],
 };
 
@@ -73,7 +74,8 @@ function renderTurn(question, answer) {
     entries.forEach(([id, src], i) => {
       if (i) sources.appendChild(document.createTextNode(" · "));
       if (src.url && /^https?:\/\//.test(src.url)) {
-        const a = el("a", null, id);
+        const a = el("a", null, src.title || id);
+        a.title = id;
         a.href = src.url; a.rel = "noopener noreferrer nofollow"; a.target = "_blank";
         sources.appendChild(a);
       } else {

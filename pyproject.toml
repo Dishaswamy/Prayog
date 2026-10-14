@@ -19,11 +19,14 @@ dependencies = [
     "typer>=0.12,<1",
     # 1.x: messages.create with output_config, transform_schema, httpx2 transport
     "anthropic>=1.11,<2",
+    "numpy>=1.26,<3",  # knowledge-base index (ADR-S10)
 ]
 
 [project.optional-dependencies]
-# Local embeddings for the RAG pipeline (ADR-S06). Heavy (pulls torch), so opt-in.
+# Local semantic embeddings (ADR-S06). Heavy (pulls torch), so opt-in.
 rag = ["sentence-transformers>=3.0"]
+# Knowledge base of reference papers (ADR-S10): PDF parsing plus BGE embeddings.
+knowledge = ["pymupdf>=1.24", "sentence-transformers>=3.0"]
 dev = [
     "pytest>=8",
     "hypothesis>=6",
@@ -31,6 +34,7 @@ dev = [
     "mypy>=1.11",
     "import-linter>=2.0",
     "uvicorn>=0.30",
+    "pymupdf>=1.24",  # knowledge-ingest tests build and parse real PDFs
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -68,7 +72,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["sentence_transformers.*"]
+module = ["sentence_transformers.*", "fitz.*"]
 ignore_missing_imports = true
 
 # SADD §11.1 import rules, enforced in CI with `lint-imports`.

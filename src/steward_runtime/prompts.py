@@ -57,7 +57,9 @@ Task: a user's rebuild of a recorded experiment failed. Help them understand and
 answering their current question in the context of the conversation history.
 - claims: label each with provenance. "internal" means it rests on the user's own ledger or
   error records. "external" means it rests on web results (cite them; they are not guaranteed
-  facts). "reasoning" is general reasoning with no citation.
+  facts). "literature" means it rests on passages from published papers (records of kind
+  "reference"); use them for general findings, never as facts about this user's run.
+  "reasoning" is general reasoning with no citation.
 - steps: step-by-step manual remediation. Put any shell command in `command`; the user runs it
   themselves.
 - evidence_found: true only if internal records actually support your diagnosis. If retrieval
@@ -67,8 +69,11 @@ answering their current question in the context of the conversation history.
 
 _S4 = """\
 Task: the user's rebuild succeeded. Suggest improvements to architecture, hyperparameters or
-training setup, based only on this run's metrics and configuration and the user's own earlier
-runs. Each suggestion must cite the records it is based on. The suggestions are advisory.
+training setup, based on this run's metrics and configuration and the user's own earlier
+runs. Records of kind "reference" are passages from published papers: cite them when a
+suggestion follows a published finding (for example learning-rate warmup for large batches),
+alongside the user's own record it applies to. Never claim a paper describes the user's run.
+Each suggestion must cite the records it is based on. The suggestions are advisory.
 """
 
 SYSTEM_PROMPTS: dict[Context, str] = {
