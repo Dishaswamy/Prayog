@@ -614,6 +614,22 @@ def seal_hook(session: Session, result: ReleaseResult, reason: ReleaseReason, no
                   log_tail=log_tail)
 
 
+def register_steward_hooks() -> bool:
+    """Only the run-seal hook, for processes that release runs but serve no HTTP (the
+    scheduler tick, a future agent gateway). Every process that calls
+    lifecycle.release() must call this or install_steward(), or the Steward misses
+    those run ends."""
+    if os.getenv("STEWARD_ENABLED", "true").strip().lower() in ("0", "false", "no"):
+        return False
+    try:
+        get_steward()
+    except Exception as exc:  # noqa: BLE001 - a misconfigured Steward must not stop scheduling
+        log.warning("Steward hooks not registered: %s", exc)
+        return False
+    register_release_hook(seal_hook)
+    return True
+
+
 def install_steward(app: FastAPI) -> bool:
     """Mount the Steward on the app and hook it into run releases. If it is not
     configured (STEWARD_ENABLED=false, or no database role), the platform runs without
@@ -636,6 +652,7 @@ def install_steward(app: FastAPI) -> bool:
 __all__ = [
     "get_steward",
     "install_steward",
+    "register_steward_hooks",
     "seal_hook",
     "steward_ports",
     "steward_settings",

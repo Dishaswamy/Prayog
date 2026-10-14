@@ -327,3 +327,13 @@ def test_the_steward_role_cannot_bypass_row_level_security() -> None:
         row = c.execute(text(
             "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user")).one()
     assert tuple(row) == (False, False)
+
+
+def test_processes_that_release_runs_can_register_the_hook_alone() -> None:
+    """The scheduler tick (and a future agent gateway) release runs without serving
+    HTTP; register_steward_hooks() gives them the same run-seal hook (idempotent)."""
+    from integration.steward_bridge import register_steward_hooks, seal_hook
+    from logic.scheduler.lifecycle import RELEASE_HOOKS
+
+    assert register_steward_hooks() and register_steward_hooks()
+    assert RELEASE_HOOKS.count(seal_hook) == 1

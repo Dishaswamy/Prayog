@@ -22,7 +22,6 @@ from logic.scheduler.domain import JobState, ReleaseReason
 from logic.scheduler.lifecycle import (
     RunReport,
     mark_running,
-    register_release_hook,
     release,
 )
 from logic.scheduler.passes import Trigger, run_pass
@@ -50,8 +49,8 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     # The same hook the API registers, so a simulated end reaches the Steward.
-    from integration.steward_bridge import seal_hook
-    register_release_hook(seal_hook)
+    from integration.steward_bridge import register_steward_hooks
+    register_steward_hooks()
 
     _ensure_running(args.job_id)
     if args.action == "start":
