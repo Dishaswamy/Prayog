@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steward · Prayog</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <h1>Steward</h1>
+      <p class="sub">Rebuild diagnosis · attempt <code id="attempt">…</code></p>
+    </div>
+    <div class="meta">
+      <span id="expiry"></span>
+      <button id="logout" type="button" class="ghost">End session</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="intro">
+      Ask why your rebuild failed. Answers draw only on <strong>your own</strong> records for this
+      attempt, plus the web if your administrator enabled it. Suggested commands are text for you to
+      run yourself; Steward never runs anything or changes your files.
+    </p>
+    <section id="thread" aria-live="polite"></section>
+    <p id="status" class="status" role="status"></p>
+  </main>
+
+  <form id="ask" class="composer">
+    <label for="question" class="visually-hidden">Your question</label>
+    <textarea id="question" rows="2" maxlength="2000"
+              placeholder="Why did this rebuild fail, and how do I fix it?" required></textarea>
+    <details>
+      <summary>Compare with an earlier attempt</summary>
+      <label for="include">Earlier attempt IDs (comma-separated, yours only)</label>
+      <input id="include" type="text" autocomplete="off">
+    </details>
+    <button type="submit" id="send">Ask Steward</button>
+  </form>
+
+  <template id="tpl-turn">
+    <article class="turn">
+      <p class="q"></p>
+      <div class="a">
+        <ul class="notices"></ul>
+        <ul class="claims"></ul>
+        <ol class="steps"></ol>
+        <p class="sources"></p>
+      </div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
