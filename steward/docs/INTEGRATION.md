@@ -2,6 +2,23 @@
 
 This is for the sub-teams that own the API server, scheduler/Results Service, access and identity, the ledger and the CLI. It lists everything the Steward needs from you and everything it gives you. If you implement the nine ports and make the four calls below, the Steward works.
 
+## 0. Status in this repository (2026-10-15): integrated
+
+The ports and calls below are implemented against the Prayog backend in [`backend/integration/steward_bridge.py`](../../backend/integration/steward_bridge.py). Everything it touches:
+
+| Concern | Where in `backend/` |
+|---|---|
+| The nine ports on platform tables (runs = released allocations; JWT principals, ADMIN → Platform Admin; supervision from approved access; approvals via `submit_job`) | `integration/steward_bridge.py` |
+| Run-seal hook inside the release transaction (savepoint, never blocks) | `logic/scheduler/lifecycle.py` (`RunReport`, `register_release_hook`) |
+| Agent report, rebuild attempts, audit log | `models.py` + migration `b7e4c1a9d2f0` (`run_results`, `rebuild_attempts`, `audit_events`) |
+| Steward API and UI mounted on the app | `main.py` → `install_steward(app)` |
+| Steward Worker process | `python -m integration.steward_worker` |
+| Database role and Steward migrations | `python -m scripts.setup_steward` |
+| Rebuilds (interim, FR-ML-003) | `logic/rebuild.py`, `routers/rebuilds.py` |
+| End-to-end tests | `backend/tests/test_steward_integration.py` |
+
+When the real modules land (node agent, content store, ledger, projects, server-side sessions), they replace the matching adapter in the bridge. Nothing inside `steward/` changes. Mapping decisions and deviations are listed in [SADD_CONFORMANCE.md](SADD_CONFORMANCE.md).
+
 ## 1. What you implement: the ports
 
 All ports are Python `Protocol`s in [`prayog_steward/ports.py`](../src/prayog_steward/ports.py). In-memory reference implementations live in [`prayog_steward/fakes`](../src/prayog_steward/fakes/__init__.py); copy their semantics, which the tests depend on.

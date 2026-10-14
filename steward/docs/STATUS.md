@@ -1,6 +1,26 @@
-# Status: Steward subsystem (2026-10-08)
+# Status: Steward subsystem
 
-## Built
+## Update 2026-10-15: merged into the Prayog repository and integrated with the backend
+
+The Steward now lives in `steward/` of the team repository; its history is kept by a subtree merge. It is wired into the real backend by `backend/integration/steward_bridge.py`. What that means and where each piece lives: [INTEGRATION.md §0](INTEGRATION.md#0-status-in-this-repository-2026-10-15-integrated). How the result conforms to the SADD, and the four deviations the merge required: [SADD_CONFORMANCE.md](SADD_CONFORMANCE.md).
+
+**Tests.** `backend/tests` holds 13 end-to-end tests on real PostgreSQL. They use real registration, access approval by professor and admin, `/jobs` submissions placed by real scheduling passes, and runs ended through `lifecycle.release()`. Disabling the seal-hook registration makes 7 of them fail, so they exercise the integration rather than pass vacuously. The Steward's own suite passes in the merged environment: 218 tests, plus lint, strict types, import rules and traceability.
+
+**Observed live** (four separate processes: API :8000, Steward Runtime :8100, Steward Worker, scheduler tick, on database `prayog_live`):
+1. **S1:** alice submitted a 2-GPU job, the triggered pass placed it on n1, and the simulated agent failed it with an OOM log. The Worker, through the Runtime over HTTP, produced a diagnosis citing the log; the planted API key was absent from it.
+2. **Rebuilds:**
+   - A snapshot alice never ran was `REBUILD_REJECTED` (404, no attempt).
+   - A rebuild that failed read `REBUILD_FAILED`, and its Steward link opened in a real browser. The page showed the sign-in form, alice signed in through the platform's `/auth/login`, the link was consumed by POST, and the token disappeared from the URL.
+   - The chat answered, citing the attempt's log and alice's job history.
+   - S4 worked on a successful attempt; on the failed one it was refused (403).
+3. **S2:** with n2 down, alice and bob failed on n1/gpu0. A warning was raised from two labs, the advisory S2 finding was attached, the admin saw it, and bob got 404.
+4. **Outage:**
+   - With the Runtime killed, a failed run still sealed (task PENDING), new jobs still scheduled, and admin health showed `runtime_reachable: false`.
+   - After restart the Worker's retry finished the diagnosis within 10 seconds.
+
+**Still not verified:** a live Claude call (no API key on the dev machine), the Docker images, a CI run on GitHub, and the real ~100-case evaluation.
+
+## Built (2026-10-08)
 
 All four contexts work end to end against a real PostgreSQL, behind the HTTP API, in the web UI and from the CLI:
 
