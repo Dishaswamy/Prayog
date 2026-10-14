@@ -4,7 +4,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from logic.errors import BadRequestError
-from logic.mlflow import create_rebuild, finish_run
+from logic.mlflow import create_rebuild, finish_run, list_snapshots
 
 
 class SnapshotStorageFailureTests(TestCase):
@@ -84,8 +84,23 @@ class SnapshotStorageFailureTests(TestCase):
         self.assertEqual(verify.call_count, 2)
 
 
+
+    def test_incomplete_snapshot_remains_in_snapshot_listing(self):
+        experiment = SimpleNamespace(id=2, user_id=7)
+        snapshot = SimpleNamespace(snapshot_id="snapshot-incomplete", state="INCOMPLETE")
+        experiment_query = MagicMock()
+        experiment_query.filter.return_value.first.return_value = experiment
+        snapshot_query = MagicMock()
+        snapshot_query.filter.return_value.order_by.return_value.all.return_value = [snapshot]
+        self.db.query.side_effect = [experiment_query, snapshot_query]
+
+        result = list_snapshots(self.db, 2, self.user)
+
+        self.assertEqual(result, [snapshot])
+        self.assertEqual(result[0].state, "INCOMPLETE")
+
     @patch("logic.mlflow.get_verified_artifact")
-    def test_incomplete_snapshot_is_queryable_but_cannot_be_rebuilt(self, verify):
+    def test_incomplete_snapshot_cannot_be_rebuilt(self, verify):
         snapshot = SimpleNamespace(
             snapshot_id="snapshot-incomplete",
             experiment_id=2,
