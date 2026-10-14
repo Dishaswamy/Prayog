@@ -25,7 +25,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -166,24 +166,29 @@ def build_router(steward: Steward) -> APIRouter:
             ),
         }
 
-    @router.get("/s/{token}", response_class=HTMLResponse)
-    def open_link(token: str, request: Request) -> Response:
-        """The browser opens the link. Identity is checked before anything is shown."""
-        credential, _ = _credential(request)
-        who = steward.ports.principals.resolve(credential) if credential else None
-        if who is None:
-            return _page(401, "Please sign in to Prayog, then open the link again.")
-        try:
-            session = steward.links.consume(who, token)
-        except AccessDenied as denied:
-            return _page(403, str(denied))
+    @router.get("/s/{token}", include_in_schema=False)
+    def link_page(token: str) -> Response:
+        """The page a Steward link opens. It has no side effects: link previewers and
+        prefetchers cannot burn a single-use link. The page signs the user in if needed,
+        then POSTs to /open."""
+        return FileResponse(UI_DIR / "index.html", media_type="text/html")
+
+    @router.post("/s/{token}/open")
+    def open_link(token: str, request: Request, who: Writer) -> Response:
+        """Consume the link. Identity is checked before anything is exposed (A09-A11);
+        the interactive session is an HttpOnly cookie bound to (user, attempt)."""
+        session = steward.links.consume(who, token)
         try:
             steward.s3.open(
                 who, ActiveSession(session.user_id, session.attempt_id, session.expires_at)
             )
         except Exception:  # ingestion problems must not lose the session (A22)
             log.exception("steward context ingestion failed")
-        response = RedirectResponse("/steward/ui/", status_code=303)
+        response = JSONResponse(
+            jsonable_encoder(
+                {"attempt_id": session.attempt_id, "expires_at": session.expires_at}
+            )
+        )
         response.set_cookie(
             S3_COOKIE,
             session.token,
@@ -198,6 +203,13 @@ def build_router(steward: Steward) -> APIRouter:
             max_age=int(steward.settings.s3_session_ttl.total_seconds()),
         )
         return response
+
+    @router.get("/ui-config", include_in_schema=False)
+    def ui_config() -> dict[str, Any]:
+        """How the Steward page signs a user in. With a login URL the page posts
+        {email, password} there and sends the returned bearer token; without one it
+        relies on the platform's session cookie."""
+        return {"login_url": steward.settings.platform_login_url}
 
     def s3_session(request: Request, who: Caller) -> tuple[Principal, ActiveSession]:
         return who, steward.links.resolve(who, request.cookies.get(S3_COOKIE))
@@ -313,19 +325,10 @@ def build_router(steward: Steward) -> APIRouter:
     return router
 
 
-def _page(status: int, message: str) -> HTMLResponse:
-    from html import escape
-
-    body = (
-        "<!doctype html><meta charset='utf-8'><meta name='viewport' "
-        "content='width=device-width,initial-scale=1'><title>Steward</title>"
-        "<body style='font-family:system-ui;max-width:40rem;margin:4rem auto;padding:0 1rem'>"
-        f"<h1>Steward</h1><p>{escape(message)}</p></body>"
-    )
-    return HTMLResponse(body, status_code=status)
-
-
-def install_error_handlers(app: FastAPI) -> None:
+def install_error_handlers(app: FastAPI, *, catch_all: bool = True) -> None:
+    """Map Steward's exceptions to responses. ``catch_all`` also turns any unhandled
+    error into a JSON 500 without detail; leave it off when mounting into a host app
+    that has its own error policy (mount())."""
     def handler(status: int, detail: str | None = None) -> Any:
         async def _h(request: Request, exc: Exception) -> JSONResponse:
             return JSONResponse({"detail": detail or str(exc) or "error"}, status_code=status)
@@ -336,7 +339,15 @@ def install_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Conflict, handler(409))
     app.add_exception_handler(Forbidden, handler(403))
     app.add_exception_handler(WarningNotOpen, handler(409, "warning is not open"))
-    app.add_exception_handler(ValueError, handler(400))
+
+    async def value_error(request: Request, exc: Exception) -> JSONResponse:
+        # Steward raises ValueError for invalid input; elsewhere it is a server bug.
+        if request.url.path.startswith("/steward"):
+            return JSONResponse({"detail": str(exc) or "invalid input"}, status_code=400)
+        log.exception("unhandled ValueError on %s", request.url.path)
+        return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
+
+    app.add_exception_handler(ValueError, value_error)
 
     async def denied(request: Request, exc: Exception) -> JSONResponse:
         assert isinstance(exc, AccessDenied)
@@ -348,7 +359,8 @@ def install_error_handlers(app: FastAPI) -> None:
         return JSONResponse({"detail": "internal error"}, status_code=500)
 
     app.add_exception_handler(AccessDenied, denied)
-    app.add_exception_handler(Exception, internal)
+    if catch_all:
+        app.add_exception_handler(Exception, internal)
 
 
 CSP = (
@@ -372,6 +384,15 @@ def install_security_headers(app: FastAPI) -> None:
             if not path.startswith(("/steward/docs", "/steward/openapi")):
                 h.setdefault("Content-Security-Policy", CSP)
         return response
+
+
+def mount(app: FastAPI, steward: Steward) -> None:
+    """Add the Steward to a host FastAPI app (the Prayog backend): routes under
+    /steward, its error mapping (no catch-all), security headers and the S3 UI."""
+    install_error_handlers(app, catch_all=False)
+    install_security_headers(app)
+    app.include_router(build_router(steward))
+    app.mount("/steward/ui", StaticFiles(directory=UI_DIR, html=True), name="steward-ui")
 
 
 def create_app(steward: Steward) -> FastAPI:

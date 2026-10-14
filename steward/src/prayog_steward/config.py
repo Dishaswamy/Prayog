@@ -22,6 +22,12 @@ class StewardSettings(BaseSettings):
     runtime_timeout_seconds: float = 120.0
     public_base_url: str = "http://localhost:8000"  # where Steward links point (FR-STW-004)
     service_principal_id: str = "svc:steward"  # FR-AUTH-73
+    # Where the Steward page signs users in when the platform uses bearer tokens
+    # (POST {email, password} -> {access_token}). None: the platform's session cookie.
+    platform_login_url: str | None = None
+    # Job fields the platform's submission path can actually change. A proposal may only
+    # touch these (the model is told; anything else is dropped). None: all JobField values.
+    proposal_fields: list[str] | None = None
     # Secure flag on the S3 session cookie. None = follow the request scheme; set True
     # behind a TLS-terminating proxy, where the app itself sees plain http.
     cookie_secure: bool | None = None

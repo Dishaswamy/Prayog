@@ -55,14 +55,24 @@ def apply_change(spec: JobSpec, change: JobChange, settings: StewardSettings) ->
             return replace(spec, precision=value.lower()) if value.lower() in PRECISIONS else None
 
 
+def changeable_fields(settings: StewardSettings) -> list[JobField]:
+    """The job fields the platform's submission path can change (settings.proposal_fields)."""
+    if settings.proposal_fields is None:
+        return list(JobField)
+    return [f for f in JobField if f.value in set(settings.proposal_fields)]
+
+
 def apply_changes(
     spec: JobSpec, changes: list[JobChange], settings: StewardSettings
 ) -> tuple[JobSpec, list[JobChange]]:
-    """Apply valid changes in order. One change per field; invalid ones are dropped."""
+    """Apply valid changes in order. One change per field; invalid ones, and changes to
+    fields the platform cannot submit, are dropped (an owner must never approve a
+    change that would silently not happen)."""
+    allowed = set(changeable_fields(settings))
     applied: list[JobChange] = []
     seen: set[JobField] = set()
     for change in changes:
-        if change.field in seen:
+        if change.field in seen or change.field not in allowed:
             continue
         new = apply_change(spec, change, settings)
         if new is None or new == spec:

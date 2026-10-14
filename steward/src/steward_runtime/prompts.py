@@ -36,7 +36,8 @@ command, resources or data?
 - matching_earlier_failures: record_ids of earlier runs that failed the same way.
 - hardware_finding: whether the evidence points to faulty hardware. Use only the enums.
   A code, configuration or library error is "unlikely_hardware".
-- proposal: at most one or two job changes that would most likely fix the run (for example
+- proposal: only fields listed in the run record's "changeable_fields" can be changed.
+  At most one or two job changes that would most likely fix the run (for example
   pinning a library back to the version that last worked, or lowering batch size after an
   out-of-memory error), each with a cited reason. Use null if no change is clearly justified.
   The owner must approve it; never propose more GPUs or walltime without evidence.

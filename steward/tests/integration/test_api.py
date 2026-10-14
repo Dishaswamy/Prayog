@@ -163,12 +163,17 @@ def browser(client: TestClient, token: str) -> None:
 CSRF = {"X-Steward-CSRF": "1"}
 
 
+def consume(c: TestClient, url: str) -> Any:
+    """What the link page does: POST /open (cookie-authenticated, so with the CSRF header)."""
+    return c.post(url.removeprefix("http://testserver") + "/open", headers=CSRF)
+
+
 def open_session(w: dict[str, Any], attempt: str = "a1", as_: str = ALICE) -> TestClient:
     c: TestClient = w["client"]
     url = c.post(f"/steward/attempts/{attempt}/link", headers=bearer(as_)).json()["url"]
     browser(c, as_)
-    r = c.get(url.removeprefix("http://testserver"), follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/steward/ui/"
+    r = consume(c, url)
+    assert r.status_code == 200 and r.json()["attempt_id"] == attempt, r.text
     return c
 
 
@@ -190,6 +195,26 @@ def test_security_headers_and_no_stack_traces(world: dict[str, Any]) -> None:
 def test_ui_is_served(world: dict[str, Any]) -> None:
     r = world["client"].get("/steward/ui/")
     assert r.status_code == 200 and "Steward" in r.text
+
+
+def test_opening_a_link_page_has_no_side_effects(world: dict[str, Any]) -> None:
+    """GET only serves the page: a link previewer cannot burn a single-use link."""
+    c: TestClient = world["client"]
+    url = c.post("/steward/attempts/a1/link", headers=bearer(ALICE)).json()["url"]
+    page = c.get(url.removeprefix("http://testserver"))
+    assert page.status_code == 200 and "/steward/ui/app.js" in page.text
+    browser(c, ALICE)
+    assert consume(c, url).status_code == 200  # still unused
+
+
+def test_link_can_be_opened_with_a_bearer_token(world: dict[str, Any]) -> None:
+    """Platforms that use bearer tokens (the Prayog backend) sign in on the page and POST."""
+    c: TestClient = world["client"]
+    url = c.post("/steward/attempts/a1/link", headers=bearer(ALICE)).json()["url"]
+    c.cookies.clear()
+    r = c.post(url.removeprefix("http://testserver") + "/open", headers=bearer(ALICE))
+    assert r.status_code == 200 and "steward_s3" in r.cookies
+    assert c.get("/steward/s3/session", headers=bearer(ALICE)).json()["attempt_id"] == "a1"
 
 
 # ---------------------------------------------------------------- S1 over HTTP
@@ -284,10 +309,9 @@ def test_a10_link_is_single_use(world: dict[str, Any]) -> None:
     c: TestClient = world["client"]
     url = c.post("/steward/attempts/a1/link", headers=bearer(ALICE)).json()["url"]
     browser(c, ALICE)
-    path = url.removeprefix("http://testserver")
-    assert c.get(path, follow_redirects=False).status_code == 303
-    again = c.get(path, follow_redirects=False)
-    assert again.status_code == 403 and "Single-Use Violation" in again.text
+    assert consume(c, url).status_code == 200
+    again = consume(c, url)
+    assert again.status_code == 403 and "Single-Use Violation" in again.json()["detail"]
 
 
 def test_a09_expired_link_is_denied(world: dict[str, Any]) -> None:
@@ -295,15 +319,15 @@ def test_a09_expired_link_is_denied(world: dict[str, Any]) -> None:
     url = c.post("/steward/attempts/a1/link", headers=bearer(ALICE)).json()["url"]
     world["clock"].advance(timedelta(minutes=16))
     browser(c, ALICE)
-    r = c.get(url.removeprefix("http://testserver"), follow_redirects=False)
-    assert r.status_code == 403 and "Expired Token" in r.text
+    r = consume(c, url)
+    assert r.status_code == 403 and "Expired Token" in r.json()["detail"]
 
 
 def test_a11_other_user_is_denied_before_any_context_is_exposed(world: dict[str, Any]) -> None:
     c: TestClient = world["client"]
     url = c.post("/steward/attempts/a1/link", headers=bearer(ALICE)).json()["url"]
     browser(c, BOB)
-    r = c.get(url.removeprefix("http://testserver"), follow_redirects=False)
+    r = consume(c, url)
     assert r.status_code == 403 and "steward_s3" not in r.cookies
     with world["steward"].engine.connect() as conn:  # nothing was ingested
         assert conn.execute(select(func.count()).select_from(rag_chunks)).scalar_one() == 0
@@ -311,7 +335,7 @@ def test_a11_other_user_is_denied_before_any_context_is_exposed(world: dict[str,
     assert denied[-1].reason == "identity_mismatch" and denied[-1].actor == "bob"
     # ...and the link is still usable by its owner: a mismatch does not consume it.
     browser(c, ALICE)
-    assert c.get(url.removeprefix("http://testserver"), follow_redirects=False).status_code == 303
+    assert consume(c, url).status_code == 200
 
 
 def test_link_dies_with_the_cli_session_that_requested_it(world: dict[str, Any]) -> None:
@@ -319,7 +343,7 @@ def test_link_dies_with_the_cli_session_that_requested_it(world: dict[str, Any])
     url = c.post("/steward/attempts/a1/link", headers=bearer(ALICE)).json()["url"]
     world["ports"].authorizer.ended_sessions.add("cli-alice")  # user logged out (ID-12)
     browser(c, ALICE)
-    assert c.get(url.removeprefix("http://testserver"), follow_redirects=False).status_code == 403
+    assert consume(c, url).status_code == 403
 
 
 # ---------------------------------------------------------------- S3 session and RAG

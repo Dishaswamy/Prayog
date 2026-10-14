@@ -14,17 +14,27 @@ const PROVENANCE = {
   reasoning: ["General reasoning", "badge reasoning"],
 };
 
-async function call(path, options = {}) {
-  const response = await fetch(API + path, {
-    credentials: "same-origin",
-    ...options,
-    headers: { "Content-Type": "application/json", "X-Steward-CSRF": "1", ...(options.headers || {}) },
-  });
+// Platforms that use bearer tokens (Prayog's /auth/login): the token lives only in this
+// tab's sessionStorage and is sent as Authorization. Cookie platforms need none of this.
+const TOKEN_KEY = "steward_bearer";
+function bearer() {
+  try { return sessionStorage.getItem(TOKEN_KEY); } catch (_) { return null; }
+}
+
+class HttpError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+
+async function call(path, options = {}, base = API) {
+  const headers = { "Content-Type": "application/json", "X-Steward-CSRF": "1", ...(options.headers || {}) };
+  const token = bearer();
+  if (token) headers.Authorization = "Bearer " + token;
+  const response = await fetch(base + path, { credentials: "same-origin", ...options, headers });
   let body = null;
   try { body = await response.json(); } catch (_) { /* empty body */ }
   if (!response.ok) {
     const detail = (body && body.detail) || "Something went wrong.";
-    throw new Error(detail);
+    throw new HttpError(response.status, typeof detail === "string" ? detail : "Request failed.");
   }
   return body;
 }
@@ -131,4 +141,56 @@ $("logout").addEventListener("click", async () => {
   statusEl.textContent = "Session ended. Your rebuild attempt is unchanged.";
 });
 
-load();
+// ── opening a Steward link: /steward/s/<token> ─────────────────────────
+async function openLink(token) {
+  try {
+    await call("/s/" + encodeURIComponent(token) + "/open", { method: "POST" });
+    history.replaceState(null, "", "/steward/ui/");      // the token never stays in the URL
+    $("signin").hidden = true;
+    $("ask").hidden = false;
+    await load();
+  } catch (e) {
+    if (e.status === 401) return askToSignIn(token);
+    $("ask").hidden = true;
+    statusEl.textContent = e.message;
+  }
+}
+
+async function askToSignIn(token) {
+  let config = {};
+  try { config = await call("/ui-config", { method: "GET" }); } catch (_) { /* defaults */ }
+  $("ask").hidden = true;
+  if (!config.login_url) {
+    statusEl.textContent = "Please sign in to Prayog in this browser, then open the link again.";
+    return;
+  }
+  const form = $("signin");
+  form.hidden = false;
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    statusEl.textContent = "Signing in…";
+    try {
+      const response = await fetch(config.login_url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: $("email").value, password: $("password").value }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.access_token) throw new Error(body.detail || "Sign-in failed.");
+      try { sessionStorage.setItem(TOKEN_KEY, body.access_token); } catch (_) { /* private mode */ }
+      $("password").value = "";
+      statusEl.textContent = "";
+      await openLink(token);
+    } catch (err) {
+      statusEl.textContent = err.message;
+    }
+  };
+}
+
+const linkMatch = location.pathname.match(/^\/steward\/s\/([^/]+)$/);
+if (linkMatch) {
+  openLink(decodeURIComponent(linkMatch[1]));
+} else {
+  load();
+}

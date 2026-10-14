@@ -20,6 +20,7 @@ from sqlalchemy import Connection, select
 
 from prayog_steward.audit import Auditor
 from prayog_steward.config import StewardSettings
+from prayog_steward.coordinator.proposals import changeable_fields
 from prayog_steward.db.models import diagnoses, fault_evidence, warning_evidence
 from prayog_steward.ports import JobSpec, LogStore, RunReader, RunView
 from prayog_steward.rag.sanitiser import Sanitiser, excerpt
@@ -129,6 +130,7 @@ class Gateway:
                 "ended_at": _iso(run.ended_at),
                 "duration_minutes": minutes,
                 "job": job_spec_dict(run.job_spec),
+                "changeable_fields": [f.value for f in changeable_fields(self.settings)],
             },
         )
 

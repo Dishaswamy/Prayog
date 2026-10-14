@@ -8,6 +8,7 @@ Nothing is applied or executed (A08), and denials are audited (NFR-SEC-007).
 
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -158,15 +159,34 @@ class OptimizeService:
 
     @staticmethod
     def _literature_query(records: list[Record]) -> str:
-        """What the run is about, for local retrieval only: its sanitised configuration and
-        metric names, plus the advice topics S4 covers."""
-        parts = [
-            r.body[:600]
-            for r in records
-            if r.kind in (RecordKind.RUN, RecordKind.CONFIG, RecordKind.METRICS)
-        ]
-        parts.append(
-            "improve training: learning rate schedule, batch size, optimizer, "
-            "regularization, mixed precision"
+        """A natural-language description of the run for local retrieval: its training
+        settings and the names of its metrics, not raw JSON (which dilutes embeddings).
+        Built from sanitised records; the query never leaves the server."""
+        settings: list[str] = []
+        metric_names: list[str] = []
+        for r in records:
+            try:
+                data = json.loads(r.body)
+            except ValueError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            if r.kind is RecordKind.RUN:
+                job = data.get("job") or {}
+                if job.get("precision"):
+                    settings.append(f"{job['precision']} precision")
+                if job.get("batch_size"):
+                    settings.append(f"batch size {job['batch_size']}")
+                if job.get("gpu_count"):
+                    settings.append(f"{job['gpu_count']} GPUs")
+            elif r.kind is RecordKind.METRICS:
+                metric_names.extend(str(k).replace("_", " ") for k in list(data)[:8])
+        query = (
+            "How to improve neural network training: learning rate schedule and warmup, "
+            "batch size, optimizer and weight decay"
         )
-        return " ".join(parts)
+        if settings:
+            query += "; current settings: " + ", ".join(settings)
+        if metric_names:
+            query += "; tracked metrics: " + ", ".join(metric_names)
+        return query

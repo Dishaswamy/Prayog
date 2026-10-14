@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Steward · Prayog</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/steward/ui/style.css">
 </head>
 <body>
   <header class="bar">
@@ -24,6 +24,15 @@
       attempt, plus the web if your administrator enabled it. Suggested commands are text for you to
       run yourself; Steward never runs anything or changes your files.
     </p>
+    <form id="signin" class="turn" hidden>
+      <p class="q">Sign in to Prayog to open this Steward link</p>
+      <p class="muted">Only the owner of the failed rebuild can open it.</p>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Sign in and open</button>
+    </form>
     <section id="thread" aria-live="polite"></section>
     <p id="status" class="status" role="status"></p>
   </main>
@@ -52,6 +61,6 @@
     </article>
   </template>
 
-  <script src="app.js"></script>
+  <script src="/steward/ui/app.js"></script>
 </body>
 </html>
