@@ -82,3 +82,27 @@ class SnapshotStorageFailureTests(TestCase):
         self.assertTrue(any("Weights artifact was unavailable" in reason for reason in snapshot.completeness_reasons))
         self.db.commit.assert_called_once()
         self.assertEqual(verify.call_count, 2)
+
+
+    @patch("logic.mlflow.get_verified_artifact")
+    def test_incomplete_snapshot_is_queryable_but_cannot_be_rebuilt(self, verify):
+        snapshot = SimpleNamespace(
+            snapshot_id="snapshot-incomplete",
+            experiment_id=2,
+            project_id="project-1",
+            model_id="model-1",
+            user_id=7,
+            state="INCOMPLETE",
+            code_artifact_id=None,
+            weights_artifact_id=None,
+            dependencies={"python": "3.12"},
+            hyperparameters={"lr": 0.01},
+        )
+        self.db.query.return_value.filter.return_value.first.return_value = snapshot
+
+        with self.assertRaisesRegex(BadRequestError, "REBUILD_REJECTED"):
+            create_rebuild(self.db, "snapshot-incomplete", self.user, {})
+
+        self.db.add.assert_not_called()
+        self.db.commit.assert_not_called()
+        verify.assert_not_called()
