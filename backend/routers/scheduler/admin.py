@@ -1,8 +1,12 @@
+import uuid
+from dataclasses import asdict
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, sessionmaker
 
 from database import get_db
+from integration import hardware_investigation as hardware
 from logic.dependencies import require_roles
 from logic.scheduler import maintenance
 from logic.scheduler import nodes as node_ops
@@ -18,6 +22,7 @@ from schemas.scheduler.admin import (
     AlertOut,
     BookingOut,
     CollisionOut,
+    DecisionOut,
     DrainIn,
     MaintenanceBookIn,
     MaintenanceMoveIn,
@@ -29,6 +34,7 @@ from schemas.scheduler.admin import (
     PreviewOut,
     Reason,
     SharingIn,
+    ResolveWarningIn,
     UnitCountIn,
 )
 
@@ -239,6 +245,47 @@ def cancel_maintenance(
 ):
     maintenance.cancel(db, booking_id)
     background.add_task(run_pass, pass_sessions, Trigger.MAINTENANCE, cfg=cfg)
+
+
+# ── hardware warnings (US-ADM-05) ───────────────────────────────────────
+
+def get_hardware_warnings() -> hardware.WarningPort:
+    """The Steward's hardware warnings; 503 when the Steward is not running. Overridable in tests."""
+    return hardware.StewardWarnings()
+
+
+# A warning's cited runs, unit history and the Steward's finding, with the unit's current state. Metadata only.
+@router.get("/hardware-warnings/{warning_id}")
+def investigate_warning(
+    warning_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(admin_only),
+    warnings: hardware.WarningPort = Depends(get_hardware_warnings),
+):
+    return hardware.investigate(db, warnings, warning_id)
+
+
+# Freeze the unit, drain its node, or dismiss the warning, with a reason. Closes the warning.
+@router.post("/hardware-warnings/{warning_id}/resolve", response_model=DecisionOut)
+def resolve_warning(
+    warning_id: uuid.UUID,
+    body: ResolveWarningIn,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_only),
+    warnings: hardware.WarningPort = Depends(get_hardware_warnings),
+    cfg: SchedulerConfig = Depends(get_scheduler_config),
+    pass_sessions: sessionmaker = Depends(get_pass_sessions),
+):
+    try:
+        decision = hardware.resolve(db, warnings, warning_id, admin.id, body.action, body.reason,
+                                    freeze_until=body.freeze_until, drain_mode=body.drain_mode,
+                                    confirm=body.confirm, cfg=cfg)
+    except maintenance.CollisionNotConfirmed as exc:
+        return _collision_response(exc)
+    if decision.action != hardware.Action.DISMISS:
+        background.add_task(run_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
+    return DecisionOut(**asdict(decision))
 
 
 def _collision_response(exc: maintenance.CollisionNotConfirmed) -> JSONResponse:
