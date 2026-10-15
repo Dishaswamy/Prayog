@@ -21,7 +21,7 @@ def main():
     artifact_storage.ARTIFACT_ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(artifact_storage.ARTIFACT_ROOT, 0o700)
 
-    storage_key = uuid4().hex
+    storage_key = str(uuid4())
     source = artifact_storage.ARTIFACT_ROOT / f".storage-smoke-{uuid4().hex}.tmp"
     expected = b"Prayog artifact storage smoke test\n"
     source.write_bytes(expected)

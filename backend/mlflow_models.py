@@ -98,6 +98,7 @@ class Artifact(Base):
     __table_args__ = (
         CheckConstraint("kind IN ('CODE', 'WEIGHTS', 'LOG')", name="ck_ml_artifact_kind"),
         Index("ix_ml_artifacts_owner_experiment", "user_id", "experiment_id"),
+        Index("ix_ml_artifacts_storage_key", "storage_key"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -106,7 +107,7 @@ class Artifact(Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("ml_projects.project_id"), nullable=False)
     model_id: Mapped[str] = mapped_column(ForeignKey("ml_models.model_id"), nullable=False)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
-    storage_key: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(64), nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)

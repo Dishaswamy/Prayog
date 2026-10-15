@@ -11,6 +11,7 @@ from routers.admin_mlflow import router as admin_mlflow_router
 from routers.auth import router as auth_router
 from routers.handover import router as handover_router
 from routers.mlflow import router as mlflow_router
+from routers.mlflow_professor import router as mlflow_professor_router
 from routers.professors import router as professors_router
 
 app = FastAPI(title="Prayog API")
@@ -34,6 +35,7 @@ app.include_router(professors_router)
 app.include_router(access_requests_router)
 app.include_router(admin_mlflow_router)
 app.include_router(mlflow_router)
+app.include_router(mlflow_professor_router)
 app.include_router(handover_router)
 
 
