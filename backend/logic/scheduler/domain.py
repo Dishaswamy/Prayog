@@ -42,14 +42,48 @@ class JobState(StrEnum):
     WALLTIME_EXCEEDED = "WALLTIME_EXCEEDED"
 
 
+# Node state changes allowed by the state model (FR-GPU-028). Anything else is refused (A-73).
+NODE_TRANSITIONS: dict[NodeState, frozenset[NodeState]] = {
+    NodeState.PENDING_AGENT: frozenset({NodeState.AVAILABLE}),
+    NodeState.AVAILABLE: frozenset({NodeState.DRAINING, NodeState.DOWN, NodeState.DECOMMISSIONING}),
+    NodeState.DRAINING: frozenset({NodeState.AVAILABLE, NodeState.DOWN, NodeState.DECOMMISSIONING}),
+    NodeState.DOWN: frozenset({NodeState.AVAILABLE, NodeState.DECOMMISSIONING}),
+    NodeState.DECOMMISSIONING: frozenset({NodeState.DRAINING, NodeState.DECOMMISSIONED}),
+    NodeState.DECOMMISSIONED: frozenset(),
+}
+
+
 class ReleaseReason(StrEnum):
-    """Why an allocation ended. The first four end the job; the last two put it back in the queue."""
+    """Why an allocation ended. The first four end the job; the rest put it back in the queue."""
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     WALLTIME_EXCEEDED = "WALLTIME_EXCEEDED"
     CANCELLED = "CANCELLED"
     NODE_FAILURE = "NODE_FAILURE"            # node went DOWN: requeued, not charged (FR-GPU-135, 143)
     DISPATCH_TIMEOUT = "DISPATCH_TIMEOUT"    # never acknowledged: requeued, never started (FR-GPU-126)
+    MAINTENANCE = "MAINTENANCE"              # a maintenance window opened: requeued, not charged (FR-GPU-085)
+    EMERGENCY_DRAIN = "EMERGENCY_DRAIN"      # hard drain or decommission: requeued, not charged (FR-GPU-080)
+
+
+class RunEndState(StrEnum):
+    """How a run ended. INTERRUPTED runs were stopped by the platform and their jobs requeued."""
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    WALLTIME_EXCEEDED = "WALLTIME_EXCEEDED"
+    CANCELLED = "CANCELLED"
+    INTERRUPTED = "INTERRUPTED"
+
+
+class AlertKind(StrEnum):
+    """Node alerts on the admin dashboard (FR-GPU-174)."""
+    UNIT_COUNT_MISMATCH = "UNIT_COUNT_MISMATCH"      # PENDING_AGENT with the wrong count (FR-GPU-110)
+    NODE_DOWN = "NODE_DOWN"                          # heartbeat lost (FR-GPU-077)
+    UNIT_COUNT_CHANGED = "UNIT_COUNT_CHANGED"        # a returning node reports a different count (FR-GPU-170)
+
+
+class DrainMode(StrEnum):
+    SOFT = "soft"      # no new placements; running jobs finish naturally
+    HARD = "hard"      # running jobs get drain_grace, then are stopped (FR-GPU-080)
 
 
 class PriorityClass(IntEnum):

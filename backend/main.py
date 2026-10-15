@@ -8,6 +8,8 @@ from database import engine
 from logic.errors import AppError
 from routers.access_requests import router as access_requests_router
 from routers.auth import router as auth_router
+from routers.scheduler.admin import router as scheduler_admin_router
+from routers.scheduler.agent import router as agent_router
 from routers.scheduler.jobs import router as jobs_router
 from routers.scheduler.metrics import router as metrics_router
 from routers.professors import router as professors_router
@@ -40,6 +42,8 @@ app.include_router(professors_router)
 app.include_router(access_requests_router)
 app.include_router(jobs_router)
 app.include_router(metrics_router)
+app.include_router(agent_router)
+app.include_router(scheduler_admin_router)
 
 
 @app.get("/health")

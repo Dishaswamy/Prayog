@@ -42,6 +42,30 @@ class JobOut(BaseModel):
     node_id: int | None            # SCHEDULED or RUNNING: where (FR-GPU-022)
     node_name: str | None
     unit_indexes: list[int]
+    # What the job is doing right now (PRAYOG-62)
+    started_at: datetime | None            # confirmed start of the current or last run
+    walltime_ends_at: datetime | None      # RUNNING: when walltime stops it
+    stop_reason: str | None                # RUNNING: a stop the agent is carrying out
+    planned_stop_at: datetime | None       # RUNNING: a maintenance window will stop it (FR-GPU-109)
+    planned_stop_reason: str | None
+    ended_at: datetime | None              # finished: how the last run ended
+    end_state: str | None
+    exit_code: int | None
+    cancel_reason: str | None
+    dispatch_attempts: int
+
+
+class CancelOut(BaseModel):
+    id: int
+    state: str                     # CANCELLED, or RUNNING while the agent stops it
+    stop_pending: bool
+    message: str
+
+    @classmethod
+    def from_result(cls, r) -> "CancelOut":
+        message = ("Stopping: the job becomes CANCELLED once its node confirms the stop." if r.stop_pending
+                   else "Job cancelled.")
+        return cls(id=r.job_id, state=r.state, stop_pending=r.stop_pending, message=message)
 
 
 class MemberUsage(BaseModel):

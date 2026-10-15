@@ -40,7 +40,8 @@ def collect(db: Session, now: datetime) -> Metrics:
         select(func.count())
         .select_from(orm.GpuUnit)
         .join(orm.Node, orm.Node.id == orm.GpuUnit.node_id)
-        .where(orm.Node.state == NodeState.AVAILABLE, orm.GpuUnit.current_allocation_id.is_(None), ~in_maintenance)
+        .where(orm.Node.state == NodeState.AVAILABLE, orm.GpuUnit.current_allocation_id.is_(None),
+               orm.GpuUnit.retired_at.is_(None), ~in_maintenance)
     )
 
     passes, duration_ms, failures = db.execute(select(

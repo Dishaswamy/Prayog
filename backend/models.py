@@ -22,7 +22,16 @@ from sqlalchemy import (
 UTC_NOW = text("(now() AT TIME ZONE 'utc')")
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from logic.scheduler.domain import AccountType, DonationMode, JobState, NodeState, ReleaseReason
+from logic.scheduler.domain import (
+    AccountType,
+    AlertKind,
+    DonationMode,
+    DrainMode,
+    JobState,
+    NodeState,
+    ReleaseReason,
+    RunEndState,
+)
 
 
 class Base(DeclarativeBase):
@@ -235,6 +244,8 @@ class Node(Base):
         # Only shared nodes may be in the teaching pool (FR-GPU-181)
         CheckConstraint("NOT teaching_pool OR donation_mode = 'shared'", name="ck_nodes_teaching_shared"),
         CheckConstraint("unit_count >= 1", name="ck_nodes_unit_count"),
+        CheckConstraint(f"drain_mode IN {_one_of(DrainMode)}", name="ck_nodes_drain_mode"),
+        UniqueConstraint("credential_hash", name="uq_nodes_credential_hash"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -246,6 +257,21 @@ class Node(Base):
     # Declared at registration; the agent's reported count must match it (FR-GPU-110)
     unit_count: Mapped[int] = mapped_column(Integer, nullable=False)
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reported_unit_count: Mapped[int | None] = mapped_column(Integer, nullable=True)   # from the last heartbeat
+    state_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    state_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)      # the admin's reason
+    drain_mode: Mapped[str | None] = mapped_column(String(10), nullable=True)         # soft or hard, while stopping
+    # Set by the admin's return to service; the next healthy heartbeat completes it (FR-GPU-169)
+    return_requested: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), nullable=False)
+
+    # Node identity (architecture section 6.6): a one-time enrolment token from registration,
+    # exchanged once for a long-lived credential. Only hashes are stored.
+    enrolment_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    enrolment_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    credential_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    credential_revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Agent reports carry a sequence number; each is applied at most once (FR-GPU-128)
+    last_report_seq: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
 
 
 class GpuUnit(Base):
@@ -259,6 +285,8 @@ class GpuUnit(Base):
     unit_index: Mapped[int] = mapped_column(Integer, nullable=False)
     # The claim marker: NULL = free. Set and cleared together with the allocation.
     current_allocation_id: Mapped[int | None] = mapped_column(ForeignKey("allocations.id"), nullable=True)
+    # Removed after an admin confirmed a lower unit count (FR-GPU-170). Kept for history, never placed on.
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class MaintenanceWindow(Base):
@@ -274,6 +302,8 @@ class MaintenanceWindow(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     ends_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     reason: Mapped[str] = mapped_column(String(255), nullable=False)
+    # One booking may cover several units; they are moved, narrowed or cancelled together
+    booking_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
 
 
 class Job(Base):
@@ -304,6 +334,10 @@ class Job(Base):
     submitted_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
     # The age clock: submit time as adjusted by the edit rules (FR-GPU-071/072)
     effective_submit_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # Dispatches the agent never acknowledged; FAILED at max_dispatch_attempts (FR-GPU-126, 127)
+    dispatch_attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
+    # Who cancelled and why: the owner, or a Platform Admin with a mandatory reason (FR-GPU-065)
+    cancel_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class Allocation(Base):
@@ -313,6 +347,8 @@ class Allocation(Base):
         Index("ux_allocations_live", "job_id", unique=True, postgresql_where=LIVE),   # I2
         CheckConstraint(f"release_reason IN {_one_of(ReleaseReason)}", name="ck_alloc_release_reason"),
         CheckConstraint("(released_at IS NULL) = (release_reason IS NULL)", name="ck_alloc_released_with_reason"),
+        CheckConstraint(f"stop_reason IN {_one_of(ReleaseReason)}", name="ck_alloc_stop_reason"),
+        CheckConstraint("(stop_requested_at IS NULL) = (stop_reason IS NULL)", name="ck_alloc_stop_with_reason"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -324,6 +360,10 @@ class Allocation(Base):
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     released_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)   # FR-GPU-057
     release_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # The server asked the agent to stop the run (cancel, walltime, maintenance, hard drain). The units
+    # are released only when the agent confirms the process stopped (FR-GPU-068, 069; NFR-GPU-018).
+    stop_requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    stop_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
 
 class AllocationUnit(Base):
@@ -363,6 +403,47 @@ class SchedulingDecision(Base):
     score: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False)
     escalated: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+
+
+class Run(Base):
+    """
+    One execution of a job, created when the agent confirms the start (FR-GPU-064) and
+    closed when its allocation is released. Never deleted (FR-GPU-090, 116).
+    """
+    __tablename__ = "runs"
+    __table_args__ = (
+        CheckConstraint(f"end_state IN {_one_of(RunEndState)}", name="ck_runs_end_state"),
+        Index("ix_runs_job", "job_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), nullable=False)
+    allocation_id: Mapped[int] = mapped_column(ForeignKey("allocations.id"), unique=True, nullable=False)
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    end_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    end_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class NodeAlert(Base):
+    """An alert on the admin dashboard; open until the condition clears or an admin acknowledges it (FR-GPU-174)."""
+    __tablename__ = "node_alerts"
+    __table_args__ = (
+        CheckConstraint(f"kind IN {_one_of(AlertKind)}", name="ck_alerts_kind"),
+        Index("ux_alerts_open", "node_id", "kind", unique=True,
+              postgresql_where=text("cleared_at IS NULL AND acknowledged_at IS NULL")),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    detail: Mapped[str] = mapped_column(String(255), nullable=False)
+    raised_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    cleared_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)          # the condition went away
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)     # an admin dismissed it
+    acknowledged_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class SchedulingPass(Base):

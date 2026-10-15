@@ -3,12 +3,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from database import SessionLocal, get_db
 from logic.dependencies import get_current_user
+from logic.scheduler.cancel import cancel_job
 from logic.scheduler.config import SchedulerConfig, load_config
 from logic.scheduler.domain import JobState
 from logic.scheduler.passes import Trigger, run_pass
 from logic.scheduler.requests import edit_job, format_walltime, job_status, quota_status, submit_job
 from models import User
-from schemas.scheduler.jobs import JobEdit, JobOut, JobSubmit, MemberUsage, QuotaOut, SubmissionOut
+from schemas.scheduler.jobs import CancelOut, JobEdit, JobOut, JobSubmit, MemberUsage, QuotaOut, SubmissionOut
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -98,6 +99,21 @@ def edit(
     return _job_out(db, current_user.id, job_id, cfg)
 
 
+# Cancel your own job. A running job stops first; its GPUs are freed when the node confirms.
+@router.post("/{job_id}/cancel", response_model=CancelOut)
+def cancel(
+    job_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    cfg: SchedulerConfig = Depends(get_scheduler_config),
+    pass_sessions: sessionmaker = Depends(get_pass_sessions),
+):
+    result = cancel_job(db, job_id, current_user.id, cfg=cfg)
+    background.add_task(run_pass, pass_sessions, Trigger.CANCEL, cfg=cfg)            # FR-GPU-121
+    return CancelOut.from_result(result)
+
+
 def _job_out(db: Session, user_id: int, job_id: int, cfg: SchedulerConfig) -> JobOut:
     s = job_status(db, user_id, job_id, cfg=cfg)
     return JobOut(
@@ -111,4 +127,14 @@ def _job_out(db: Session, user_id: int, job_id: int, cfg: SchedulerConfig) -> Jo
         node_id=s.node_id,
         node_name=s.node_name,
         unit_indexes=list(s.unit_indexes),
+        started_at=s.run.started_at if s.run else None,
+        walltime_ends_at=s.walltime_ends_at,
+        stop_reason=s.stop_reason,
+        planned_stop_at=s.planned_stop_at,
+        planned_stop_reason=s.planned_stop_reason,
+        ended_at=s.run.ended_at if s.run else None,
+        end_state=s.run.end_state if s.run else None,
+        exit_code=s.run.exit_code if s.run else None,
+        cancel_reason=s.job.cancel_reason,
+        dispatch_attempts=s.job.dispatch_attempts,
     )
