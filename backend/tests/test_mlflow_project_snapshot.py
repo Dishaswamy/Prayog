@@ -84,6 +84,11 @@ class ProjectSnapshotTests(unittest.TestCase):
         (root / "id_rsa").write_text("PRIVATE KEY MATERIAL\n", encoding="utf-8")
         (root / ".ssh").mkdir()
         (root / ".ssh" / "config").write_text("private host configuration\n", encoding="utf-8")
+        (root / ".git-credentials").write_text("https://user:token@example.com\n", encoding="utf-8")
+        (root / "credentials.toml").write_text("token = \"private\"\n", encoding="utf-8")
+        (root / "terraform.tfstate").write_text("state with provider secrets\n", encoding="utf-8")
+        (root / ".terraform").mkdir()
+        (root / ".terraform" / "state.json").write_text("provider state\n", encoding="utf-8")
         (root / ".git" / "config").write_text("private git metadata\n", encoding="utf-8")
 
     def test_snapshot_uploads_missing_chunks_and_materializes_verified_worktree(self):
@@ -123,6 +128,10 @@ class ProjectSnapshotTests(unittest.TestCase):
             self.assertFalse((output / ".env").exists())
             self.assertFalse((output / "id_rsa").exists())
             self.assertFalse((output / ".ssh").exists())
+            self.assertFalse((output / ".git-credentials").exists())
+            self.assertFalse((output / "credentials.toml").exists())
+            self.assertFalse((output / "terraform.tfstate").exists())
+            self.assertFalse((output / ".terraform").exists())
             self.assertFalse((output / ".git").exists())
             internal_manifest = json.loads(
                 (output / "snapshot-manifest.json").read_text(encoding="utf-8")
