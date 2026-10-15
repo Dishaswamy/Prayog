@@ -6,6 +6,8 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from blake3 import blake3
+
 os.environ.setdefault("POSTGRES_USER", "prayog")
 os.environ.setdefault("POSTGRES_PASSWORD", "prayog-test-password")
 os.environ.setdefault("POSTGRES_HOST", "localhost")
@@ -366,6 +368,83 @@ class MLFlowEndToEndTests(unittest.TestCase):
         self.assertEqual(execution["status"], "FAILED", execution)
         self.assertIsNotNone(execution.get("finished_at"))
         self.assertIsNotNone(execution.get("logs_artifact_id"))
+
+
+    def test_artifact_content_address_reuse_preserves_metadata_identity(self):
+        payload = b"identical artifact bytes shared by two experiments"
+        created_experiments = []
+
+        for suffix in ("first", "second"):
+            project = self.client.post(
+                "/mlflow/projects", json={"name": f"Dedup project {suffix}"}
+            )
+            self.assertEqual(project.status_code, 201, project.text)
+            project_id = project.json()["project_id"]
+            model = self.client.post(
+                f"/mlflow/projects/{project_id}/models",
+                json={"name": f"Dedup model {suffix}"},
+            )
+            self.assertEqual(model.status_code, 201, model.text)
+            experiment = self.client.post(
+                "/mlflow/experiments",
+                json={
+                    "project_id": project_id,
+                    "model_id": model.json()["model_id"],
+                    "name": f"Dedup experiment {suffix}",
+                },
+            )
+            self.assertEqual(experiment.status_code, 201, experiment.text)
+            created_experiments.append(experiment.json()["id"])
+
+        def upload(experiment_id):
+            response = self.client.post(
+                f"/mlflow/experiments/{experiment_id}/artifacts",
+                params={"kind": "CODE"},
+                content=payload,
+                headers={"Content-Type": "application/octet-stream"},
+            )
+            self.assertEqual(response.status_code, 201, response.text)
+            return response.json()["id"]
+
+        first_id = upload(created_experiments[0])
+        duplicate_id = upload(created_experiments[0])
+        second_experiment_id = upload(created_experiments[1])
+
+        self.assertEqual(duplicate_id, first_id)
+        self.assertNotEqual(second_experiment_id, first_id)
+
+        db = SessionLocal()
+        try:
+            first = db.query(Artifact).filter(Artifact.id == first_id).one()
+            duplicate = db.query(Artifact).filter(Artifact.id == duplicate_id).one()
+            second = db.query(Artifact).filter(Artifact.id == second_experiment_id).one()
+            self.assertEqual(first.id, duplicate.id)
+            self.assertEqual(first.storage_key, second.storage_key)
+            self.assertEqual(first.storage_key, blake3(payload).hexdigest())
+            self.assertEqual(first.sha256, hashlib.sha256(payload).hexdigest())
+            self.assertEqual(second.sha256, first.sha256)
+            self.assertEqual(first.size_bytes, len(payload))
+            self.assertEqual(second.size_bytes, len(payload))
+            self.assertNotEqual(first.experiment_id, second.experiment_id)
+            self.assertEqual(first.user_id, second.user_id)
+        finally:
+            db.close()
+
+        first_listing = self.client.get(
+            f"/mlflow/experiments/{created_experiments[0]}/artifacts"
+        )
+        second_listing = self.client.get(
+            f"/mlflow/experiments/{created_experiments[1]}/artifacts"
+        )
+        self.assertEqual(first_listing.status_code, 200, first_listing.text)
+        self.assertEqual(second_listing.status_code, 200, second_listing.text)
+        self.assertEqual([item["id"] for item in first_listing.json()], [first_id])
+        self.assertEqual([item["id"] for item in second_listing.json()], [second_experiment_id])
+
+        for artifact_id in (first_id, second_experiment_id):
+            download = self.client.get(f"/mlflow/artifacts/{artifact_id}/content")
+            self.assertEqual(download.status_code, 200, download.text)
+            self.assertEqual(download.content, payload)
 
 
 if __name__ == "__main__":
