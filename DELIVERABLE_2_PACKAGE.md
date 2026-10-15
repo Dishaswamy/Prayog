@@ -30,7 +30,7 @@ The following is a focused ML Flow traceability slice. CI links provide reproduc
 
 | Requirement / acceptance point | Issue and implementation | Validation evidence |
 |---|---|---|
-| Capture the current worktree, lockfiles, configuration, seeds, and data fingerprints; reuse existing chunks and verify materialization | [PRAYOG-41 / PR #19](https://github.com/baymaxisme/Prayog/pull/19) | [CI run #376](https://github.com/baymaxisme/Prayog/actions/runs/38682710682)
+| Capture the current worktree, lockfiles, configuration, seeds, and data fingerprints; reuse existing chunks and verify materialization | [PRAYOG-41 / PR #21](https://github.com/baymaxisme/Prayog/pull/21) | [CI run #397](https://github.com/baymaxisme/Prayog/actions/runs/38683235040)
 | Store artifacts under scoped content-derived addresses and reuse identical uploads | [PRAYOG-66 / PR #18](https://github.com/baymaxisme/Prayog/pull/18) | [CI run #345](https://github.com/baymaxisme/Prayog/actions/runs/38681930659) |
 | Synchronize run outputs into `results/<run_id>/` without changing identical local files | [PRAYOG-67 / PR #17](https://github.com/baymaxisme/Prayog/pull/17) | [CI run #348](https://github.com/baymaxisme/Prayog/actions/runs/38682006531) |
 | Stream metrics during a run; reject duplicates; verify all supplied artifacts before sealing | [PRAYOG-79 / PR #5](https://github.com/baymaxisme/Prayog/pull/5) | [CI run #5](https://github.com/baymaxisme/Prayog/actions/runs/38552074458) |
@@ -66,7 +66,7 @@ The automated CI workflow already covers clean PostgreSQL migrations, lifecycle 
 
 - **PRAYOG-78 — Hardware fault investigation:** The current repository contains the ML Flow backend but no node, GPU-unit, heartbeat, allocation, or hardware-history model to query. Implementing freeze/drain/dismiss here would invent a parallel scheduler rather than integrate with the team's infrastructure component.
 - **PRAYOG-88 — Metric comparator:** The imported acceptance criteria explicitly mark it deferred and blocked on CR-18. Do not implement comparison semantics until that change request is resolved.
-- **PRAYOG-102 — Whole-chain simulated-pool suite:** Existing CI exercises the ML Flow API, queue/worker, artifacts, snapshots, rebuilds, and diagnostic links. The required GPU pool init-to-release scheduler is not present in this repository, so the full pool acceptance remains blocked on the platform/scheduler component.
+- **PRAYOG-102 — Whole-chain simulated-pool suite:** [PR #20](https://github.com/baymaxisme/Prayog/pull/20) adds and passes the ML Flow first-time-run → snapshot → queued rebuild → worker execution end-to-end path ([CI run #394](https://github.com/baymaxisme/Prayog/actions/runs/38683213454)). The required simulated GPU pool init-to-release scheduler is not present in this repository, so the full pool acceptance remains blocked on the platform/scheduler component.
 
 ## Evidence still required before final submission
 
