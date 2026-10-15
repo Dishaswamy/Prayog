@@ -179,6 +179,26 @@ class ProjectSnapshotTests(unittest.TestCase):
                 )
             self.assertFalse(output.exists())
 
+    def test_materialization_rejects_boolean_chunk_size_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "project"
+            root.mkdir()
+            self._make_project(root)
+            client = FakeArtifactClient()
+            result = snapshot_project(client, 2, root, chunk_size_mib=1)
+            manifest_id = result["manifest_artifact_id"]
+            manifest = json.loads(client.objects[manifest_id].decode("utf-8"))
+            manifest["chunks"][0]["size_bytes"] = True
+            payload = json.dumps(manifest).encode("utf-8")
+            client.objects[manifest_id] = payload
+            client.metadata[manifest_id]["sha256"] = hashlib.sha256(payload).hexdigest()
+            client.metadata[manifest_id]["size_bytes"] = len(payload)
+
+            with self.assertRaisesRegex(ValueError, "Project snapshot chunk manifest is invalid"):
+                materialize_project_snapshot(
+                    client, 2, manifest_id, Path(directory) / "materialized", data_dir=root
+                )
+
     def test_archive_materialization_rejects_path_traversal(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
