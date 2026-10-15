@@ -189,3 +189,24 @@ class PoolPictureOut(_Read):
     alerts: list[AlertOut]
     hardware_warnings: dict[str, int] | None
     audit: list[AuditEntryOut]
+
+
+class ResolveWarningIn(Reason):
+    action: Literal["freeze", "drain", "dismiss"]
+    freeze_until: datetime | None = None          # required to freeze: the unit's window ends then
+    drain_mode: Literal["soft", "hard"] = "soft"
+    confirm: bool = False                         # required when a freeze would stop a running job
+
+    @field_validator("freeze_until")
+    @classmethod
+    def utc_until(cls, v):
+        return _naive_utc(v)
+
+
+class DecisionOut(BaseModel):
+    warning_id: str
+    action: str
+    resolution: str                               # RESOLVED (freeze, drain) or DISMISSED
+    node_id: int | None
+    unit_id: int | None
+    booking_id: str | None
