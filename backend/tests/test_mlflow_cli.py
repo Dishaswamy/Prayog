@@ -228,6 +228,35 @@ class MLFlowCliTests(unittest.TestCase):
             finally:
                 os.chdir(original_cwd)
 
+    def test_run_rebuild_waits_for_terminal_success(self):
+        args = parser().parse_args(["run", "--rebuild", "snapshot-1", "--poll-interval", "0.01"])
+        started = MagicMock()
+        started.json.return_value = {"id": 12, "state": "REBUILD_INITIATED"}
+        completed = MagicMock()
+        completed.json.return_value = {"id": 12, "state": "REBUILD_SUCCESS"}
+        client = MagicMock()
+        client.post.return_value = started
+        client.get.return_value = completed
+        result = execute(args, client)
+        self.assertEqual(result["state"], "REBUILD_SUCCESS")
+        client.get.assert_called_once_with("/mlflow/rebuilds/12")
+
+    def test_rebuild_no_wait_returns_attempt_without_polling(self):
+        args = parser().parse_args(["rebuild", "--snapshot-id", "snapshot-1", "--no-wait"])
+        started = MagicMock()
+        started.json.return_value = {"id": 13, "state": "REBUILD_INITIATED"}
+        client = MagicMock()
+        client.post.return_value = started
+        result = execute(args, client)
+        self.assertEqual(result["state"], "REBUILD_INITIATED")
+        client.get.assert_not_called()
+
+    def test_rebuild_rejects_invalid_timeout_before_request(self):
+        args = parser().parse_args(["rebuild", "--snapshot-id", "snapshot-1", "--timeout-seconds", "0"])
+        client = MagicMock()
+        with self.assertRaisesRegex(ValueError, "timeout-seconds"):
+            execute(args, client)
+        client.post.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

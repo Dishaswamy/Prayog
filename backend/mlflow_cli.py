@@ -7,6 +7,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -123,6 +124,16 @@ def parser() -> argparse.ArgumentParser:
     rebuild = commands.add_parser("rebuild")
     rebuild.add_argument("--snapshot-id", required=True)
     rebuild.add_argument("--environment-json", type=json_object, default={})
+    rebuild.add_argument("--no-wait", dest="wait", action="store_false", default=True)
+    rebuild.add_argument("--timeout-seconds", type=int, default=1800)
+    rebuild.add_argument("--poll-interval", type=float, default=2.0)
+
+    rebuild_run = commands.add_parser("run", help="Run a recorded snapshot with --rebuild")
+    rebuild_run.add_argument("--rebuild", dest="snapshot_id", required=True)
+    rebuild_run.add_argument("--environment-json", type=json_object, default={})
+    rebuild_run.add_argument("--no-wait", dest="wait", action="store_false", default=True)
+    rebuild_run.add_argument("--timeout-seconds", type=int, default=1800)
+    rebuild_run.add_argument("--poll-interval", type=float, default=2.0)
 
     finish_rebuild = commands.add_parser("finish-rebuild")
     finish_rebuild.add_argument("--rebuild-id", type=int, required=True)
@@ -957,11 +968,33 @@ def execute(args: argparse.Namespace, client: httpx.Client) -> dict[str, Any]:
         return sync_results(client, args.run_id)
     elif args.command == "download-artifact":
         return download_artifact_to_path(client, args.artifact_id, args.output)
-    elif args.command == "rebuild":
+    elif args.command in {"rebuild", "run"}:
+        if args.timeout_seconds < 1:
+            raise ValueError("--timeout-seconds must be positive")
+        if args.poll_interval <= 0:
+            raise ValueError("--poll-interval must be positive")
         response = client.post(
             f"/mlflow/snapshots/{args.snapshot_id}/rebuilds",
             json={"environment": args.environment_json},
         )
+        response.raise_for_status()
+        attempt = response.json()
+        if not args.wait or attempt.get("state") in {"REBUILD_SUCCESS", "REBUILD_FAILED", "REBUILD_CANCELLED"}:
+            return attempt
+        rebuild_id = attempt.get("id")
+        if rebuild_id is None:
+            raise ValueError("Rebuild response did not include an Attempt ID")
+        deadline = time.monotonic() + args.timeout_seconds
+        while True:
+            status_response = client.get(f"/mlflow/rebuilds/{rebuild_id}")
+            status_response.raise_for_status()
+            attempt = status_response.json()
+            if attempt.get("state") in {"REBUILD_SUCCESS", "REBUILD_FAILED", "REBUILD_CANCELLED"}:
+                return attempt
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(f"Timed out waiting for rebuild {rebuild_id}; check it with rebuild-status --rebuild-id {rebuild_id}")
+            time.sleep(min(args.poll_interval, remaining))
     elif args.command == "finish-rebuild":
         if args.state == "REBUILD_FAILED" and not args.failure_summary:
             raise ValueError("--failure-summary is required for REBUILD_FAILED")
@@ -1001,6 +1034,8 @@ def main() -> int:
         ) as client:
             result = execute(args, client)
         print(json.dumps(result, indent=2, sort_keys=True))
+        if result.get("state") == "REBUILD_FAILED":
+            return 1
         return 0
     except (httpx.HTTPError, ValueError, OSError, zipfile.BadZipFile) as exc:
         print(f"ML Flow request failed: {exc}", file=sys.stderr)
