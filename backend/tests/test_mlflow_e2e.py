@@ -242,5 +242,51 @@ class MLFlowEndToEndTests(unittest.TestCase):
             db.close()
 
 
+    def test_worker_rebuild_dispatch_reaches_terminal_state(self):
+        experiment_id, run_id, _ = self.create_run(
+            "from pathlib import Path\\n"
+            "print('rebuild-lifecycle-success', flush=True)\\n"
+            "Path('/output/weights.bin').write_bytes(b'rebuild-lifecycle-weights')\\n"
+        )
+        self.run_one_queued_job(run_id)
+
+        response = self.client.get(f"/mlflow/experiments/{experiment_id}/snapshots")
+        self.assertEqual(response.status_code, 200, response.text)
+        snapshots = response.json()
+        self.assertEqual(len(snapshots), 1, snapshots)
+        snapshot_id = snapshots[0]["snapshot_id"]
+        self.assertEqual(snapshots[0]["state"], "RECORDED")
+
+        response = self.client.post(
+            f"/mlflow/snapshots/{snapshot_id}/rebuilds",
+            json={"environment": {"entrypoint": "main.py"}},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        rebuild_id = response.json()["id"]
+
+        worker_id = f"e2e-rebuild-worker-{uuid4().hex}"
+        db = SessionLocal()
+        try:
+            job = claim_next_job(db, worker_id)
+            self.assertEqual(job, ("REBUILD", rebuild_id))
+            from mlflow_worker import execute_rebuild
+            execute_rebuild(db, rebuild_id, worker_id, 15, IMAGE)
+        finally:
+            db.close()
+
+        response = self.client.get(f"/mlflow/rebuilds/{rebuild_id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        attempt = response.json()
+        self.assertEqual(attempt["state"], "REBUILD_SUCCESS", attempt)
+        self.assertIsNotNone(attempt.get("finished_at"))
+
+        response = self.client.get(f"/mlflow/runs/{attempt['execution_run_id']}")
+        self.assertEqual(response.status_code, 200, response.text)
+        execution = response.json()
+        self.assertEqual(execution["status"], "SUCCEEDED", execution)
+        self.assertIsNotNone(execution.get("finished_at"))
+        self.assertIsNotNone(execution.get("logs_artifact_id"))
+
+
 if __name__ == "__main__":
     unittest.main()
