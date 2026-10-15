@@ -475,5 +475,34 @@ class MLFlowLifecycleTests(unittest.TestCase):
         self.db.commit.assert_not_called()
 
 
+    @patch("logic.mlflow.get_verified_artifact")
+    def test_invalid_supplied_logs_artifact_prevents_recorded_snapshot(self, verify):
+        run = self.running_run()
+        self.set_owned_item(run)
+        code = SimpleNamespace(id="code-1", sha256="a" * 64)
+        verify.side_effect = [
+            (code, Path("/private/code.zip")),
+            BadRequestError("Artifact checksum mismatch"),
+        ]
+
+        result = finish_run(
+            self.db,
+            3,
+            self.user,
+            {
+                "status": "SUCCEEDED",
+                "code_artifact_id": "code-1",
+                "logs_artifact_id": "logs-1",
+            },
+        )
+
+        self.assertEqual(result.status, "SUCCEEDED")
+        self.assertEqual(result.logging_state, "DEGRADED")
+        self.assertIn("Log artifact was unavailable or failed integrity verification.", result.logging_warnings)
+        self.db.add.assert_not_called()
+        self.db.commit.assert_called_once()
+        self.assertEqual(verify.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
