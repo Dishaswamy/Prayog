@@ -1,13 +1,6 @@
 import unittest
 
-from schemas.mlflow import (
-    ProfessorExperimentOut,
-    ProfessorRebuildOut,
-    ProfessorRunOut,
-    ProfessorSnapshotOut,
-    _redact_sensitive_metadata,
-    _redact_sensitive_text,
-)
+from schemas.mlflow import ProfessorRunOut, _redact_sensitive_metadata, _redact_sensitive_text
 
 
 class ProfessorMetadataRedactionTests(unittest.TestCase):
@@ -17,12 +10,10 @@ class ProfessorMetadataRedactionTests(unittest.TestCase):
             "AWS_SECRET_ACCESS_KEY": "private-value",
             "nested": [
                 {"client_secret": "another-private-value", "epochs": 4},
-                "Authorization": "Bearer abc.def.ghi",
+                {"Authorization": "Bearer abc.def.ghi"},
             ],
         }
-
         result = _redact_sensitive_metadata(metadata)
-
         self.assertEqual(result["learning_rate"], 0.01)
         self.assertEqual(result["AWS_SECRET_ACCESS_KEY"], "[REDACTED]")
         self.assertEqual(result["nested"][0]["client_secret"], "[REDACTED]")
@@ -35,9 +26,7 @@ class ProfessorMetadataRedactionTests(unittest.TestCase):
             "Authorization: Bearer abc.def.ghi "
             "https://user:password@example.test/path"
         )
-
         result = _redact_sensitive_text(text)
-
         self.assertNotIn("private123", result)
         self.assertNotIn("abc.def.ghi", result)
         self.assertNotIn("user:password", result)
@@ -48,7 +37,6 @@ class ProfessorMetadataRedactionTests(unittest.TestCase):
             "notes": "api_key=do-not-share",
             "items": ["access_token: hidden", "ordinary note"],
         })
-
         self.assertNotIn("do-not-share", result["notes"])
         self.assertNotIn("hidden", result["items"][0])
         self.assertEqual(result["items"][1], "ordinary note")
@@ -66,7 +54,6 @@ class ProfessorMetadataRedactionTests(unittest.TestCase):
             "created_at": "2026-01-01T00:00:00", "started_at": None,
             "finished_at": None, "updated_at": "2026-01-01T00:00:00",
         })
-
         self.assertEqual(run.hyperparameters["api_key"], "[REDACTED]")
         self.assertEqual(run.environment["nested"]["password"], "[REDACTED]")
         self.assertNotIn("private", run.error_summary)
