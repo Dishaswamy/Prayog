@@ -30,7 +30,7 @@ The following is a focused ML Flow traceability slice. CI links provide reproduc
 
 | Requirement / acceptance point | Issue and implementation | Validation evidence |
 |---|---|---|
-| Capture the current worktree, lockfiles, configuration, seeds, and data fingerprints; reuse existing chunks and verify materialization | [PRAYOG-41 / PR #19](https://github.com/baymaxisme/Prayog/pull/19) | Latest CI pending |
+| Capture the current worktree, lockfiles, configuration, seeds, and data fingerprints; reuse existing chunks and verify materialization | [PRAYOG-41 / PR #19](https://github.com/baymaxisme/Prayog/pull/19) | [CI run #376](https://github.com/baymaxisme/Prayog/actions/runs/38682710682)
 | Store artifacts under scoped content-derived addresses and reuse identical uploads | [PRAYOG-66 / PR #18](https://github.com/baymaxisme/Prayog/pull/18) | [CI run #345](https://github.com/baymaxisme/Prayog/actions/runs/38681930659) |
 | Synchronize run outputs into `results/<run_id>/` without changing identical local files | [PRAYOG-67 / PR #17](https://github.com/baymaxisme/Prayog/pull/17) | [CI run #348](https://github.com/baymaxisme/Prayog/actions/runs/38682006531) |
 | Stream metrics during a run; reject duplicates; verify all supplied artifacts before sealing | [PRAYOG-79 / PR #5](https://github.com/baymaxisme/Prayog/pull/5) | [CI run #5](https://github.com/baymaxisme/Prayog/actions/runs/38552074458) |
