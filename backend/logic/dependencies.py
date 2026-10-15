@@ -1,3 +1,5 @@
+import hashlib
+
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -39,6 +41,7 @@ def get_current_user(
             detail="User not found",
         )
 
+    user.session_id = payload.get("jti") or hashlib.sha256(credentials.credentials.encode("utf-8")).hexdigest()
     return user
 
 
