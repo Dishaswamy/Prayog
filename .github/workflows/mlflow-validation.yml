@@ -2,9 +2,8 @@ name: ML Flow validation
 
 'on':
   pull_request:
-    branches: [main]
   push:
-    branches: [main, feature/ml-flow-lifecycle]
+    branches: [main, feature/ml-flow-lifecycle, 'feature/**']
 
 jobs:
   backend:
