@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from logic.errors import BadRequestError, ConflictError
 from logic.mlflow_compare import compare_rebuild_metrics
+from schemas.mlflow import MetricComparisonCreate
 
 
 class MetricComparatorTests(unittest.TestCase):
@@ -74,6 +75,14 @@ class MetricComparatorTests(unittest.TestCase):
     def test_invalid_tolerance_rejected(self):
         with self.assertRaises(BadRequestError):
             compare_rebuild_metrics(self.db, 12, self.user, {"loss": -0.1})
+
+    def test_boolean_tolerance_is_rejected(self):
+        with self.assertRaises(ValueError):
+            MetricComparisonCreate(tolerances={"loss": True})
+
+    def test_numeric_string_tolerance_is_rejected(self):
+        with self.assertRaises(ValueError):
+            MetricComparisonCreate(tolerances={"loss": "0.1"})
 
 
 if __name__ == "__main__":
