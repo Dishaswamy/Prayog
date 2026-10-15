@@ -40,7 +40,7 @@ def compare_rebuild_metrics(db, rebuild_id: int, user, tolerances: dict[str, flo
     rebuilt_values = {(metric.name, metric.step): metric.value for metric in rebuilt}
     keys = sorted(set(source_values) | set(rebuilt_values))
     results = []
-    passed = True
+    passed = bool(keys)
 
     for name, step in keys:
         expected = source_values.get((name, step))
