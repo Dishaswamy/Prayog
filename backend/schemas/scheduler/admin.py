@@ -122,3 +122,70 @@ class BookingOut(BaseModel):
     ends_at: datetime
     reason: str
     collisions: list[CollisionOut] = []
+
+
+# ── the operational picture (US-ADM-06): metadata only ─────────────────
+
+class _Read(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UnitPictureOut(_Read):
+    id: int
+    index: int
+    state: str                           # FREE | ALLOCATED | MAINTENANCE | RETIRED
+    job_id: int | None
+    maintenance_until: datetime | None
+
+
+class NodePictureOut(_Read):
+    id: int
+    name: str
+    owner_lab_id: int
+    donation_mode: str
+    teaching_pool: bool
+    state: str
+    state_reason: str | None
+    drain_mode: str | None
+    last_heartbeat_at: datetime | None
+    open_alerts: int
+    units: list[UnitPictureOut]
+
+
+class LabQueueOut(_Read):
+    lab_id: int
+    queued_jobs: int
+    queued_gpus: int
+
+
+class QueuePictureOut(_Read):
+    by_state: dict[str, int]
+    by_lab: list[LabQueueOut]
+    oldest_queued_at: datetime | None
+
+
+class UtilisationOut(_Read):
+    usable_units: int
+    allocated_units: int
+    allocated_fraction: float
+    gpu_hours_last_24h: float
+
+
+class AuditEntryOut(_Read):
+    at: datetime
+    actor: str
+    actor_kind: str
+    operation: str
+    resource_ids: list[str]
+    outcome: str
+    reason: str | None
+
+
+class PoolPictureOut(_Read):
+    generated_at: datetime
+    nodes: list[NodePictureOut]
+    queue: QueuePictureOut
+    utilisation: UtilisationOut
+    alerts: list[AlertOut]
+    hardware_warnings: dict[str, int] | None
+    audit: list[AuditEntryOut]

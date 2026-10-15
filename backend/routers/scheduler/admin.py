@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -7,7 +7,9 @@ from logic.dependencies import require_roles
 from logic.scheduler import maintenance
 from logic.scheduler import nodes as node_ops
 from logic.scheduler.cancel import admin_cancel_job
+from logic.scheduler.claim import utc_now
 from logic.scheduler.config import SchedulerConfig
+from logic.scheduler.overview import pool_picture
 from logic.scheduler.passes import Trigger, run_pass
 from models import User
 from routers.scheduler.jobs import get_pass_sessions, get_scheduler_config
@@ -23,6 +25,7 @@ from schemas.scheduler.admin import (
     NodeOut,
     NodeRegister,
     NodeRegistered,
+    PoolPictureOut,
     PreviewOut,
     Reason,
     SharingIn,
@@ -47,6 +50,19 @@ def _node_out(db: Session, node_id: int) -> NodeOut:
 
 def _collisions(p: maintenance.Preview) -> list[CollisionOut]:
     return [CollisionOut(**vars(c)) for c in p.collisions]
+
+
+# ── the operational picture ────────────────────────────────────────────
+
+# Read-only: node and unit states, queue metadata, utilisation, alerts, hardware warnings
+# and the latest audit entries. Never any project content (A-33).
+@router.get("/pool", response_model=PoolPictureOut)
+def pool(
+    audit_limit: int = Query(50, ge=0, le=500),
+    db: Session = Depends(get_db),
+    _: User = Depends(admin_only),
+):
+    return pool_picture(db, utc_now(), audit_limit)
 
 
 # ── nodes ──────────────────────────────────────────────────────────────
