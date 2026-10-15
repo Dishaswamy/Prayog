@@ -247,23 +247,30 @@ def finish_run(
             warnings.append("Log artifact was unavailable or failed integrity verification.")
 
     expected_metrics = item.environment.get("expected_metrics", [])
-    if isinstance(expected_metrics, list) and expected_metrics:
+    expected_metrics_invalid = not isinstance(expected_metrics, list)
+    if isinstance(expected_metrics, list):
+        expected_metrics_invalid = any(
+            not isinstance(name, str) or not name.strip() or len(name.strip()) > 100
+            for name in expected_metrics
+        )
+        expected_metrics = [name.strip() for name in expected_metrics if isinstance(name, str) and name.strip()]
+    if expected_metrics_invalid:
+        warnings.append("Invalid expected_metrics declaration; expected a list of non-blank metric names.")
+    if expected_metrics:
         recorded_metrics = {
             row[0] for row in db.query(RunMetric.name).filter(
                 RunMetric.run_id == item.id,
                 RunMetric.user_id == user.id,
             ).distinct().all()
         }
-        missing_metrics = sorted({name for name in expected_metrics if isinstance(name, str) and name.strip()} - recorded_metrics)
+        missing_metrics = sorted(set(expected_metrics) - recorded_metrics)
         if missing_metrics:
             warnings.append("Missing expected metrics: " + ", ".join(missing_metrics))
 
     snapshot_complete = code_artifact is not None and (
         not weights_artifact_id or weights_artifact is not None
-    ) and (not logs_artifact_id or logs_artifact is not None) and not (
-        isinstance(expected_metrics, list) and any(
-            warning.startswith("Missing expected metrics:") for warning in warnings
-        )
+    ) and (not logs_artifact_id or logs_artifact is not None) and not expected_metrics_invalid and not (
+        any(warning.startswith("Missing expected metrics:") for warning in warnings)
     )
     snapshot_reasons = list(warnings)
     snapshot = ModelSnapshot(
