@@ -115,7 +115,7 @@ class Artifact(Base):
 class ModelSnapshot(Base):
     __tablename__ = "ml_model_snapshots"
     __table_args__ = (
-        CheckConstraint("state = 'RECORDED'", name="ck_ml_snapshot_state"),
+        CheckConstraint("state IN ('RECORDED', 'INCOMPLETE')", name="ck_ml_snapshot_state"),
         Index("ix_ml_snapshots_user_created", "user_id", "created_at"),
         Index("ix_ml_snapshots_experiment_created", "experiment_id", "created_at"),
         Index("ix_ml_snapshots_project_created", "project_id", "created_at"),
@@ -130,10 +130,11 @@ class ModelSnapshot(Base):
     run_id: Mapped[int] = mapped_column(ForeignKey("ml_model_runs.id"), unique=True, nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     state: Mapped[str] = mapped_column(String(20), nullable=False, default="RECORDED")
-    code_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    code_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     code_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     dependencies: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     hyperparameters: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    completeness_reasons: Mapped[list] = mapped_column(JSON, default=list, server_default=text("'[]'::json"), nullable=False)
     weights_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     code_artifact_id: Mapped[str | None] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=True)
     weights_artifact_id: Mapped[str | None] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=True)

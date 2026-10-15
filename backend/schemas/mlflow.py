@@ -162,10 +162,11 @@ class SnapshotOut(BaseModel):
     run_id: int
     user_id: int
     state: str
-    code_uri: str
+    code_uri: str | None
     code_sha256: str | None
     dependencies: dict[str, Any]
     hyperparameters: dict[str, Any]
+    completeness_reasons: list[str]
     weights_uri: str | None
     code_artifact_id: str | None
     weights_artifact_id: str | None
