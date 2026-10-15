@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from logic.errors import BadRequestError, ConflictError, NotFoundError
-from logic.mlflow_outbox import enqueue_rebuild_terminal_event
+from logic.mlflow_outbox import enqueue_rebuild_terminal_event, enqueue_run_sealed_event
 from logic.artifacts import get_verified_artifact
 from mlflow_models import Artifact, Experiment, MLModel, ModelRun, ModelSnapshot, Project, RebuildAttempt, RunMetric
 from models import User
@@ -266,7 +266,7 @@ def finish_run(
         )
     )
     snapshot_reasons = list(warnings)
-    db.add(ModelSnapshot(
+    snapshot = ModelSnapshot(
         snapshot_id=str(uuid4()),
         experiment_id=item.experiment_id,
         project_id=item.project_id,
@@ -283,7 +283,10 @@ def finish_run(
         code_artifact_id=code_artifact.id if code_artifact else None,
         weights_artifact_id=weights_artifact.id if weights_artifact else None,
         logs_artifact_id=logs_artifact.id if logs_artifact else None,
-    ))
+    )
+    db.add(snapshot)
+    if snapshot.state == "RECORDED":
+        enqueue_run_sealed_event(db, snapshot, item, user.id)
 
     item.status = status
     item.code_artifact_id = code_artifact.id if code_artifact else None
