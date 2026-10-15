@@ -6,10 +6,12 @@ from database import get_db
 from logic.dependencies import require_roles
 from logic.scheduler import maintenance
 from logic.scheduler import nodes as node_ops
+from logic.scheduler.cancel import admin_cancel_job
 from logic.scheduler.config import SchedulerConfig
 from logic.scheduler.passes import Trigger, run_pass
 from models import User
 from routers.scheduler.jobs import get_pass_sessions, get_scheduler_config
+from schemas.scheduler.jobs import CancelOut
 from schemas.scheduler.admin import (
     AlertOut,
     BookingOut,
@@ -101,6 +103,24 @@ def abort_decommission(node_id: int, body: Reason, db: Session = Depends(get_db)
 def confirm_unit_count(node_id: int, body: UnitCountIn, db: Session = Depends(get_db), _: User = Depends(admin_only)):
     node_ops.confirm_unit_count(db, node_id, body.unit_count)
     return _node_out(db, node_id)
+
+
+# ── jobs ───────────────────────────────────────────────────────────────
+
+# Cancel any user's job. The reason is mandatory and audited with the admin and the time.
+@router.post("/jobs/{job_id}/cancel", response_model=CancelOut)
+def cancel_any_job(
+    job_id: int,
+    body: Reason,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_only),
+    cfg: SchedulerConfig = Depends(get_scheduler_config),
+    pass_sessions: sessionmaker = Depends(get_pass_sessions),
+):
+    result = admin_cancel_job(db, job_id, admin.id, body.reason, cfg=cfg)
+    background.add_task(run_pass, pass_sessions, Trigger.CANCEL, cfg=cfg)
+    return CancelOut.from_result(result)
 
 
 # ── alerts ─────────────────────────────────────────────────────────────
