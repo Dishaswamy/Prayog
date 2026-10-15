@@ -155,3 +155,8 @@ The Push & Approve workflow is available through the ML Flow API:
 - `POST /mlflow/handovers/{handover_id}/reject` records a terminal rejection; `POST /mlflow/handovers/{handover_id}/cancel` lets the source owner cancel a pending request. Terminal requests cannot be approved or changed.
 
 Approval changes project and completed-record ownership in one database transaction. Artifact bytes are not copied because their storage keys remain stable; each inventoried artifact is read and checksum-verified before the transaction. If verification fails, the request stays pending, ownership remains unchanged, and the failed artifact IDs are recorded.
+
+
+## Professor experiment ledger
+
+Authenticated Professors can query `GET /mlflow/professor/ledger` to see sealed experiment records for currently assigned students. The query is scoped to active approved student relationships and only returns run/snapshot identifiers and digest metadata for persisted `RECORDED` snapshots. It excludes source code, weights, hyperparameters, dataset metadata, logs, Steward sessions, and retrieval state. Non-Professor callers are rejected.
