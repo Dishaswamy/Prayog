@@ -70,3 +70,6 @@ Handlers must use authenticated, TLS-protected service calls, deduplicate using 
 - First-time run failures do not create rebuild attempts and cannot mint diagnostic links.
 - Diagnostic links provide a restricted retrieval capability only; creating or consuming one does not trigger AI work. The outbox event carries identifiers, not source code, weights, log contents, or diagnostic bearer tokens.
 - GPU provisioning and authentication/authorization implementation remain outside this component's scope.
+
+
+Steward context persistence is an optional retrieval aid only. Every stored chunk is scoped to both the authenticated user and rebuild attempt; retrieval must fail closed on missing or mismatched scope and must never authorize code execution or code modification.
