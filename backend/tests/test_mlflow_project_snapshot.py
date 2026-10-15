@@ -81,6 +81,9 @@ class ProjectSnapshotTests(unittest.TestCase):
         (root / "data" / "training.csv").write_text("x,y\n1,2\n", encoding="utf-8")
         (root / ".env.example").write_text("PRAYOG_API_URL=http://localhost:8000\n", encoding="utf-8")
         (root / ".env").write_text("SECRET=do-not-upload\n", encoding="utf-8")
+        (root / "id_rsa").write_text("PRIVATE KEY MATERIAL\n", encoding="utf-8")
+        (root / ".ssh").mkdir()
+        (root / ".ssh" / "config").write_text("private host configuration\n", encoding="utf-8")
         (root / ".git" / "config").write_text("private git metadata\n", encoding="utf-8")
 
     def test_snapshot_uploads_missing_chunks_and_materializes_verified_worktree(self):
@@ -118,6 +121,8 @@ class ProjectSnapshotTests(unittest.TestCase):
             self.assertFalse((output / "data" / "training.csv").exists())
             self.assertTrue((output / ".env.example").is_file())
             self.assertFalse((output / ".env").exists())
+            self.assertFalse((output / "id_rsa").exists())
+            self.assertFalse((output / ".ssh").exists())
             self.assertFalse((output / ".git").exists())
             internal_manifest = json.loads(
                 (output / "snapshot-manifest.json").read_text(encoding="utf-8")
