@@ -291,7 +291,7 @@ def sync_results(client: httpx.Client, run_id: int) -> dict[str, Any]:
     }
     metadata_path = result_dir / "metadata.json"
     metadata_changed = _write_text_if_changed(
-        metadata_path, json.dumps(metadata, indent=2, sort_keys=True) + "\\n"
+        metadata_path, json.dumps(metadata, indent=2, sort_keys=True) + "\n"
     )
     return {
         "run_id": run_id,
