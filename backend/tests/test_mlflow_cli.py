@@ -131,7 +131,7 @@ class MLFlowCliTests(unittest.TestCase):
             context.__enter__.return_value = response
             stream_responses.append(context)
         client.stream.side_effect = stream_responses
-        return client, weights, logs
+        return client, weights, logs, artifacts_response
 
     def test_sync_results_writes_verified_artifacts_and_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -139,7 +139,7 @@ class MLFlowCliTests(unittest.TestCase):
             try:
                 os.chdir(directory)
                 args = parser().parse_args(["sync-results", "--run-id", "8"])
-                client, weights, logs = self._sync_client()
+                client, weights, logs, _ = self._sync_client()
 
                 result = execute(args, client)
 
@@ -162,13 +162,13 @@ class MLFlowCliTests(unittest.TestCase):
             try:
                 os.chdir(directory)
                 args = parser().parse_args(["sync-results", "--run-id", "8"])
-                first_client, _, _ = self._sync_client()
+                first_client, _, _, _ = self._sync_client()
                 execute(args, first_client)
                 result_dir = Path("results") / "8"
                 paths = [result_dir / "weights.bin", result_dir / "logs.log", result_dir / "metadata.json"]
                 mtimes = [path.stat().st_mtime_ns for path in paths]
 
-                second_client, _, _ = self._sync_client()
+                second_client, _, _, _ = self._sync_client()
                 result = execute(args, second_client)
 
                 self.assertEqual([path.stat().st_mtime_ns for path in paths], mtimes)
@@ -182,8 +182,7 @@ class MLFlowCliTests(unittest.TestCase):
             original_cwd = os.getcwd()
             try:
                 os.chdir(directory)
-                client, _, _ = self._sync_client()
-                artifact_response = client.get.side_effect[1]
+                client, _, _, artifact_response = self._sync_client()
                 artifact_response.json.return_value[0]["sha256"] = "0" * 64
                 args = parser().parse_args(["sync-results", "--run-id", "8"])
 
