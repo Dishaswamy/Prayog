@@ -25,6 +25,7 @@ from schemas.scheduler.admin import (
     NodeRegistered,
     PreviewOut,
     Reason,
+    SharingIn,
     UnitCountIn,
 )
 
@@ -95,6 +96,23 @@ def escalate(node_id: int, body: Reason, db: Session = Depends(get_db), _: User 
 @router.post("/nodes/{node_id}/abort-decommission", response_model=NodeOut)
 def abort_decommission(node_id: int, body: Reason, db: Session = Depends(get_db), _: User = Depends(admin_only)):
     node_ops.abort_decommission(db, node_id, body.reason)
+    return _node_out(db, node_id)
+
+
+# Change the donation mode and/or teaching-pool flag. Running jobs are not stopped;
+# the next scheduling pass (started here) places by the new settings.
+@router.patch("/nodes/{node_id}/sharing", response_model=NodeOut)
+def change_sharing(
+    node_id: int,
+    body: SharingIn,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_only),
+    cfg: SchedulerConfig = Depends(get_scheduler_config),
+    pass_sessions: sessionmaker = Depends(get_pass_sessions),
+):
+    node_ops.change_sharing(db, node_id, admin.id, body.reason, body.donation_mode, body.teaching_pool)
+    background.add_task(run_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
     return _node_out(db, node_id)
 
 

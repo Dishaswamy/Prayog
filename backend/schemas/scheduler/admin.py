@@ -51,6 +51,11 @@ class DrainIn(Reason):
     mode: Literal["soft", "hard"] = "soft"
 
 
+class SharingIn(Reason):
+    donation_mode: Literal["reserved", "shared"] | None = None
+    teaching_pool: bool | None = None              # only a shared node may be in the teaching pool
+
+
 class UnitCountIn(BaseModel):
     unit_count: int = Field(ge=1, le=64)
 
