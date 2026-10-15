@@ -113,6 +113,10 @@ class MetricCreate(BaseModel):
         return value
 
 
+class MetricBatchCreate(BaseModel):
+    metrics: list[MetricCreate] = Field(min_length=1, max_length=500)
+
+
 class MetricOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
