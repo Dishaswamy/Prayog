@@ -111,3 +111,18 @@ The default runtime image contains Python only. Do not install arbitrary project
 ## Scope and remaining integration work
 
 The worker now supports first-time run dispatch through the verified code-artifact ID supplied at start time, alongside snapshot rebuilds. It does not install arbitrary dependencies, provision GPUs, or restore a fully captured operating-system image. S3-compatible artifact storage, secure expiring one-time diagnostic log links, and a transactional outbox for eligible terminal rebuild events are implemented; deployment-specific bucket configuration and real AI consumers remain follow-up work. Steward RAG, post-success optimization generation, frontend progress integration, and professor enrollment/RBAC also remain follow-up work. The safety gates and downstream interface are documented in [AI_INTEGRATION.md](AI_INTEGRATION.md): Steward diagnosis is enqueued only after a persisted rebuild failure with a verified log; it must never be invoked for a first-time run failure, modify user code, or execute user code. Optimization is enqueued only after a persisted successful rebuild. Outbox delivery has leased claims, persisted-state revalidation, bounded retries, and dead-letter status, but the production transport, service-to-service authorization, and real downstream consumers are not configured. GPU provisioning and authentication/authorization remain outside this worker's scope.
+
+## Project snapshots with chunk reuse
+
+The CLI can package the current working tree, including uncommitted edits, with `snapshot-project --experiment-id ID --project-dir PATH`. It inventories eligible files by relative path, records SHA-256 and byte size for every file, and labels lockfiles, configuration, seeds, data, and source files. Dataset files are fingerprinted but not uploaded or included in the materialized archive; this avoids silently transferring large or sensitive datasets. Common build caches, virtual environments, version-control metadata, result/artifact folders, and likely secret files are excluded; symbolic links are refused so the archive cannot silently include files outside the project tree.
+
+The CLI creates a deterministic archive, divides it into bounded chunks, and checks the experiment's existing artifact metadata before uploading each chunk. Matching content-addressed chunks are reused. A separate manifest artifact records the ordered chunk IDs, digests, file inventory, archive digest, and size. Use `materialize-project-snapshot --experiment-id ID --manifest-artifact-id ID --output-dir PATH --data-dir PATH` to download the manifest and chunks, verify each chunk and the combined archive, verify every extracted file against the inventory, and verify external dataset fingerprints against a local data root with the same relative paths. If the manifest contains data fingerprints, `--data-dir` is required. Extraction rejects traversal paths, duplicate entries, symbolic links, special files, and output directories that already exist.
+
+Example:
+
+```bash
+python mlflow_cli.py snapshot-project --experiment-id 12 --project-dir .
+python mlflow_cli.py materialize-project-snapshot --experiment-id 12 --manifest-artifact-id ARTIFACT_ID --output-dir ./restored-project --data-dir .
+```
+
+The returned `manifest_artifact_id` identifies the manifest; the manifest references the chunk artifact IDs. Keep the manifest ID with the project record. This project snapshot bundle is distinct from the sealed ML Flow `ModelSnapshot` row: materialize it and, when recording a model run, upload the resulting code archive through the normal run lifecycle.
