@@ -7,11 +7,20 @@ import time
 from uuid import uuid4
 
 from database import SessionLocal
-from logic.mlflow_outbox import dispatch_once
+from logic.mlflow_outbox import consume_ledger_event, dispatch_once
 
 REQUIRED_HANDLERS = {"STEWARD_DIAGNOSIS_REQUESTED", "OPTIMIZATION_REQUESTED"}
 logging.basicConfig(level=os.getenv("PRAYOG_OUTBOX_LOG_LEVEL", "INFO"))
 logger = logging.getLogger("prayog.mlflow_outbox")
+
+
+def _consume_run_sealed(event_key: str, payload: dict):
+    """Persist sealed-run events locally; the ledger's unique event key makes retries idempotent."""
+    db = SessionLocal()
+    try:
+        return consume_ledger_event(db, event_key, payload)
+    finally:
+        db.close()
 
 
 def _load_handlers():
@@ -30,7 +39,7 @@ def _load_handlers():
         raise RuntimeError(
             "Configured HANDLERS must provide callable handlers for both supported event types."
         )
-    return handlers
+    return {**handlers, "RUN_SEALED": _consume_run_sealed}
 
 
 def main():

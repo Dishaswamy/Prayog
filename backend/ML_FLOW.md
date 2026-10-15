@@ -165,3 +165,9 @@ Authenticated Professors can query `GET /mlflow/professor/ledger` to see sealed 
 ## Professor read-only ML Flow views
 
 The `/mlflow/professor` endpoints expose projects, models, experiments, runs, snapshots, rebuilds, metrics, and artifact metadata only for currently assigned students/researchers with active approved relationships. Authorization is checked against database relationships, not client-supplied role claims. Unrelated resources are treated as not found. Responses omit artifact bytes, source code, weights, hyperparameters, and private run configuration.
+
+
+## Sealed-run ledger delivery
+
+Completed runs enqueue a `RUN_SEALED` outbox event only when snapshot verification produces a `RECORDED` snapshot. The outbox worker handles this event with the built-in ledger consumer; its unique event key makes retries idempotent. Steward diagnosis and optimization remain administrator-configured handlers and are still required before the worker starts, so missing AI integrations cannot silently consume those events.
+
