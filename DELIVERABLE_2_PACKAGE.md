@@ -30,6 +30,9 @@ The following is a focused ML Flow traceability slice. CI links provide reproduc
 
 | Requirement / acceptance point | Issue and implementation | Validation evidence |
 |---|---|---|
+| Capture the current worktree, lockfiles, configuration, seeds, and data fingerprints; reuse existing chunks and verify materialization | [PRAYOG-41 / PR #19](https://github.com/baymaxisme/Prayog/pull/19) | Latest CI pending |
+| Store artifacts under scoped content-derived addresses and reuse identical uploads | [PRAYOG-66 / PR #18](https://github.com/baymaxisme/Prayog/pull/18) | [CI run #345](https://github.com/baymaxisme/Prayog/actions/runs/38681930659) |
+| Synchronize run outputs into `results/<run_id>/` without changing identical local files | [PRAYOG-67 / PR #17](https://github.com/baymaxisme/Prayog/pull/17) | [CI run #348](https://github.com/baymaxisme/Prayog/actions/runs/38682006531) |
 | Stream metrics during a run; reject duplicates; verify all supplied artifacts before sealing | [PRAYOG-79 / PR #5](https://github.com/baymaxisme/Prayog/pull/5) | [CI run #5](https://github.com/baymaxisme/Prayog/actions/runs/38552074458) |
 | Preserve a queryable incomplete snapshot and prevent rebuilds from it | [PRAYOG-81 / PR #2](https://github.com/baymaxisme/Prayog/pull/2) | [CI run #2](https://github.com/baymaxisme/Prayog/actions/runs/38550463669) |
 | Emit a stable run-sealed event and consume ledger events idempotently | [PRAYOG-80 / PR #6](https://github.com/baymaxisme/Prayog/pull/6) | [CI run #334](https://github.com/baymaxisme/Prayog/actions/runs/38680938463) |
@@ -58,6 +61,12 @@ Use a local test environment and test accounts; never commit secrets or paste be
 10. Authenticate as the supervising Professor and call `GET /mlflow/professor/ledger`. Confirm that only currently assigned students' matching `RECORDED` snapshots appear and that hyperparameters, artifacts, logs, Steward sessions, and RAG state are absent.
 
 The automated CI workflow already covers clean PostgreSQL migrations, lifecycle tests, Docker worker smoke tests, and the authenticated API-to-worker end-to-end test. A human-recorded demonstration should capture the above scenarios and link its recording here.
+
+## Implementation blockers and scope boundaries
+
+- **PRAYOG-78 — Hardware fault investigation:** The current repository contains the ML Flow backend but no node, GPU-unit, heartbeat, allocation, or hardware-history model to query. Implementing freeze/drain/dismiss here would invent a parallel scheduler rather than integrate with the team's infrastructure component.
+- **PRAYOG-88 — Metric comparator:** The imported acceptance criteria explicitly mark it deferred and blocked on CR-18. Do not implement comparison semantics until that change request is resolved.
+- **PRAYOG-102 — Whole-chain simulated-pool suite:** Existing CI exercises the ML Flow API, queue/worker, artifacts, snapshots, rebuilds, and diagnostic links. The required GPU pool init-to-release scheduler is not present in this repository, so the full pool acceptance remains blocked on the platform/scheduler component.
 
 ## Evidence still required before final submission
 
