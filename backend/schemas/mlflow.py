@@ -228,3 +228,188 @@ class DiagnosticLinkCreate(BaseModel):
 class DiagnosticLinkOut(BaseModel):
     path: str
     expires_at: datetime
+
+
+class ProfessorProjectOut(BaseModel):
+    """Professor project metadata; excludes the owner's internal user ID."""
+
+    model_config = ConfigDict(from_attributes=True)
+    project_id: str
+    name: str
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def redact_project_text(cls, value):
+        return _redact_sensitive_text(value)
+
+
+
+class ProfessorModelOut(BaseModel):
+    """Professor model metadata; excludes the owner's internal user ID."""
+
+    model_config = ConfigDict(from_attributes=True)
+    model_id: str
+    project_id: str
+    name: str
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def redact_model_text(cls, value):
+        return _redact_sensitive_text(value)
+
+
+
+class ProfessorExperimentOut(BaseModel):
+    """Professor experiment metadata with credential-like fields redacted."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    project_id: str
+    model_id: str
+    name: str
+    description: str | None
+    tags: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def redact_experiment_tags(cls, value):
+        return _redact_sensitive_metadata(value)
+
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def redact_experiment_text(cls, value):
+        return _redact_sensitive_text(value)
+
+
+
+class ProfessorRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    experiment_id: int
+    project_id: str
+    model_id: str
+    run_type: str
+    source_snapshot_id: str | None
+    status: str
+    logging_state: str
+    logging_warnings: list[str]
+    hyperparameters: dict[str, Any]
+    environment: dict[str, Any]
+    code_snapshot_sha256: str | None
+    code_artifact_id: str | None
+    weights_artifact_id: str | None
+    logs_artifact_id: str | None
+    error_summary: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    updated_at: datetime
+
+    @field_validator("hyperparameters", "environment", mode="before")
+    @classmethod
+    def redact_run_metadata(cls, value):
+        return _redact_sensitive_metadata(value)
+
+    @field_validator("error_summary", mode="before")
+    @classmethod
+    def redact_run_error_summary(cls, value):
+        return _redact_sensitive_text(value)
+
+    @field_validator("logging_warnings", mode="before")
+    @classmethod
+    def redact_run_logging_warnings(cls, value):
+        return [_redact_sensitive_text(item) for item in value] if isinstance(value, list) else value
+
+
+
+class ProfessorSnapshotOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    snapshot_id: str
+    experiment_id: int
+    project_id: str
+    model_id: str
+    run_id: int
+    state: str
+    code_sha256: str | None
+    dependencies: dict[str, Any]
+    hyperparameters: dict[str, Any]
+    completeness_reasons: list[str] = Field(default_factory=list)
+    code_artifact_id: str | None
+    weights_artifact_id: str | None
+    logs_artifact_id: str | None
+    created_at: datetime
+
+    @field_validator("dependencies", "hyperparameters", mode="before")
+    @classmethod
+    def redact_snapshot_metadata(cls, value):
+        return _redact_sensitive_metadata(value)
+
+    @field_validator("completeness_reasons", mode="before")
+    @classmethod
+    def redact_completeness_reasons(cls, value):
+        return [_redact_sensitive_text(item) for item in value] if isinstance(value, list) else value
+
+
+
+class ProfessorRebuildOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    snapshot_id: str
+    project_id: str
+    model_id: str
+    execution_run_id: int
+    state: str
+    environment: dict[str, Any]
+    logs_artifact_id: str | None
+    failure_summary: str | None
+    created_at: datetime
+    initiated_at: datetime | None
+    finished_at: datetime | None
+    updated_at: datetime
+
+    @field_validator("environment", mode="before")
+    @classmethod
+    def redact_rebuild_metadata(cls, value):
+        return _redact_sensitive_metadata(value)
+
+    @field_validator("failure_summary", mode="before")
+    @classmethod
+    def redact_rebuild_failure_summary(cls, value):
+        return _redact_sensitive_text(value)
+
+
+class ProfessorMetricOut(BaseModel):
+    """Professor metric view without the owner's internal user ID."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    run_id: int
+    name: str
+    value: float
+    step: int
+    recorded_at: datetime
+
+
+
+class ProfessorArtifactOut(BaseModel):
+    """Explicit allowlist for Professor artifact inventory; never includes storage locators."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    experiment_id: int
+    project_id: str
+    model_id: str
+    kind: str
+    sha256: str
+    size_bytes: int
+    created_at: datetime
+
