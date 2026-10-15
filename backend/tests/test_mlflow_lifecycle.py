@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from logic.errors import BadRequestError, ConflictError, NotFoundError
 from logic.mlflow import create_experiment, create_rebuild, create_run, finish_run, start_run, update_rebuild
+from mlflow_models import ModelSnapshot
 
 
 class MLFlowLifecycleTests(unittest.TestCase):
@@ -129,7 +130,7 @@ class MLFlowLifecycleTests(unittest.TestCase):
             "error_summary": None,
         })
 
-        snapshot = self.db.add.call_args.args[0]
+        snapshot = next(call.args[0] for call in self.db.add.call_args_list if isinstance(call.args[0], ModelSnapshot))
         self.assertEqual(snapshot.state, "RECORDED")
         self.assertEqual(snapshot.project_id, "project-1")
         self.assertEqual(snapshot.model_id, "model-1")
