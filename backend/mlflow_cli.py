@@ -238,6 +238,21 @@ def sync_results(client: httpx.Client, run_id: int) -> dict[str, Any]:
         for artifact_id in artifact_ids.values():
             if artifact_id and artifact_id not in artifacts_by_id:
                 raise ValueError("A run output artifact is unavailable to the authenticated owner")
+        for key, expected_kind in (("weights", "WEIGHTS"), ("logs", "LOG")):
+            artifact_id = artifact_ids[key]
+            if not artifact_id:
+                continue
+            item = artifacts_by_id[artifact_id]
+            if item.get("kind") != expected_kind:
+                raise ValueError(f"Run {key} artifact metadata has an unexpected kind")
+            digest = item.get("sha256")
+            if not isinstance(digest, str) or len(digest) != 64 or any(
+                character not in "0123456789abcdef" for character in digest.lower()
+            ):
+                raise ValueError(f"Run {key} artifact metadata has an invalid SHA-256 digest")
+            size = item.get("size_bytes")
+            if isinstance(size, bool) or not isinstance(size, int) or size <= 0 or size > MAX_ARTIFACT_BYTES:
+                raise ValueError(f"Run {key} artifact metadata has an invalid size")
         artifact_metadata = artifacts_by_id
 
     results_root = Path("results")
