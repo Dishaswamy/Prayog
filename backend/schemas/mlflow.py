@@ -464,6 +464,6 @@ def _redact_sensitive_text(value):
     if not isinstance(value, str):
         return value
     value = _URL_USERINFO_CREDENTIAL.sub(r"\1[REDACTED]@", value)
-    value = _SENSITIVE_TEXT_ASSIGNMENT.sub(r"\1\2[REDACTED]", value)
-    return _BEARER_CREDENTIAL.sub(r"\1[REDACTED]", value)
+    value = _BEARER_CREDENTIAL.sub(r"\1[REDACTED]", value)
+    return _SENSITIVE_TEXT_ASSIGNMENT.sub(r"\1\2[REDACTED]", value)
 
