@@ -287,7 +287,10 @@ def sync_results(client: httpx.Client, run_id: int) -> dict[str, Any]:
         "created_at": run.get("created_at"),
         "started_at": run.get("started_at"),
         "finished_at": run.get("finished_at"),
-        "artifacts": synced,
+        "artifacts": [
+            {key: value for key, value in item.items() if key != "unchanged"}
+            for item in synced
+        ],
     }
     metadata_path = result_dir / "metadata.json"
     metadata_changed = _write_text_if_changed(
