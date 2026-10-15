@@ -1,0 +1,451 @@
+import hashlib
+import io
+import os
+import unittest
+import zipfile
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
+from blake3 import blake3
+
+os.environ.setdefault("POSTGRES_USER", "prayog")
+os.environ.setdefault("POSTGRES_PASSWORD", "prayog-test-password")
+os.environ.setdefault("POSTGRES_HOST", "localhost")
+os.environ.setdefault("POSTGRES_PORT", "5432")
+os.environ.setdefault("POSTGRES_DB", "prayog_test")
+os.environ.setdefault("JWT_SECRET_KEY", "ci-only-secret-not-for-production")
+
+from fastapi.testclient import TestClient
+from database import SessionLocal
+from main import app
+from mlflow_models import Artifact, DiagnosticLink, ModelSnapshot, RebuildAttempt
+from mlflow_worker import claim_next_job, execute_first_time_run
+
+IMAGE = os.getenv("PRAYOG_WORKER_IMAGE", "prayog-ml-runtime:python3.12")
+
+
+@unittest.skipUnless(os.getenv("PRAYOG_RUN_E2E") == "1", "PostgreSQL and Docker end-to-end test runs in CI")
+class MLFlowEndToEndTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        email = f"mlflow-e2e-{uuid4().hex}@iitk.ac.in"
+        response = self.client.post(
+            "/auth/register",
+            json={"email": email, "password": "Test-password-2026!", "role": "STUDENT"},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        response = self.client.post(
+            "/auth/login",
+            json={"email": email, "password": "Test-password-2026!"},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
+
+    def create_run(self, script):
+        response = self.client.post("/mlflow/projects", json={"name": "E2E project"})
+        self.assertEqual(response.status_code, 201, response.text)
+        project_id = response.json()["project_id"]
+
+        response = self.client.post(
+            f"/mlflow/projects/{project_id}/models", json={"name": "E2E model"}
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        model_id = response.json()["model_id"]
+
+        response = self.client.post(
+            "/mlflow/experiments",
+            json={"project_id": project_id, "model_id": model_id, "name": "E2E experiment"},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        experiment_id = response.json()["id"]
+
+        response = self.client.post(
+            f"/mlflow/experiments/{experiment_id}/runs",
+            json={"hyperparameters": {"test": True}, "environment": {"python": "3.12"}},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        run_id = response.json()["id"]
+
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
+            output.writestr("main.py", script)
+        response = self.client.post(
+            f"/mlflow/experiments/{experiment_id}/artifacts",
+            params={"kind": "CODE"},
+            content=archive.getvalue(),
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        code_artifact_id = response.json()["id"]
+
+        response = self.client.post(
+            f"/mlflow/runs/{run_id}/start",
+            json={
+                "environment": {"entrypoint": "main.py", "python_version": "3.12"},
+                "code_artifact_id": code_artifact_id,
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "QUEUED")
+        return experiment_id, run_id, code_artifact_id
+
+    def run_one_queued_job(self, expected_run_id):
+        worker_id = f"e2e-worker-{uuid4().hex}"
+        db = SessionLocal()
+        try:
+            job = claim_next_job(db, worker_id)
+            self.assertEqual(job, ("FIRST_TIME", expected_run_id))
+            execute_first_time_run(db, expected_run_id, worker_id, 15, IMAGE)
+        finally:
+            db.close()
+
+    def test_authenticated_api_queue_worker_artifacts_snapshot_and_first_time_failure(self):
+        experiment_id, successful_run_id, code_artifact_id = self.create_run(
+            "from pathlib import Path\n"
+            "print('end-to-end-success', flush=True)\n"
+            "Path('/output/weights.bin').write_bytes(b'e2e-weights')\n"
+        )
+        self.run_one_queued_job(successful_run_id)
+
+        response = self.client.get(f"/mlflow/runs/{successful_run_id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        successful_run = response.json()
+        self.assertEqual(successful_run["status"], "SUCCEEDED", successful_run)
+        self.assertIsNotNone(successful_run["logs_artifact_id"])
+        self.assertIsNotNone(successful_run["weights_artifact_id"])
+
+        response = self.client.get(f"/mlflow/experiments/{experiment_id}/snapshots")
+        self.assertEqual(response.status_code, 200, response.text)
+        snapshots = response.json()
+        self.assertEqual(len(snapshots), 1, snapshots)
+        snapshot = snapshots[0]
+        self.assertEqual(snapshot["state"], "RECORDED")
+        self.assertEqual(snapshot["code_artifact_id"], code_artifact_id)
+        self.assertEqual(snapshot["weights_artifact_id"], successful_run["weights_artifact_id"])
+
+        response = self.client.get(f"/mlflow/snapshots/{snapshot['snapshot_id']}")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["snapshot_id"], snapshot["snapshot_id"])
+
+        response = self.client.get(f"/mlflow/experiments/{experiment_id}/artifacts")
+        self.assertEqual(response.status_code, 200, response.text)
+        artifacts = response.json()
+        self.assertTrue(any(item["id"] == code_artifact_id and item["kind"] == "CODE" for item in artifacts))
+        self.assertTrue(any(item["id"] == successful_run["logs_artifact_id"] and item["kind"] == "LOG" for item in artifacts))
+        self.assertTrue(any(item["id"] == successful_run["weights_artifact_id"] and item["kind"] == "WEIGHTS" for item in artifacts))
+
+        rebuild_response = self.client.post(
+            f"/mlflow/snapshots/{snapshot['snapshot_id']}/rebuilds",
+            json={"environment": {"entrypoint": "main.py"}},
+        )
+        self.assertEqual(rebuild_response.status_code, 201, rebuild_response.text)
+        rebuild_id = rebuild_response.json()["id"]
+
+        blocked_link = self.client.post(
+            f"/mlflow/rebuilds/{rebuild_id}/diagnostic-link",
+            json={"ttl_seconds": 60},
+        )
+        self.assertEqual(blocked_link.status_code, 409, blocked_link.text)
+
+        diagnostic_payload = b"rebuild failed: intentional e2e diagnostic"
+        response = self.client.post(
+            f"/mlflow/experiments/{experiment_id}/artifacts",
+            params={"kind": "LOG"},
+            content=diagnostic_payload,
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        diagnostic_artifact_id = response.json()["id"]
+        response = self.client.patch(
+            f"/mlflow/rebuilds/{rebuild_id}",
+            json={
+                "state": "REBUILD_FAILED",
+                "logs_artifact_id": diagnostic_artifact_id,
+                "failure_summary": "intentional diagnostic-link test failure",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+
+        response = self.client.post(
+            f"/mlflow/rebuilds/{rebuild_id}/diagnostic-link",
+            json={"ttl_seconds": 60},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        diagnostic_link = response.json()
+        self.assertIn("/mlflow/diagnostic-artifacts/", diagnostic_link["path"])
+        self.assertIsNotNone(diagnostic_link["expires_at"])
+
+        response = self.client.get(diagnostic_link["path"])
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.content, diagnostic_payload)
+        self.assertEqual(response.headers["cache-control"], "no-store, private")
+        response = self.client.get(diagnostic_link["path"])
+        self.assertEqual(response.status_code, 404, response.text)
+
+        expired_link_response = self.client.post(
+            f"/mlflow/rebuilds/{rebuild_id}/diagnostic-link",
+            json={"ttl_seconds": 60},
+        )
+        self.assertEqual(expired_link_response.status_code, 201, expired_link_response.text)
+        expired_path = expired_link_response.json()["path"]
+        expired_token = expired_path.rsplit("/", 1)[-1]
+        db = SessionLocal()
+        try:
+            link_record = db.query(DiagnosticLink).filter(
+                DiagnosticLink.token_hash == hashlib.sha256(expired_token.encode("utf-8")).hexdigest()
+            ).first()
+            self.assertIsNotNone(link_record)
+            self.assertNotEqual(link_record.token_hash, expired_token)
+            link_record.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=1)
+            db.commit()
+        finally:
+            db.close()
+        response = self.client.get(expired_path)
+        self.assertEqual(response.status_code, 404, response.text)
+
+        failed_experiment_id, failed_run_id, _ = self.create_run(
+            "print('end-to-end-intentional-failure', flush=True)\n"
+            "raise SystemExit(7)\n"
+        )
+        self.run_one_queued_job(failed_run_id)
+
+        response = self.client.get(f"/mlflow/runs/{failed_run_id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        failed_run = response.json()
+        self.assertEqual(failed_run["status"], "FAILED", failed_run)
+        self.assertIn("exit code 7", failed_run["error_summary"])
+        self.assertIsNotNone(failed_run["logs_artifact_id"])
+
+        response = self.client.get(f"/mlflow/experiments/{failed_experiment_id}/snapshots")
+        self.assertEqual(response.status_code, 200, response.text)
+        failed_snapshots = response.json()
+        self.assertEqual(len(failed_snapshots), 1, failed_snapshots)
+        response = self.client.get(f"/mlflow/snapshots/{failed_snapshots[0]['snapshot_id']}/rebuilds")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), [])
+
+        db = SessionLocal()
+        try:
+            self.assertEqual(
+                db.query(RebuildAttempt).filter(
+                    RebuildAttempt.snapshot_id == failed_snapshots[0]["snapshot_id"]
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                db.query(ModelSnapshot).filter(ModelSnapshot.run_id == successful_run_id).count(),
+                1,
+            )
+            self.assertEqual(
+                db.query(Artifact).filter(Artifact.id == successful_run["weights_artifact_id"]).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+
+    def test_worker_rebuild_dispatch_reaches_terminal_state(self):
+        experiment_id, run_id, _ = self.create_run(
+            "from pathlib import Path\n"
+            "print('rebuild-lifecycle-success', flush=True)\n"
+            "Path('/output/weights.bin').write_bytes(b'rebuild-lifecycle-weights')\n"
+        )
+        self.run_one_queued_job(run_id)
+
+        response = self.client.get(f"/mlflow/experiments/{experiment_id}/snapshots")
+        self.assertEqual(response.status_code, 200, response.text)
+        snapshots = response.json()
+        self.assertEqual(len(snapshots), 1, snapshots)
+        snapshot_id = snapshots[0]["snapshot_id"]
+        self.assertEqual(snapshots[0]["state"], "RECORDED")
+
+        response = self.client.post(
+            f"/mlflow/snapshots/{snapshot_id}/rebuilds",
+            json={"environment": {"entrypoint": "main.py"}},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        rebuild_id = response.json()["id"]
+
+        worker_id = f"e2e-rebuild-worker-{uuid4().hex}"
+        import subprocess
+        from unittest.mock import patch
+        original_run = subprocess.run
+        db = SessionLocal()
+        try:
+            job = claim_next_job(db, worker_id)
+            self.assertEqual(job, ("REBUILD", rebuild_id))
+            from mlflow_worker import execute_rebuild
+            with patch("mlflow_worker.subprocess.run", wraps=original_run) as docker_commands:
+                execute_rebuild(db, rebuild_id, worker_id, 15, IMAGE)
+            cleanup_commands = [
+                call.args[0] for call in docker_commands.call_args_list
+                if call.args and isinstance(call.args[0], list)
+                and call.args[0][:2] == ["docker", "rm"]
+            ]
+            self.assertTrue(cleanup_commands, "The worker must remove its execution container")
+            self.assertTrue(any("--force" in command for command in cleanup_commands))
+        finally:
+            db.close()
+
+        response = self.client.get(f"/mlflow/rebuilds/{rebuild_id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        attempt = response.json()
+        self.assertEqual(attempt["state"], "REBUILD_SUCCESS", attempt)
+        self.assertIsNotNone(attempt.get("finished_at"))
+
+        response = self.client.get(f"/mlflow/runs/{attempt['execution_run_id']}")
+        self.assertEqual(response.status_code, 200, response.text)
+        execution = response.json()
+        self.assertEqual(execution["status"], "SUCCEEDED", execution)
+        self.assertIsNotNone(execution.get("finished_at"))
+        self.assertIsNotNone(execution.get("logs_artifact_id"))
+        self.assertIsNotNone(execution.get("weights_artifact_id"))
+
+        response = self.client.get(f"/mlflow/experiments/{experiment_id}/snapshots")
+        self.assertEqual(response.status_code, 200, response.text)
+        snapshots = response.json()
+        rebuilt_snapshot = next(
+            (item for item in snapshots if item.get("run_id") == execution["id"]),
+            None,
+        )
+        self.assertIsNotNone(rebuilt_snapshot, snapshots)
+        self.assertEqual(rebuilt_snapshot["state"], "RECORDED")
+        self.assertEqual(rebuilt_snapshot["code_artifact_id"], execution["code_artifact_id"])
+        self.assertEqual(rebuilt_snapshot["weights_artifact_id"], execution["weights_artifact_id"])
+
+
+    def test_failed_worker_rebuild_reaches_terminal_state_and_releases_container(self):
+        experiment_id, run_id, _ = self.create_run(
+            "import json, os\n"
+            "from pathlib import Path\n"
+            "parameters = json.loads(os.environ['PRAYOG_HYPERPARAMETERS_JSON'])\n"
+            "if parameters.get('fail_rebuild'):\n"
+            "    raise SystemExit(9)\n"
+            "print('rebuild-failure-path', flush=True)\n"
+            "Path('/output/weights.bin').write_bytes(b'initial-weights')\n"
+        )
+        self.run_one_queued_job(run_id)
+        snapshots_response = self.client.get(f"/mlflow/experiments/{experiment_id}/snapshots")
+        self.assertEqual(snapshots_response.status_code, 200, snapshots_response.text)
+        snapshot_id = snapshots_response.json()[0]["snapshot_id"]
+
+        response = self.client.post(
+            f"/mlflow/snapshots/{snapshot_id}/rebuilds",
+            json={"environment": {"entrypoint": "main.py", "hyperparameters": {"fail_rebuild": True}}},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        rebuild_id = response.json()["id"]
+        worker_id = f"e2e-failed-rebuild-worker-{uuid4().hex}"
+
+        import subprocess
+        from unittest.mock import patch
+        original_run = subprocess.run
+        db = SessionLocal()
+        try:
+            self.assertEqual(claim_next_job(db, worker_id), ("REBUILD", rebuild_id))
+            from mlflow_worker import execute_rebuild
+            with patch("mlflow_worker.subprocess.run", wraps=original_run) as docker_commands:
+                execute_rebuild(db, rebuild_id, worker_id, 15, IMAGE)
+            cleanup_commands = [
+                call.args[0] for call in docker_commands.call_args_list
+                if call.args and isinstance(call.args[0], list)
+                and call.args[0][:2] == ["docker", "rm"]
+            ]
+            self.assertTrue(cleanup_commands, "The worker must remove a failed execution container")
+            self.assertTrue(any("--force" in command for command in cleanup_commands))
+        finally:
+            db.close()
+
+        response = self.client.get(f"/mlflow/rebuilds/{rebuild_id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        attempt = response.json()
+        self.assertEqual(attempt["state"], "REBUILD_FAILED", attempt)
+        self.assertIn("exit code 9", attempt["failure_summary"])
+        self.assertIsNotNone(attempt.get("finished_at"))
+        response = self.client.get(f"/mlflow/runs/{attempt['execution_run_id']}")
+        self.assertEqual(response.status_code, 200, response.text)
+        execution = response.json()
+        self.assertEqual(execution["status"], "FAILED", execution)
+        self.assertIsNotNone(execution.get("finished_at"))
+        self.assertIsNotNone(execution.get("logs_artifact_id"))
+
+
+    def test_artifact_content_address_reuse_preserves_metadata_identity(self):
+        payload = b"identical artifact bytes shared by two experiments"
+        created_experiments = []
+
+        for suffix in ("first", "second"):
+            project = self.client.post(
+                "/mlflow/projects", json={"name": f"Dedup project {suffix}"}
+            )
+            self.assertEqual(project.status_code, 201, project.text)
+            project_id = project.json()["project_id"]
+            model = self.client.post(
+                f"/mlflow/projects/{project_id}/models",
+                json={"name": f"Dedup model {suffix}"},
+            )
+            self.assertEqual(model.status_code, 201, model.text)
+            experiment = self.client.post(
+                "/mlflow/experiments",
+                json={
+                    "project_id": project_id,
+                    "model_id": model.json()["model_id"],
+                    "name": f"Dedup experiment {suffix}",
+                },
+            )
+            self.assertEqual(experiment.status_code, 201, experiment.text)
+            created_experiments.append(experiment.json()["id"])
+
+        def upload(experiment_id):
+            response = self.client.post(
+                f"/mlflow/experiments/{experiment_id}/artifacts",
+                params={"kind": "CODE"},
+                content=payload,
+                headers={"Content-Type": "application/octet-stream"},
+            )
+            self.assertEqual(response.status_code, 201, response.text)
+            return response.json()["id"]
+
+        first_id = upload(created_experiments[0])
+        duplicate_id = upload(created_experiments[0])
+        second_experiment_id = upload(created_experiments[1])
+
+        self.assertEqual(duplicate_id, first_id)
+        self.assertNotEqual(second_experiment_id, first_id)
+
+        db = SessionLocal()
+        try:
+            first = db.query(Artifact).filter(Artifact.id == first_id).one()
+            duplicate = db.query(Artifact).filter(Artifact.id == duplicate_id).one()
+            second = db.query(Artifact).filter(Artifact.id == second_experiment_id).one()
+            self.assertEqual(first.id, duplicate.id)
+            self.assertEqual(first.storage_key, second.storage_key)
+            self.assertEqual(first.storage_key, blake3(payload).hexdigest())
+            self.assertEqual(first.sha256, hashlib.sha256(payload).hexdigest())
+            self.assertEqual(second.sha256, first.sha256)
+            self.assertEqual(first.size_bytes, len(payload))
+            self.assertEqual(second.size_bytes, len(payload))
+            self.assertNotEqual(first.experiment_id, second.experiment_id)
+            self.assertEqual(first.user_id, second.user_id)
+        finally:
+            db.close()
+
+        first_listing = self.client.get(
+            f"/mlflow/experiments/{created_experiments[0]}/artifacts"
+        )
+        second_listing = self.client.get(
+            f"/mlflow/experiments/{created_experiments[1]}/artifacts"
+        )
+        self.assertEqual(first_listing.status_code, 200, first_listing.text)
+        self.assertEqual(second_listing.status_code, 200, second_listing.text)
+        self.assertEqual([item["id"] for item in first_listing.json()], [first_id])
+        self.assertEqual([item["id"] for item in second_listing.json()], [second_experiment_id])
+
+        for artifact_id in (first_id, second_experiment_id):
+            download = self.client.get(f"/mlflow/artifacts/{artifact_id}/content")
+            self.assertEqual(download.status_code, 200, download.text)
+            self.assertEqual(download.content, payload)
+
+
+if __name__ == "__main__":
+    unittest.main()
