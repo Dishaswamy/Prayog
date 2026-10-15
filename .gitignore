@@ -223,3 +223,6 @@ __marimo__/
 .knowledge_cache/
 # Node agent state: holds the node's credential (python -m node_agent.simulated --state-dir ...)
 .agent-*/
+# Private ML Flow artifacts and interrupted uploads
+backend/artifacts/
+*.upload

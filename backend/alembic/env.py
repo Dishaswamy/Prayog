@@ -5,16 +5,15 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-# Make the backend folder importable (models.py, database.py)
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BACKEND_DIR)
 
-# Load .env BEFORE importing database.py (it reads env vars at import time)
 ENV_FILE = os.path.abspath(os.path.join(BACKEND_DIR, "../.env"))
 load_dotenv(ENV_FILE)
 
-from database import DATABASE_URL  # noqa: E402  same URL the app uses
-from models import Base             # noqa: E402  imports all models
+from database import DATABASE_URL
+from models import Base
+import mlflow_models
 
 config = context.config
 config.set_main_option(
@@ -47,7 +46,7 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            compare_server_default=True,   # detect changed defaults (e.g. UTC timestamps)
+            compare_server_default=True,
         )
         with context.begin_transaction():
             context.run_migrations()

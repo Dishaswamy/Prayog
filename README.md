@@ -30,6 +30,7 @@
 | **GPU scheduling** | Jobs ask for a number of GPUs on one node and a walltime (`HH:MM`). A scheduler places them using **priority classes** (P0: your own lab's node, P1/P2: another lab's shared node, P3: teaching pool for course jobs), then a **fair-share score** inside each class (waiting time, recent usage with a 7-day half-life, lab contribution, job size). Retried submissions with the same `client_request_id` are idempotent. Course accounts have a GPU-hour quota. |
 | **Node management** | Admins register nodes; each node's agent enrols with a one-time token, then heartbeats, pulls its allocations, and reports how each run ended. Nodes can be drained, returned, decommissioned, and booked for maintenance windows. A reaper marks silent nodes down and requeues their jobs. |
 | **Steward (AI agent)** | **S1** diagnoses failed runs and may propose a corrected job (more GPUs or walltime) that the owner approves. **S2** warns admins when failures from several users point at the same GPU. **S3** gives a single-use chat link after a failed rebuild. **S4** gives optimisation advice after a successful rebuild, citing reference papers. The Steward only reads and reasons; the server validates and writes every record. |
+| **Experiment Ledger (ML Flow)** | Projects, models, experiments and runs; metrics streamed during a run; content-addressed artifacts verified on upload; a snapshot sealed automatically at the end of a run (RECORDED, or INCOMPLETE with reasons); an outbox and idempotent ledger consumer; read-only Professor and admin views; IP handover to the supervising Professor; rebuilds from a Snapshot ID (`prayog run --rebuild`). See [backend/ML_FLOW.md](backend/ML_FLOW.md). |
 | **Monitoring** | `GET /health` (API and database) and `GET /metrics` (scheduler counts in Prometheus format). |
 
 ## Architecture
@@ -261,25 +262,27 @@ Every protected endpoint takes `Authorization: Bearer <token>` from `/auth/login
 | GPU pool (admin) | `/admin/nodes` (register, list, drain, return, decommission, escalate, unit count), `/admin/alerts`, `/admin/maintenance` (preview, book, change, cancel) | ADMIN |
 | Node agent | `POST /agent/enrol`, `POST /agent/heartbeat`, `GET /agent/allocations`, `POST /agent/allocations/{id}/acknowledge`, `POST /agent/allocations/{id}/report` | node credential |
 | Rebuilds | `POST /rebuilds`, `GET /rebuilds`, `GET /rebuilds/{id}` | logged in |
+| Experiment Ledger | `/mlflow/*` (projects, models, experiments, runs, metrics, artifacts, snapshots, rebuilds, handover), `/mlflow/professor/*`, `/admin/mlflow/overview` | logged in / PROFESSOR / ADMIN; see [backend/ML_FLOW.md](backend/ML_FLOW.md) |
 | Steward | `/steward/runs/…/diagnoses`, `/steward/proposals`, `/steward/attempts/…/link`, `/steward/s3/*`, `/steward/attempts/…/optimize`, `/steward/admin/*` | see [API_STEWARD.md](API_STEWARD.md) |
 
 Full request and response formats are in [API.md](API.md) and [API_STEWARD.md](API_STEWARD.md).
 
 ## Status
 
-**Working and tested.** Authentication, two-step access approval, the GPU scheduler (classes, fair-share scoring, dispatch, reaper, drain and maintenance), the simulated node agent, and the Steward contexts S1–S4 with the heuristic adapter. As of 2026-10-15, 16 end-to-end backend tests and 222 Steward tests pass on PostgreSQL. The tests are kept outside this repository.
+**Working and tested.** Authentication, two-step access approval, the GPU scheduler (classes, fair-share scoring, dispatch, reaper, drain and maintenance), the simulated node agent, and the Steward contexts S1–S4 with the heuristic adapter. As of 2026-10-15, 16 end-to-end backend tests and 222 Steward tests pass on PostgreSQL. Those tests are kept outside this repository; the Experiment Ledger and scheduler-admin tests are in `backend/tests` and run in CI (`.github/workflows/mlflow-validation.yml`).
 
 **Not built yet, or interim:**
 
 - **Password reset.** `API.md` documents `POST /auth/forgot-password` and `POST /auth/verify-otp`, but these routes are not in the code yet. Token revocation on password reset is also still to do.
 - **Labs and scheduling contexts** have no API yet. `seed_dev` inserts them directly.
 - **Real node execution.** The node agent in this repo is simulated. It does not start containers or touch real GPUs.
-- **Experiment tracking (MLflow) and the client CLI** are other sub-teams' parts and are not in this repository yet.
-- **Projects table, content store and ledger.** Until these exist, the Steward uses interim adapters: projects are scoped to their owner, `run_logs` holds the log tail, and rebuild attempts are interim.
+- **Steward and ledger wiring.** The Experiment Ledger is in the repository, but the Steward still uses interim adapters: projects are scoped to their owner and `run_logs` holds the log tail.
 - **Not yet verified.** A live Claude call, the Docker image, and the S1 accuracy evaluation on real, hand-labelled failed runs. `steward/eval/` currently holds a synthetic seed set.
 
 ## Further documentation
 
 - [API.md](API.md): health, authentication and authorisation endpoints
 - [API_STEWARD.md](API_STEWARD.md): rebuild and Steward endpoints
+- [backend/ML_FLOW.md](backend/ML_FLOW.md): the Experiment Ledger lifecycle, artifacts, snapshots, rebuilds, the CLI and the isolated rebuild worker
+- [backend/AI_INTEGRATION.md](backend/AI_INTEGRATION.md): the ledger outbox and the contract for Steward consumers
 - [steward/DESIGN.md](steward/DESIGN.md): the Steward's design, security model, database layout, knowledge base and design decisions
