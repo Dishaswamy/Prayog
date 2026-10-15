@@ -320,6 +320,46 @@ def log_metric(db: Session, run_id: int, user: User, name: str, value: float, st
     return metric
 
 
+def log_metrics(db: Session, run_id: int, user: User, values: list[dict]) -> list[RunMetric]:
+    item = _owned_run(db, run_id, user, lock=True)
+    if item.status != "RUNNING":
+        raise ConflictError("Metrics can only be logged while a run is RUNNING")
+    if not values or len(values) > 500:
+        raise BadRequestError("A metric batch must contain between 1 and 500 metrics")
+
+    normalized = []
+    seen = set()
+    for value in values:
+        name = value["name"].strip()
+        step = value.get("step", 0)
+        metric_value = value["value"]
+        if not name or len(name) > 100:
+            raise BadRequestError("Metric name must contain between 1 and 100 characters")
+        if not isfinite(metric_value):
+            raise BadRequestError("Metric value must be finite")
+        if not isinstance(step, int) or isinstance(step, bool) or step < 0:
+            raise BadRequestError("Metric step must be a non-negative integer")
+        key = (name, step)
+        if key in seen:
+            raise ConflictError("A metric with this name and step appears more than once in the batch")
+        seen.add(key)
+        normalized.append((name, metric_value, step))
+
+    metrics = [
+        RunMetric(run_id=item.id, user_id=user.id, name=name, value=metric_value, step=step)
+        for name, metric_value, step in normalized
+    ]
+    db.add_all(metrics)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ConflictError("A metric with this name and step already exists for the run") from exc
+    for metric in metrics:
+        db.refresh(metric)
+    return metrics
+
+
 def list_metrics(db: Session, run_id: int, user: User) -> list[RunMetric]:
     _owned_run(db, run_id, user)
     return db.query(RunMetric).filter(RunMetric.run_id == run_id, RunMetric.user_id == user.id).order_by(RunMetric.recorded_at, RunMetric.id).all()

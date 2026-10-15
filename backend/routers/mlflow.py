@@ -28,6 +28,7 @@ from logic.mlflow import (
     list_runs,
     list_snapshots,
     log_metric,
+    log_metrics,
     start_run,
     update_rebuild,
 )
@@ -43,6 +44,7 @@ from schemas.mlflow import (
     ProjectOut,
     ArtifactOut,
     ExperimentOut,
+    MetricBatchCreate,
     MetricCreate,
     MetricOut,
     RebuildCreate,
@@ -210,6 +212,11 @@ def complete_run(run_id: int, body: RunFinish, db: Session = Depends(get_db), us
 @router.post("/runs/{run_id}/metrics", response_model=MetricOut, status_code=status.HTTP_201_CREATED)
 def add_metric(run_id: int, body: MetricCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return log_metric(db, run_id, user, body.name, body.value, body.step)
+
+
+@router.post("/runs/{run_id}/metrics/batch", response_model=list[MetricOut], status_code=status.HTTP_201_CREATED)
+def add_metric_batch(run_id: int, body: MetricBatchCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return log_metrics(db, run_id, user, [metric.model_dump() for metric in body.metrics])
 
 
 @router.get("/runs/{run_id}/metrics", response_model=list[MetricOut])
