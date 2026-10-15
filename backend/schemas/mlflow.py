@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -412,4 +413,57 @@ class ProfessorArtifactOut(BaseModel):
     sha256: str
     size_bytes: int
     created_at: datetime
+
+
+
+_SENSITIVE_METADATA_KEY_PARTS = (
+    "password", "secret", "token", "credential", "api_key", "apikey",
+    "access_key", "private_key", "authorization", "cookie",
+)
+
+
+def _redact_sensitive_metadata(value):
+    """Redact obvious credential-bearing keys in user-supplied JSON metadata."""
+    if isinstance(value, dict):
+        cleaned = {}
+        for key, item in value.items():
+            normalized = str(key).lower().replace("-", "_")
+            if any(part in normalized for part in _SENSITIVE_METADATA_KEY_PARTS):
+                cleaned[key] = "[REDACTED]"
+            else:
+                cleaned[key] = _redact_sensitive_metadata(item)
+        return cleaned
+    if isinstance(value, list):
+        return [_redact_sensitive_metadata(item) for item in value]
+    if isinstance(value, str):
+        # Metadata occasionally contains serialized diagnostic fragments rather
+        # than a dedicated credential key. Apply the same conservative filter
+        # to those strings, including nested lists and dictionaries.
+        return _redact_sensitive_text(value)
+    return value
+
+
+_SENSITIVE_TEXT_ASSIGNMENT = re.compile(
+    # Allow common prefixes/suffixes (e.g. DB_PASSWORD, client_secret,
+    # AWS_SECRET_ACCESS_KEY, access_token) instead of requiring a standalone
+    # word. Underscores are separators for credential names, not safe boundaries.
+    r"(?i)(?<![A-Za-z0-9])"
+    r"([A-Za-z0-9_-]*(?:password|secret|token|credential|api[_-]?key|"
+    r"access[_-]?(?:key|token)|private[_-]?key|authorization|cookie)"
+    r"[A-Za-z0-9_-]*)"
+    r"(\s*[:=]\s*)([^\s,;]+)"
+)
+_BEARER_CREDENTIAL = re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]+")
+_URL_USERINFO_CREDENTIAL = re.compile(
+    r"(?i)\b([a-z][a-z0-9+.-]*://)[^/@:\s]+:[^/@\s]+@"
+)
+
+
+def _redact_sensitive_text(value):
+    """Redact common credential assignments, bearer tokens, and URL userinfo."""
+    if not isinstance(value, str):
+        return value
+    value = _URL_USERINFO_CREDENTIAL.sub(r"\1[REDACTED]@", value)
+    value = _SENSITIVE_TEXT_ASSIGNMENT.sub(r"\1\2[REDACTED]", value)
+    return _BEARER_CREDENTIAL.sub(r"\1[REDACTED]", value)
 
