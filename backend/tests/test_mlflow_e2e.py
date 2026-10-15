@@ -299,5 +299,61 @@ class MLFlowEndToEndTests(unittest.TestCase):
         self.assertIsNotNone(execution.get("logs_artifact_id"))
 
 
+    def test_failed_worker_rebuild_reaches_terminal_state_and_releases_container(self):
+        experiment_id, run_id, _ = self.create_run(
+            "import json, os\n"
+            "from pathlib import Path\n"
+            "parameters = json.loads(os.environ['PRAYOG_HYPERPARAMETERS_JSON'])\n"
+            "if parameters.get('fail_rebuild'):\n"
+            "    raise SystemExit(9)\n"
+            "print('rebuild-failure-path', flush=True)\n"
+            "Path('/output/weights.bin').write_bytes(b'initial-weights')\n"
+        )
+        self.run_one_queued_job(run_id)
+        snapshots_response = self.client.get(f"/mlflow/experiments/{experiment_id}/snapshots")
+        self.assertEqual(snapshots_response.status_code, 200, snapshots_response.text)
+        snapshot_id = snapshots_response.json()[0]["snapshot_id"]
+
+        response = self.client.post(
+            f"/mlflow/snapshots/{snapshot_id}/rebuilds",
+            json={"environment": {"entrypoint": "main.py", "hyperparameters": {"fail_rebuild": True}}},
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        rebuild_id = response.json()["id"]
+        worker_id = f"e2e-failed-rebuild-worker-{uuid4().hex}"
+
+        import subprocess
+        from unittest.mock import patch
+        original_run = subprocess.run
+        db = SessionLocal()
+        try:
+            self.assertEqual(claim_next_job(db, worker_id), ("REBUILD", rebuild_id))
+            from mlflow_worker import execute_rebuild
+            with patch("mlflow_worker.subprocess.run", wraps=original_run) as docker_commands:
+                execute_rebuild(db, rebuild_id, worker_id, 15, IMAGE)
+            cleanup_commands = [
+                call.args[0] for call in docker_commands.call_args_list
+                if call.args and isinstance(call.args[0], list)
+                and call.args[0][:2] == ["docker", "rm"]
+            ]
+            self.assertTrue(cleanup_commands, "The worker must remove a failed execution container")
+            self.assertTrue(any("--force" in command for command in cleanup_commands))
+        finally:
+            db.close()
+
+        response = self.client.get(f"/mlflow/rebuilds/{rebuild_id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        attempt = response.json()
+        self.assertEqual(attempt["state"], "REBUILD_FAILED", attempt)
+        self.assertIn("exit code 9", attempt["failure_summary"])
+        self.assertIsNotNone(attempt.get("finished_at"))
+        response = self.client.get(f"/mlflow/runs/{attempt['execution_run_id']}")
+        self.assertEqual(response.status_code, 200, response.text)
+        execution = response.json()
+        self.assertEqual(execution["status"], "FAILED", execution)
+        self.assertIsNotNone(execution.get("finished_at"))
+        self.assertIsNotNone(execution.get("logs_artifact_id"))
+
+
 if __name__ == "__main__":
     unittest.main()
