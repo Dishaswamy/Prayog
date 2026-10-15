@@ -102,7 +102,10 @@ def submit_job(
     snapshot_hash: str | None = None,
     now: datetime | None = None,
     cfg: SchedulerConfig = DEFAULT_CONFIG,
+    reproduces: str | None = None,
 ) -> Submission:
+    """Validate and queue a job. Every submission takes this path, rebuilds included; a
+    rebuild only adds its reproduces label, which no scheduling rule reads (§14.3)."""
     now = now or utc_now()                                        # server time (FR-GPU-012)
 
     # Locking the user's context row serialises their submissions, so neither the
@@ -140,6 +143,7 @@ def submit_job(
         user_id=user_id,
         project_ref=project_ref,
         snapshot_hash=snapshot_hash,
+        reproduces=reproduces,
         lab_id=context.lab_id,
         account_type=context.account_type,
         gpus=gpu_count,

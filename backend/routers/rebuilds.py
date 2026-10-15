@@ -18,6 +18,7 @@ def _out(s: AttemptStatus) -> RebuildOut:
         snapshot_hash=s.attempt.snapshot_hash,
         job_id=s.job.id,
         job_state=s.job.state,
+        reproduces=s.job.reproduces,
         state=s.state,
         created_at=s.attempt.created_at,
     )

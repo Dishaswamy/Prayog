@@ -341,6 +341,9 @@ class Job(Base):
     dispatch_attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
     # Who cancelled and why: the owner, or a Platform Admin with a mandatory reason (FR-GPU-065)
     cancel_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # A rebuild names the run it reproduces, "reproduces:<run_id>" (§14.3, ADR-08). A label only:
+    # the scheduler never reads it, so a rebuild has no priority advantage.
+    reproduces: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class Allocation(Base):
