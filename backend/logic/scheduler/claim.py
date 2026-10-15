@@ -150,7 +150,8 @@ def _claim(
     )
     unit_ids = tuple(session.scalars(
         select(orm.GpuUnit.id)
-        .where(orm.GpuUnit.node_id == node_id, orm.GpuUnit.current_allocation_id.is_(None), ~in_maintenance)
+        .where(orm.GpuUnit.node_id == node_id, orm.GpuUnit.current_allocation_id.is_(None),
+               orm.GpuUnit.retired_at.is_(None), ~in_maintenance)
         .order_by(orm.GpuUnit.unit_index)
         .limit(job.gpus)
         .with_for_update(skip_locked=True)

@@ -336,6 +336,11 @@ class JobStatus:
     node_name: str | None = None
     unit_indexes: tuple[int, ...] = ()
     p0_free_at: datetime | None = None    # QUEUED on busy own-lab units: guaranteed free by (FR-GPU-108)
+    run: orm.Run | None = None            # the current run, or the last one
+    walltime_ends_at: datetime | None = None
+    stop_reason: str | None = None        # a stop the agent has been asked to carry out
+    planned_stop_at: datetime | None = None       # a maintenance window will stop the run (FR-GPU-109)
+    planned_stop_reason: str | None = None
 
 
 def job_status(
@@ -347,25 +352,44 @@ def job_status(
     if job is None or job.user_id != user_id:
         raise NotFoundError("Job not found.")
 
+    last_run = db.scalars(select(orm.Run).where(orm.Run.job_id == job.id).order_by(orm.Run.id.desc()).limit(1)).first()
     if job.state == JobState.QUEUED:
-        return JobStatus(job, job.state_reason, p0_free_at=_p0_free_at(db, job, now, cfg))
+        return JobStatus(job, job.state_reason, p0_free_at=_p0_free_at(db, job, now, cfg), run=last_run)
 
     row = db.execute(
-        select(orm.Allocation.id, orm.Node.id, orm.Node.name)
+        select(orm.Allocation, orm.Node.name)
         .join(orm.Node, orm.Node.id == orm.Allocation.node_id)
         .where(orm.Allocation.job_id == job.id, orm.Allocation.released_at.is_(None))
     ).first()
     if row is None:
-        return JobStatus(job, None)
+        return JobStatus(job, None, run=last_run)                       # ended: the last run says how
 
-    allocation_id, node_id, node_name = row
-    unit_indexes = db.scalars(
-        select(orm.GpuUnit.unit_index)
+    allocation, node_name = row
+    units = db.execute(
+        select(orm.GpuUnit.id, orm.GpuUnit.unit_index)
         .join(orm.AllocationUnit, orm.AllocationUnit.unit_id == orm.GpuUnit.id)
-        .where(orm.AllocationUnit.allocation_id == allocation_id)
+        .where(orm.AllocationUnit.allocation_id == allocation.id)
         .order_by(orm.GpuUnit.unit_index)
     ).all()
-    return JobStatus(job, None, node_id, node_name, tuple(unit_indexes))
+    walltime_ends_at = None
+    planned = None
+    if allocation.acknowledged_at is not None:
+        walltime_ends_at = allocation.acknowledged_at + timedelta(minutes=job.walltime_minutes)
+        planned = db.execute(
+            select(orm.MaintenanceWindow.starts_at, orm.MaintenanceWindow.reason)
+            .where(orm.MaintenanceWindow.unit_id.in_([u for u, _ in units]),
+                   orm.MaintenanceWindow.starts_at > now, orm.MaintenanceWindow.starts_at < walltime_ends_at)
+            .order_by(orm.MaintenanceWindow.starts_at)
+            .limit(1)
+        ).first()
+    return JobStatus(
+        job, None, allocation.node_id, node_name, tuple(i for _, i in units),
+        run=last_run if job.state == JobState.RUNNING else None,
+        walltime_ends_at=walltime_ends_at,
+        stop_reason=allocation.stop_reason,
+        planned_stop_at=planned[0] if planned else None,
+        planned_stop_reason=planned[1] if planned else None,
+    )
 
 
 def _p0_free_at(db: Session, job: orm.Job, now: datetime, cfg: SchedulerConfig) -> datetime | None:

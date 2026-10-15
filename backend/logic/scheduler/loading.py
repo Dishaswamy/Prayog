@@ -56,7 +56,9 @@ def load_nodes(session: Session, now: datetime, node_ids: Iterable[int] | None =
 
     units_by_node: dict[int, list[orm.GpuUnit]] = defaultdict(list)
     for unit in session.scalars(
-        select(orm.GpuUnit).where(orm.GpuUnit.node_id.in_([n.id for n in nodes])).order_by(orm.GpuUnit.unit_index)
+        select(orm.GpuUnit)
+        .where(orm.GpuUnit.node_id.in_([n.id for n in nodes]), orm.GpuUnit.retired_at.is_(None))
+        .order_by(orm.GpuUnit.unit_index)
     ):
         units_by_node[unit.node_id].append(unit)
 
