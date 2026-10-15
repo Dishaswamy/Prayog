@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -90,6 +91,7 @@ def create_access_token(user: User) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user.id),     # must be a string for PyJWT >= 2.10
+        "jti": secrets.token_urlsafe(24),
         "role": user.role,       # informational only; the DB role is what we trust
         "exp": expire,
     }
