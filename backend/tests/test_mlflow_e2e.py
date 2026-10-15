@@ -244,9 +244,9 @@ class MLFlowEndToEndTests(unittest.TestCase):
 
     def test_worker_rebuild_dispatch_reaches_terminal_state(self):
         experiment_id, run_id, _ = self.create_run(
-            "from pathlib import Path\\n"
-            "print('rebuild-lifecycle-success', flush=True)\\n"
-            "Path('/output/weights.bin').write_bytes(b'rebuild-lifecycle-weights')\\n"
+            "from pathlib import Path\n"
+            "print('rebuild-lifecycle-success', flush=True)\n"
+            "Path('/output/weights.bin').write_bytes(b'rebuild-lifecycle-weights')\n"
         )
         self.run_one_queued_job(run_id)
 
