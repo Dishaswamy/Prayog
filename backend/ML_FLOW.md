@@ -126,3 +126,10 @@ python mlflow_cli.py materialize-project-snapshot --experiment-id 12 --manifest-
 ```
 
 The returned `manifest_artifact_id` identifies the manifest; the manifest references the chunk artifact IDs. Keep the manifest ID with the project record. This project snapshot bundle is distinct from the sealed ML Flow `ModelSnapshot` row: materialize it and, when recording a model run, upload the resulting code archive through the normal run lifecycle.
+
+
+## Administrator ML Flow overview
+
+Administrators can request `GET /admin/mlflow/overview` with an existing Prayog bearer token. Authorization uses the authenticated database user's `role` and requires `ADMIN`; a role claim supplied only by a client is not trusted. The response contains aggregate project/model/experiment/run/snapshot/artifact/metric/rebuild/outbox counts, run and rebuild states, and logical artifact metadata bytes. It intentionally excludes source code, hyperparameters, dataset metadata, descriptions, artifact storage keys, and artifact contents.
+
+The artifact storage backend field reports the configured `PRAYOG_ARTIFACT_STORAGE` setting only; it is not a live connectivity check. `logical_artifact_bytes` sums artifact metadata sizes and can exceed physical object storage usage when identical bytes are deduplicated.
