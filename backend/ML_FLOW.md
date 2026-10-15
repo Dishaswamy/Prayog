@@ -133,3 +133,8 @@ The returned `manifest_artifact_id` identifies the manifest; the manifest refere
 Administrators can request `GET /admin/mlflow/overview` with an existing Prayog bearer token. Authorization uses the authenticated database user's `role` and requires `ADMIN`; a role claim supplied only by a client is not trusted. The response contains aggregate project/model/experiment/run/snapshot/artifact/metric/rebuild/outbox counts, run and rebuild states, and logical artifact metadata bytes. It intentionally excludes source code, hyperparameters, dataset metadata, descriptions, artifact storage keys, and artifact contents.
 
 The artifact storage backend field reports the configured `PRAYOG_ARTIFACT_STORAGE` setting only; it is not a live connectivity check. `logical_artifact_bytes` sums artifact metadata sizes and can exceed physical object storage usage when identical bytes are deduplicated.
+
+
+## Rebuild pre-initiation rejection boundary
+
+A rebuild request is rejected before creating an execution run or Attempt ID unless the authenticated user owns a `RECORDED` snapshot and all required source artifacts pass integrity verification. Missing, foreign-owned, incomplete, and corrupt/unavailable snapshots return the same generic `REBUILD_REJECTED: snapshot could not be validated` response. The response does not distinguish whether a snapshot exists, and pre-initiation rejection does not enqueue an outbox event or invoke Steward. Once an attempt has been created, subsequent execution failures retain that Attempt ID and follow the normal terminal failure path.
