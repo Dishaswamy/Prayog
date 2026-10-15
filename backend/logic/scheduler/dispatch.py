@@ -113,7 +113,6 @@ def report(
     exit_code: int | None = None,
     now: datetime | None = None,
     cfg: SchedulerConfig = DEFAULT_CONFIG,
-    log_tail: str | None = None,
 ) -> ReleaseResult | None:
     """
     The run on this allocation ended and its workspace is unmounted: release it. Each
@@ -146,4 +145,4 @@ def report(
     else:
         reason = ReleaseReason.FAILED                       # stopped without being asked to
     node.last_report_seq = seq                              # committed together with the release
-    return release(db, allocation.job_id, reason, now, exit_code=exit_code, cfg=cfg, log_tail=log_tail)
+    return release(db, allocation.job_id, reason, now, exit_code=exit_code, cfg=cfg)

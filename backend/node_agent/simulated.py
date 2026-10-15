@@ -42,11 +42,9 @@ def utc_now() -> datetime:
 
 @dataclass
 class SimulatedExecutor:
-    """Pretends to run a job: it 'exits' run_seconds after starting, with exit_code and,
-    optionally, log_text as its output (sent as the report's log tail)."""
+    """Pretends to run a job: it 'exits' run_seconds after starting, with exit_code."""
     run_seconds: float = 30.0
     exit_code: int = 0
-    log_text: str | None = None
 
     def finished(self, started: datetime, now: datetime) -> bool:
         return now >= started + timedelta(seconds=self.run_seconds)
@@ -150,8 +148,7 @@ class SimulatedAgent:
         self._cleanup(key)                                              # process gone, workspace unmounted
         self.state["seq"] += 1
         self.state["outbox"].append({"allocation_id": int(key), "seq": self.state["seq"],
-                                     "outcome": outcome, "exit_code": exit_code,
-                                     "log_tail": self.executor.log_text})
+                                     "outcome": outcome, "exit_code": exit_code})
         self.state["done"].append(int(key))
         self._save()
 
@@ -166,7 +163,7 @@ class SimulatedAgent:
             report = self.state["outbox"][0]
             try:
                 r = self.http.post(f"/agent/allocations/{report['allocation_id']}/report", headers=self._headers,
-                                   json={k: report.get(k) for k in ("seq", "outcome", "exit_code", "log_tail")})
+                                   json={k: report[k] for k in ("seq", "outcome", "exit_code")})
             except httpx.HTTPError:
                 return
             if r.status_code >= 500:
@@ -183,14 +180,12 @@ def main() -> None:  # pragma: no cover - the process wrapper
     parser.add_argument("--enrolment-token")
     parser.add_argument("--run-seconds", type=float, default=30.0, help="how long each simulated job runs")
     parser.add_argument("--exit-code", type=int, default=0)
-    parser.add_argument("--log-file", type=Path, help="output each simulated job 'prints'; sent as its log tail")
     parser.add_argument("--interval", type=float, default=2.0, help="seconds between steps")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
     agent = SimulatedAgent(httpx.Client(base_url=args.server, timeout=10), Path(args.state_dir), args.units,
-                           SimulatedExecutor(args.run_seconds, args.exit_code,
-                                             args.log_file.read_text() if args.log_file else None))
+                           SimulatedExecutor(args.run_seconds, args.exit_code))
     if agent.state["credential"] is None:
         if not args.enrolment_token:
             parser.error("first start: --enrolment-token is required")

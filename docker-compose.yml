@@ -15,18 +15,5 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # The Steward Runtime (the model adapter). It holds no database credentials (ADR-S01).
-  #   docker compose up -d steward-runtime
-  steward-runtime:
-    build: ./steward
-    container_name: prayog-steward-runtime
-    restart: unless-stopped
-    environment:
-      STEWARD_REASONING: ${STEWARD_REASONING:-heuristic}
-      STEWARD_MODEL: ${STEWARD_MODEL:-claude-opus-5-5}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    ports:
-      - "8100:8100"
-
 volumes:
   postgres_data:
