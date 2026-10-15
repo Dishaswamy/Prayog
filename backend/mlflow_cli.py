@@ -785,6 +785,7 @@ def materialize_project_snapshot(
             if (
                 not isinstance(chunk, dict)
                 or not isinstance(chunk.get("size_bytes"), int)
+                or isinstance(chunk.get("size_bytes"), bool)
                 or chunk["size_bytes"] < 1
                 or chunk["size_bytes"] > chunk_size_expected
             ):
