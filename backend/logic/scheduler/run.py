@@ -42,5 +42,8 @@ if __name__ == "__main__":  # pragma: no cover
     from database import SessionLocal
     from logic.scheduler.config import load_config
 
+    from integration.steward_bridge import register_steward_hooks
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    register_steward_hooks()        # runs this process releases reach the Steward too
     run_ticks(SessionLocal, load_config())          # an invalid configuration stops here (NFR-GPU-062)

@@ -666,6 +666,7 @@ Reports that the run ended **and** its workspace is cleaned up. Only then are th
 | `seq` | integer | ≥ 1, increasing with every report from this node; a report is applied at most once |
 | `outcome` | string | `EXITED` (the process ended on its own), `WALLTIME` (the agent's walltime timer stopped it), `STOPPED` (stopped because `stop_reason` was set) |
 | `exit_code` | integer or null | required for `EXITED` |
+| `log_tail` | string or null | optional: the end of the run's output. The server keeps the last 64 KB for the Steward's diagnosis and never serves it back |
 
 ```json
 { "seq": 12, "outcome": "EXITED", "exit_code": 0 }
