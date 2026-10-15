@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import tempfile
 import unittest
@@ -98,6 +100,99 @@ class MLFlowCliTests(unittest.TestCase):
             self.assertEqual(upload_call.args[0], "/mlflow/experiments/2/artifacts")
             self.assertEqual(upload_call.kwargs["params"], {"kind": "CODE"})
             self.assertEqual(finish_call.kwargs["json"]["code_artifact_id"], "server-artifact-id")
+
+
+    def _sync_client(self):
+        run = {
+            "id": 8, "experiment_id": 2, "project_id": "project-1", "model_id": "model-1",
+            "run_type": "REBUILD", "source_snapshot_id": "snapshot-1", "status": "SUCCEEDED",
+            "logging_state": "COMPLETE", "logging_warnings": [], "error_summary": None,
+            "created_at": "2026-10-15T04:00:00", "started_at": "2026-10-15T04:01:00",
+            "finished_at": "2026-10-15T04:02:00", "weights_artifact_id": "weights-1",
+            "logs_artifact_id": "logs-1",
+        }
+        weights = b"trained weights"
+        logs = b"run completed"
+        artifacts = [
+            {"id": "weights-1", "kind": "WEIGHTS", "sha256": hashlib.sha256(weights).hexdigest(), "size_bytes": len(weights)},
+            {"id": "logs-1", "kind": "LOG", "sha256": hashlib.sha256(logs).hexdigest(), "size_bytes": len(logs)},
+        ]
+        run_response = MagicMock()
+        run_response.json.return_value = run
+        artifacts_response = MagicMock()
+        artifacts_response.json.return_value = artifacts
+        client = MagicMock()
+        client.get.side_effect = [run_response, artifacts_response]
+        stream_responses = []
+        for payload in (weights, logs):
+            response = MagicMock()
+            response.iter_bytes.return_value = [payload[:5], payload[5:]]
+            context = MagicMock()
+            context.__enter__.return_value = response
+            stream_responses.append(context)
+        client.stream.side_effect = stream_responses
+        return client, weights, logs
+
+    def test_sync_results_writes_verified_artifacts_and_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(directory)
+                args = parser().parse_args(["sync-results", "--run-id", "8"])
+                client, weights, logs = self._sync_client()
+
+                result = execute(args, client)
+
+                result_dir = Path("results") / "8"
+                self.assertEqual((result_dir / "weights.bin").read_bytes(), weights)
+                self.assertEqual((result_dir / "logs.log").read_bytes(), logs)
+                metadata = json.loads((result_dir / "metadata.json").read_text(encoding="utf-8"))
+                self.assertEqual(metadata["run_id"], 8)
+                self.assertEqual(metadata["status"], "SUCCEEDED")
+                self.assertEqual([item["kind"] for item in metadata["artifacts"]], ["WEIGHTS", "LOG"])
+                self.assertNotIn("hyperparameters", metadata)
+                self.assertEqual(result["directory"], "results/8")
+                self.assertTrue(result["metadata_changed"])
+            finally:
+                os.chdir(original_cwd)
+
+    def test_repeat_sync_preserves_identical_result_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(directory)
+                args = parser().parse_args(["sync-results", "--run-id", "8"])
+                first_client, _, _ = self._sync_client()
+                execute(args, first_client)
+                result_dir = Path("results") / "8"
+                paths = [result_dir / "weights.bin", result_dir / "logs.log", result_dir / "metadata.json"]
+                mtimes = [path.stat().st_mtime_ns for path in paths]
+
+                second_client, _, _ = self._sync_client()
+                result = execute(args, second_client)
+
+                self.assertEqual([path.stat().st_mtime_ns for path in paths], mtimes)
+                self.assertFalse(result["metadata_changed"])
+                self.assertTrue(all(item["unchanged"] for item in result["artifacts"]))
+            finally:
+                os.chdir(original_cwd)
+
+    def test_sync_results_rejects_artifact_checksum_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(directory)
+                client, _, _ = self._sync_client()
+                artifact_response = client.get.side_effect[1]
+                artifact_response.json.return_value[0]["sha256"] = "0" * 64
+                args = parser().parse_args(["sync-results", "--run-id", "8"])
+
+                with self.assertRaisesRegex(ValueError, "checksum"):
+                    execute(args, client)
+
+                self.assertFalse((Path("results") / "8" / "weights.bin").exists())
+            finally:
+                os.chdir(original_cwd)
 
 
 if __name__ == "__main__":
