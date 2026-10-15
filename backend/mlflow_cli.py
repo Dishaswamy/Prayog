@@ -322,11 +322,13 @@ def sync_results(client: httpx.Client, run_id: int) -> dict[str, Any]:
 EXCLUDED_PROJECT_DIRS = {
     ".git", ".hg", ".svn", ".venv", "venv", "env", "node_modules",
     "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
-    ".nox", ".idea", "artifacts", "results", "dist", "build",
+    ".nox", ".idea", ".ssh", ".aws", ".azure", ".gnupg", "artifacts", "results", "dist", "build",
 }
 EXCLUDED_SECRET_NAMES = {
     ".env", ".env.local", ".env.production", ".env.development",
-    "credentials.json", "service-account.json",
+    "credentials", "credentials.json", "secrets.json", "service-account.json",
+    "service_account.json", "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
+    ".netrc", ".npmrc", ".pypirc", ".dockercfg", ".dockerconfigjson",
 }
 LOCKFILE_NAMES = {
     "requirements.txt", "poetry.lock", "pipfile.lock", "uv.lock",
