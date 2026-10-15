@@ -391,7 +391,11 @@ def _project_inventory(project_root: Path) -> list[dict[str, Any]]:
             if path.is_symlink():
                 raise ValueError(f"Project snapshots do not follow symbolic links: {path}")
             lowered_name = name.lower()
-            if lowered_name in EXCLUDED_SECRET_NAMES:
+            if (
+                lowered_name in EXCLUDED_SECRET_NAMES
+                or lowered_name.startswith(("credentials.", "secrets."))
+                or lowered_name.endswith((".tfstate", ".tfstate.backup"))
+            ):
                 continue
             if lowered_name.startswith(".env.") and lowered_name != ".env.example":
                 continue
