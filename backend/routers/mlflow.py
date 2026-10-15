@@ -10,6 +10,7 @@ from logic.errors import NotFoundError
 from logic.artifacts import get_verified_artifact, store_artifact
 from logic.diagnostic_links import consume_diagnostic_link, create_diagnostic_link
 from logic.mlflow_professor_ledger import list_professor_ledger
+from logic.mlflow_compare import compare_rebuild_metrics
 from logic.mlflow import (
     _owned_experiment,
     create_experiment,
@@ -46,6 +47,7 @@ from schemas.mlflow import (
     ArtifactOut,
     ExperimentOut,
     MetricBatchCreate,
+    MetricComparisonCreate,
     MetricCreate,
     MetricOut,
     RebuildCreate,
@@ -248,3 +250,13 @@ def change_rebuild(rebuild_id: int, body: RebuildUpdate, db: Session = Depends(g
 @router.get("/professor/ledger")
 def professor_ledger(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return list_professor_ledger(db, user)
+
+
+@router.post("/rebuilds/{rebuild_id}/compare-metrics")
+def compare_rebuild_metric_values(
+    rebuild_id: int,
+    body: MetricComparisonCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return compare_rebuild_metrics(db, rebuild_id, user, body.tolerances)
