@@ -298,6 +298,52 @@ def abort_decommission(db: Session, node_id: int, reason: str, now: datetime | N
     return _committed(db, work)
 
 
+def change_sharing(
+    db: Session,
+    node_id: int,
+    admin_id: int,
+    reason: str,
+    donation_mode: str | None = None,
+    teaching_pool: bool | None = None,
+    now: datetime | None = None,
+) -> orm.Node:
+    """
+    Change how a node is shared (US-ADM-09; FR-GPU-111, 181). Only the node row changes:
+    running jobs keep their units, and the next pass loads the new settings. A reserved
+    node in the teaching pool is refused. The change and its reason are audited.
+    """
+    now = now or utc_now()
+    reason = _require_reason(reason)
+    if donation_mode is None and teaching_pool is None:
+        raise BadRequestError("Give a donation mode, a teaching-pool flag, or both.")
+
+    def work():
+        node = _lock_node(db, node_id)
+        if node.state in (NodeState.DECOMMISSIONING, NodeState.DECOMMISSIONED):
+            raise ConflictError(f"Node {node.name} is {node.state}; its sharing can no longer change.")
+        mode = node.donation_mode if donation_mode is None else donation_mode
+        teaching = node.teaching_pool if teaching_pool is None else teaching_pool
+        if mode not in {m.value for m in DonationMode}:
+            raise BadRequestError("Donation mode must be reserved or shared.")
+        _check_sharing(mode, teaching)
+        changes = [f"node:{node.id}"]
+        if mode != node.donation_mode:
+            changes.append(f"donation_mode:{node.donation_mode}->{mode}")
+        if teaching != node.teaching_pool:
+            changes.append(f"teaching_pool:{str(node.teaching_pool).lower()}->{str(teaching).lower()}")
+        node.donation_mode, node.teaching_pool = mode, teaching
+        db.add(orm.AuditEvent(
+            at=now, actor=str(admin_id), actor_kind="user", operation="node.sharing_change",
+            resource_ids=changes, outcome="CHANGED" if len(changes) > 1 else "UNCHANGED", reason=reason[:200],
+        ))
+        return node
+
+    node = _committed(db, work)
+    log.info("node %s sharing set to %s, teaching_pool=%s by admin %s", node_id, node.donation_mode,
+             node.teaching_pool, admin_id)
+    return node
+
+
 def confirm_unit_count(db: Session, node_id: int, unit_count: int, now: datetime | None = None) -> orm.Node:
     """
     The admin confirms a returning node's new unit count (FR-GPU-170): units are added, or
