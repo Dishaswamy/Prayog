@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from database import engine
 from logic.errors import AppError
 from routers.access_requests import router as access_requests_router
+from routers.admin_mlflow import router as admin_mlflow_router
 from routers.auth import router as auth_router
 from routers.mlflow import router as mlflow_router
 from routers.professors import router as professors_router
@@ -30,6 +31,7 @@ async def app_error_handler(request: Request, exc: AppError):
 app.include_router(auth_router)
 app.include_router(professors_router)
 app.include_router(access_requests_router)
+app.include_router(admin_mlflow_router)
 app.include_router(mlflow_router)
 
 
