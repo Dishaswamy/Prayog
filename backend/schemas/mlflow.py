@@ -467,3 +467,20 @@ def _redact_sensitive_text(value):
     value = _SENSITIVE_TEXT_ASSIGNMENT.sub(r"\1\2[REDACTED]", value)
     return _BEARER_CREDENTIAL.sub(r"\1[REDACTED]", value)
 
+
+class MetricComparisonCreate(BaseModel):
+    tolerances: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("tolerances")
+    @classmethod
+    def validate_tolerances(cls, value):
+        import math
+
+        normalized = {}
+        for name, tolerance in value.items():
+            if not name.strip():
+                raise ValueError("Tolerance metric names must not be blank")
+            if not math.isfinite(tolerance) or tolerance < 0:
+                raise ValueError("Metric tolerances must be finite and non-negative")
+            normalized[name.strip()] = tolerance
+        return normalized
