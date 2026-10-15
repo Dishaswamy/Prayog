@@ -73,3 +73,8 @@ Handlers must use authenticated, TLS-protected service calls, deduplicate using 
 
 
 Steward context persistence is an optional retrieval aid only. Every stored chunk is scoped to both the authenticated user and rebuild attempt; retrieval must fail closed on missing or mismatched scope and must never authorize code execution or code modification.
+
+
+## Diagnostic link session binding and audit
+
+Diagnostic links are bound to the authenticated access-token session identifier as well as the user, rebuild attempt, verified log artifact, expiry, and single-use state. Consumption requires an authenticated request from the same session; the raw bearer token is never persisted. Each authenticated outcome is recorded in `ml_diagnostic_access_audit` using the user, attempt/link identifiers when known, a hash of the session identifier, an outcome code, and a timestamp. Audit records do not contain link tokens, raw log contents, source code, weights, or credentials. Expired, replayed, wrong-session, wrong-owner, missing-artifact, and integrity-failure paths fail closed.
