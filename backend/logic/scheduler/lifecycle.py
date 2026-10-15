@@ -17,7 +17,15 @@ call these; this module owns only the allocation, its run and its accounting. Ea
 locks the job row and waits for it (no SKIP LOCKED): unlike a pass, the caller must act
 on this particular job. After a release commits, the caller triggers a pass so the
 freed units are used.
+
+Release hooks (register_release_hook) run inside the release transaction, each in its
+own savepoint, so a subsystem that records the end of a run (the Steward, SADD §8.3)
+commits atomically with it. A failing hook is rolled back to its savepoint and logged;
+the release itself always commits (NFR-GPU-055: scheduling never depends on the Steward).
 """
+
+import logging
+from collections.abc import Callable
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,6 +38,8 @@ from logic.errors import ConflictError, NotFoundError
 from logic.scheduler.claim import ClaimInvariantError, utc_now
 from logic.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
 from logic.scheduler.domain import JobState, ReleaseReason, RunEndState
+
+log = logging.getLogger("prayog.scheduler")
 
 # Platform-side stops: the job goes back to the queue with its original submit time.
 REQUEUE = {ReleaseReason.NODE_FAILURE, ReleaseReason.DISPATCH_TIMEOUT,
@@ -68,6 +78,20 @@ class StopResult:
     job_id: int
     released: bool                    # True: the job was not running yet and its units are free now
     stop_reason: ReleaseReason        # the reason the run will end with (the first stop requested wins)
+
+
+# The end of the run's output, from the agent's report; kept for the Steward (FR-GPU-146)
+# until the content store holds full logs.
+LOG_TAIL_LIMIT = 64 * 1024
+
+ReleaseHook = Callable[[Session, ReleaseResult, ReleaseReason, datetime], None]
+RELEASE_HOOKS: list[ReleaseHook] = []
+
+
+def register_release_hook(hook: ReleaseHook) -> None:
+    """Run hook(session, result, reason, now) inside every release transaction."""
+    if hook not in RELEASE_HOOKS:
+        RELEASE_HOOKS.append(hook)
 
 
 def mark_running(session: Session, job_id: int, now: datetime | None = None) -> orm.Run:
@@ -135,18 +159,20 @@ def release(
     now: datetime | None = None,
     exit_code: int | None = None,
     cfg: SchedulerConfig = DEFAULT_CONFIG,
+    log_tail: str | None = None,
 ) -> ReleaseResult:
     """
     End the job's live allocation. Terminal reasons move the job to the matching
     terminal state; platform stops return it to QUEUED with its original submit time
     and the reason recorded (FR-GPU-079, 085, 126, 135; NFR-GPU-016). A dispatch that
     times out max_dispatch_attempts times fails the job (FR-GPU-127). An allocation is
-    never released twice (NFR-GPU-061): a second call is refused.
+    never released twice (NFR-GPU-061): a second call is refused. The agent's log tail,
+    if any, is stored with the run, and the release hooks run before the commit.
     """
     now = now or utc_now()
     try:
         job = _lock_job(session, job_id)
-        result = _release(session, job, ReleaseReason(reason), now, cfg, exit_code)
+        result = _release(session, job, ReleaseReason(reason), now, cfg, exit_code, log_tail)
         session.commit()
     except BaseException:
         session.rollback()
@@ -161,6 +187,7 @@ def _release(
     now: datetime,
     cfg: SchedulerConfig,
     exit_code: int | None = None,
+    log_tail: str | None = None,
 ) -> ReleaseResult:
     if job.state not in ALLOWED_FROM[reason]:
         raise ConflictError(f"Job {job.id} is {job.state}; {reason} cannot end it.")
@@ -207,10 +234,24 @@ def _release(
         run.end_state = RunEndState.INTERRUPTED if reason in REQUEUE else RunEndState(reason.value)
         run.end_reason = reason
         run.exit_code = exit_code
+        if log_tail:
+            session.add(orm.RunLog(run_id=run.id, log_tail=log_tail[-LOG_TAIL_LIMIT:], created_at=now))
 
     gpu_seconds, charged = _record_usage(session, job, allocation, len(unit_ids), reason, now)
     session.flush()
-    return ReleaseResult(job.id, allocation.id, unit_ids, JobState(job.state), gpu_seconds, charged)
+    result = ReleaseResult(job.id, allocation.id, unit_ids, JobState(job.state), gpu_seconds, charged)
+    _run_release_hooks(session, result, reason, now)
+    return result
+
+
+def _run_release_hooks(session: Session, result: ReleaseResult, reason: ReleaseReason, now: datetime) -> None:
+    for hook in RELEASE_HOOKS:
+        try:
+            with session.begin_nested():          # a savepoint: a failing hook undoes only itself
+                hook(session, result, reason, now)
+        except Exception:
+            log.exception("release hook %s failed for job %s; the release still commits",
+                          getattr(hook, "__name__", hook), result.job_id)
 
 
 def _record_usage(

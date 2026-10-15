@@ -3,6 +3,8 @@ from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
+    ARRAY,
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -13,6 +15,7 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -482,3 +485,62 @@ class UsageEntry(Base):
     gpu_seconds: Mapped[float] = mapped_column(Double, nullable=False)
     ended_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     charged: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), nullable=False)
+
+
+# ─────────────────────────────────────────────
+# Steward integration (SADD §8; Integrated Spec §11.6, FR-INT-01, FR-INT-06)
+# ─────────────────────────────────────────────
+class RunLog(Base):
+    """
+    The end of a run's output, from the node agent's report (FR-GPU-146), written by
+    lifecycle.release() with the run. Stand-in for the content store until it exists:
+    no API serves this table; the Steward reads it only through its sanitiser (ADR-S03).
+    """
+    __tablename__ = "run_logs"
+
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id"), primary_key=True)
+    log_tail: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class RebuildAttempt(Base):
+    """
+    A rebuild of a recorded snapshot (FR-ML-003, §8.4), executed as an ordinary job
+    (FR-INT-01). Interim implementation owned by the ledger sub-team: the attempt's
+    state is derived from its job's state, so it can never disagree with the scheduler.
+    REBUILD_REJECTED never creates a row (no Attempt ID).
+    """
+    __tablename__ = "rebuild_attempts"
+    __table_args__ = (
+        Index("ix_rebuild_attempts_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    snapshot_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    project_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+
+
+class AuditEvent(Base):
+    """
+    The single append-only audit log across subsystems (FR-INT-06). Identifiers,
+    outcome and a short reason only, never content (FR-INT-07). A trigger refuses
+    UPDATE and DELETE for every role.
+    """
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        CheckConstraint("actor_kind IN ('user', 'node', 'service')", name="ck_audit_actor_kind"),
+        Index("ix_audit_events_at", "at"),
+        Index("ix_audit_events_actor", "actor"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    actor: Mapped[str] = mapped_column(String(100), nullable=False)
+    actor_kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    operation: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_ids: Mapped[list[str]] = mapped_column(ARRAY(String(200)), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(30), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
