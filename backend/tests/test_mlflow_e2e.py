@@ -265,12 +265,23 @@ class MLFlowEndToEndTests(unittest.TestCase):
         rebuild_id = response.json()["id"]
 
         worker_id = f"e2e-rebuild-worker-{uuid4().hex}"
+        import subprocess
+        from unittest.mock import patch
+        original_run = subprocess.run
         db = SessionLocal()
         try:
             job = claim_next_job(db, worker_id)
             self.assertEqual(job, ("REBUILD", rebuild_id))
             from mlflow_worker import execute_rebuild
-            execute_rebuild(db, rebuild_id, worker_id, 15, IMAGE)
+            with patch("mlflow_worker.subprocess.run", wraps=original_run) as docker_commands:
+                execute_rebuild(db, rebuild_id, worker_id, 15, IMAGE)
+            cleanup_commands = [
+                call.args[0] for call in docker_commands.call_args_list
+                if call.args and isinstance(call.args[0], list)
+                and call.args[0][:2] == ["docker", "rm"]
+            ]
+            self.assertTrue(cleanup_commands, "The worker must remove its execution container")
+            self.assertTrue(any("--force" in command for command in cleanup_commands))
         finally:
             db.close()
 
