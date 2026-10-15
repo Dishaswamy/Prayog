@@ -194,5 +194,40 @@ class MLFlowCliTests(unittest.TestCase):
                 os.chdir(original_cwd)
 
 
+    def test_sync_results_rejects_artifact_kind_mismatch_before_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(directory)
+                client, _, _, artifact_response = self._sync_client()
+                artifact_response.json.return_value[0]["kind"] = "LOG"
+                args = parser().parse_args(["sync-results", "--run-id", "8"])
+
+                with self.assertRaisesRegex(ValueError, "unexpected kind"):
+                    execute(args, client)
+
+                self.assertFalse(Path("results").exists())
+                client.stream.assert_not_called()
+            finally:
+                os.chdir(original_cwd)
+
+    def test_sync_results_rejects_invalid_artifact_metadata_before_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(directory)
+                client, _, _, artifact_response = self._sync_client()
+                artifact_response.json.return_value[0]["sha256"] = "not-a-digest"
+                args = parser().parse_args(["sync-results", "--run-id", "8"])
+
+                with self.assertRaisesRegex(ValueError, "invalid SHA-256"):
+                    execute(args, client)
+
+                self.assertFalse(Path("results").exists())
+                client.stream.assert_not_called()
+            finally:
+                os.chdir(original_cwd)
+
+
 if __name__ == "__main__":
     unittest.main()
