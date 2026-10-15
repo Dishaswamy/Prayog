@@ -237,3 +237,25 @@ class DiagnosticLink(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+
+
+class ProjectHandover(Base):
+    __tablename__ = "ml_project_handovers"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('HANDOVER_PENDING', 'HANDOVER_APPROVED', 'HANDOVER_REJECTED', 'HANDOVER_CANCELLED')",
+            name="ck_ml_handover_status",
+        ),
+        Index("ix_ml_handover_target_status", "target_professor_id", "status"),
+        Index("ix_ml_handover_project_created", "project_id", "created_at"),
+    )
+
+    handover_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("ml_projects.project_id"), nullable=False)
+    source_owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    target_professor_id: Mapped[int] = mapped_column(ForeignKey("professors.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="HANDOVER_PENDING")
+    artifact_inventory: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    failed_artifacts: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

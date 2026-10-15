@@ -143,3 +143,15 @@ A rebuild request is rejected before creating an execution run or Attempt ID unl
 ## Transactional outbox and experiment ledger
 
 A successfully recorded snapshot creates a `RUN_SEALED` outbox event in the same database transaction as the run and snapshot state. The dispatcher revalidates the persisted run and recorded snapshot before delivery. The experiment-ledger consumer stores event metadata under a stable `event_key`; the database uniqueness constraint makes repeated delivery idempotent. Event payloads contain identifiers and the code digest, not artifact contents or secrets. Existing rebuild terminal events retain their leased dispatch, bounded retries, and dead-letter behavior.
+
+
+## Project IP handover
+
+The Push & Approve workflow is available through the ML Flow API:
+
+- `POST /mlflow/projects/{project_id}/handover` with `{"professor_id": 123}` creates a `HANDOVER_PENDING` request. The target must be the authenticated owner's assigned supervising Professor.
+- `GET /mlflow/handovers/{handover_id}` returns the request to its owner, target Professor, or an administrator.
+- `POST /mlflow/handovers/{handover_id}/approve` is restricted to the target Professor and verifies every inventoried artifact's persisted bytes and SHA-256 before changing ownership.
+- `POST /mlflow/handovers/{handover_id}/reject` records a terminal rejection; `POST /mlflow/handovers/{handover_id}/cancel` lets the source owner cancel a pending request. Terminal requests cannot be approved or changed.
+
+Approval changes project and completed-record ownership in one database transaction. Artifact bytes are not copied because their storage keys remain stable; each inventoried artifact is read and checksum-verified before the transaction. If verification fails, the request stays pending, ownership remains unchanged, and the failed artifact IDs are recorded.
