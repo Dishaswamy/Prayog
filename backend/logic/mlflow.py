@@ -389,27 +389,35 @@ def get_snapshot(db: Session, snapshot_id: str, user: User) -> ModelSnapshot:
     return _owned_snapshot(db, snapshot_id, user)
 
 
-def create_rebuild(db: Session, snapshot_id: str, user: User, environment: dict) -> RebuildAttempt:
-    # Missing, foreign, incomplete, and corrupt snapshots share one pre-init response.
+def rebuildable_snapshot(db: Session, snapshot_id: str, user_id: int) -> ModelSnapshot | None:
+    """The user's RECORDED snapshot with verified code (and weights), or None. Missing, foreign,
+    incomplete and corrupt snapshots are indistinguishable, so callers can answer with one
+    pre-init rejection that does not disclose whether the snapshot exists."""
     snapshot = db.query(ModelSnapshot).filter(
         ModelSnapshot.snapshot_id == snapshot_id,
-        ModelSnapshot.user_id == user.id,
+        ModelSnapshot.user_id == user_id,
     ).first()
-    rejected = BadRequestError("REBUILD_REJECTED: snapshot could not be validated")
     if snapshot is None or snapshot.state != "RECORDED":
-        raise rejected
+        return None
     try:
         code_artifact, _ = get_verified_artifact(
-            db, snapshot.code_artifact_id, user.id, snapshot.experiment_id, "CODE"
+            db, snapshot.code_artifact_id, user_id, snapshot.experiment_id, "CODE"
         )
         if snapshot.code_sha256 and code_artifact.sha256 != snapshot.code_sha256:
-            raise BadRequestError("Snapshot code digest does not match its artifact")
+            return None
         if snapshot.weights_artifact_id:
             get_verified_artifact(
-                db, snapshot.weights_artifact_id, user.id, snapshot.experiment_id, "WEIGHTS"
+                db, snapshot.weights_artifact_id, user_id, snapshot.experiment_id, "WEIGHTS"
             )
-    except Exception as exc:
-        raise rejected from exc
+    except Exception:
+        return None
+    return snapshot
+
+
+def create_rebuild(db: Session, snapshot_id: str, user: User, environment: dict) -> RebuildAttempt:
+    snapshot = rebuildable_snapshot(db, snapshot_id, user.id)
+    if snapshot is None:
+        raise BadRequestError("REBUILD_REJECTED: snapshot could not be validated")
     rebuild_environment = {
         **(environment or snapshot.dependencies),
         "scheduler_label": f"reproduces:{snapshot.run_id}",
