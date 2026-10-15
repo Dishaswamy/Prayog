@@ -195,6 +195,24 @@ class MLFlowLifecycleTests(unittest.TestCase):
         verify.assert_not_called()
 
 
+    @patch("logic.mlflow.get_verified_artifact")
+    def test_malformed_expected_metrics_make_snapshot_incomplete(self, verify):
+        run = self.running_run()
+        run.environment = {"python": "3.12", "expected_metrics": "accuracy"}
+        self.set_owned_item(run)
+        code = SimpleNamespace(id="code-1", sha256="a" * 64)
+        verify.return_value = (code, Path("/private/code.zip"))
+
+        result = finish_run(self.db, 3, self.user, {
+            "status": "SUCCEEDED", "code_artifact_id": "code-1",
+        })
+
+        snapshot = self.db.add.call_args.args[0]
+        self.assertEqual(result.logging_state, "DEGRADED")
+        self.assertEqual(snapshot.state, "INCOMPLETE")
+        self.assertTrue(any("Invalid expected_metrics declaration" in reason for reason in snapshot.completeness_reasons))
+        self.db.commit.assert_called_once()
+
     def test_missing_expected_metrics_make_snapshot_incomplete(self):
         run = self.running_run()
         run.environment = {"python": "3.12", "expected_metrics": ["loss", "accuracy"]}
