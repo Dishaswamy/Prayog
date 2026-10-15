@@ -53,6 +53,29 @@ class ProfessorLedgerTests(unittest.TestCase):
         self.assertNotIn("steward", result[0])
         self.assertNotIn("rag", result[0])
 
+    def test_skips_malformed_ledger_payload(self):
+        db = MagicMock()
+        professor_query = MagicMock()
+        professor_query.filter.return_value.first.return_value = SimpleNamespace(id=4)
+        student_query = MagicMock()
+        student_query.filter.return_value.all.return_value = [
+            SimpleNamespace(user_id=12, name="Student One", roll_number="123456")
+        ]
+        run_query = MagicMock()
+        run_query.filter.return_value.all.return_value = [SimpleNamespace(id=30, user_id=12)]
+        entry_query = MagicMock()
+        entry_query.filter.return_value.order_by.return_value.all.return_value = [
+            SimpleNamespace(payload=None, consumed_at=datetime(2026, 10, 15, 4, 0, 0)),
+            SimpleNamespace(payload=["not", "an", "object"], consumed_at=datetime(2026, 10, 15, 4, 0, 0)),
+        ]
+        snapshot_query = MagicMock()
+        snapshot_query.filter.return_value.all.return_value = []
+        db.query.side_effect = [professor_query, student_query, run_query, entry_query, snapshot_query]
+
+        result = list_professor_ledger(db, SimpleNamespace(id=9, role="PROFESSOR"))
+
+        self.assertEqual(result, [])
+
     def test_skips_ledger_rows_without_matching_persisted_snapshot(self):
         db = MagicMock()
         professor_query = MagicMock()
