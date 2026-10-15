@@ -39,7 +39,7 @@ class MetricComparatorTests(unittest.TestCase):
             {"loss": 0.05},
         )
         self.assertTrue(result["passed"])
-        self.assertEqual(result["metrics"][0]["absolute_difference"], 0.03)
+        self.assertAlmostEqual(result["metrics"][0]["absolute_difference"], 0.03)
         self.assertEqual(result["metrics"][0]["tolerance"], 0.05)
 
     def test_metrics_outside_tolerance_fail(self):
