@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -98,6 +99,9 @@ def parser() -> argparse.ArgumentParser:
     rebuild_status = commands.add_parser("rebuild-status")
     rebuild_status.add_argument("--rebuild-id", type=int, required=True)
 
+    sync = commands.add_parser("sync-results")
+    sync.add_argument("--run-id", type=int, required=True)
+
     download = commands.add_parser("download-artifact")
     download.add_argument("--artifact-id", required=True)
     download.add_argument("--output", type=Path, required=True)
@@ -131,6 +135,171 @@ def upload(client: httpx.Client, experiment_id: int, kind: str, path: Path) -> s
     response.raise_for_status()
     return response.json()["id"]
 
+
+
+def download_artifact_to_path(
+    client: httpx.Client,
+    artifact_id: str,
+    output: Path,
+    expected_sha256: str | None = None,
+    expected_size: int | None = None,
+) -> dict[str, Any]:
+    if not output.parent.is_dir():
+        raise ValueError(f"Output directory does not exist: {output.parent}")
+    if output.is_symlink():
+        raise ValueError(f"Refusing to overwrite a symbolic link: {output}")
+    temporary_path = None
+    total = 0
+    digest = hashlib.sha256()
+    try:
+        with client.stream("GET", f"/mlflow/artifacts/{artifact_id}/content") as response:
+            response.raise_for_status()
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=f".{output.name}.", suffix=".part",
+                dir=output.parent, delete=False,
+            ) as target:
+                temporary_path = Path(target.name)
+                for chunk in response.iter_bytes():
+                    total += len(chunk)
+                    if total > MAX_ARTIFACT_BYTES:
+                        raise ValueError("Downloaded artifact exceeds the 250 MiB limit")
+                    digest.update(chunk)
+                    target.write(chunk)
+        actual_digest = digest.hexdigest()
+        if expected_size is not None and total != expected_size:
+            raise ValueError("Downloaded artifact size does not match server metadata")
+        if expected_sha256 is not None and actual_digest != expected_sha256:
+            raise ValueError("Downloaded artifact checksum does not match server metadata")
+        if output.exists() and output.is_file():
+            existing_digest = hashlib.sha256()
+            existing_size = 0
+            with output.open("rb") as existing:
+                for chunk in iter(lambda: existing.read(1024 * 1024), b""):
+                    existing_digest.update(chunk)
+                    existing_size += len(chunk)
+            if existing_size == total and existing_digest.hexdigest() == actual_digest:
+                temporary_path.unlink(missing_ok=True)
+                temporary_path = None
+                return {"path": str(output), "size_bytes": total, "unchanged": True}
+        os.replace(temporary_path, output)
+        temporary_path = None
+        os.chmod(output, 0o600)
+        return {"path": str(output), "size_bytes": total, "unchanged": False}
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def _write_text_if_changed(path: Path, content: str) -> bool:
+    encoded = content.encode("utf-8")
+    if path.is_symlink():
+        raise ValueError(f"Refusing to overwrite a symbolic link: {path}")
+    if path.exists() and path.is_file() and path.read_bytes() == encoded:
+        return False
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=f".{path.name}.", suffix=".part",
+            dir=path.parent, delete=False,
+        ) as target:
+            temporary_path = Path(target.name)
+            target.write(encoded)
+        os.replace(temporary_path, path)
+        temporary_path = None
+        os.chmod(path, 0o600)
+        return True
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def sync_results(client: httpx.Client, run_id: int) -> dict[str, Any]:
+    if run_id < 1:
+        raise ValueError("Run ID must be a positive integer")
+    run_response = client.get(f"/mlflow/runs/{run_id}")
+    run_response.raise_for_status()
+    run = run_response.json()
+    if run.get("id") != run_id:
+        raise ValueError("Server returned a different run ID")
+
+    artifact_ids = {
+        "weights": run.get("weights_artifact_id"),
+        "logs": run.get("logs_artifact_id"),
+    }
+    artifact_metadata = {}
+    if any(artifact_ids.values()):
+        artifacts_response = client.get(
+            f"/mlflow/experiments/{run['experiment_id']}/artifacts"
+        )
+        artifacts_response.raise_for_status()
+        artifacts_by_id = {
+            item["id"]: item for item in artifacts_response.json()
+        }
+        for artifact_id in artifact_ids.values():
+            if artifact_id and artifact_id not in artifacts_by_id:
+                raise ValueError("A run output artifact is unavailable to the authenticated owner")
+        artifact_metadata = artifacts_by_id
+
+    results_root = Path("results")
+    if results_root.is_symlink():
+        raise ValueError("Refusing to use a symbolic-link results directory")
+    results_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(results_root, 0o700)
+    result_dir = results_root / str(run_id)
+    if result_dir.is_symlink():
+        raise ValueError("Refusing to use a symbolic-link run results directory")
+    result_dir.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(result_dir, 0o700)
+
+    synced = []
+    for key, filename in (("weights", "weights.bin"), ("logs", "logs.log")):
+        artifact_id = artifact_ids[key]
+        if not artifact_id:
+            continue
+        item = artifact_metadata[artifact_id]
+        download = download_artifact_to_path(
+            client,
+            artifact_id,
+            result_dir / filename,
+            expected_sha256=item["sha256"],
+            expected_size=item["size_bytes"],
+        )
+        synced.append({
+            "kind": item["kind"],
+            "artifact_id": artifact_id,
+            "sha256": item["sha256"],
+            "size_bytes": item["size_bytes"],
+            "path": filename,
+            "unchanged": download["unchanged"],
+        })
+
+    metadata = {
+        "run_id": run_id,
+        "experiment_id": run["experiment_id"],
+        "project_id": run["project_id"],
+        "model_id": run["model_id"],
+        "run_type": run["run_type"],
+        "source_snapshot_id": run.get("source_snapshot_id"),
+        "status": run["status"],
+        "logging_state": run["logging_state"],
+        "logging_warnings": run.get("logging_warnings", []),
+        "error_summary": run.get("error_summary"),
+        "created_at": run.get("created_at"),
+        "started_at": run.get("started_at"),
+        "finished_at": run.get("finished_at"),
+        "artifacts": synced,
+    }
+    metadata_path = result_dir / "metadata.json"
+    metadata_changed = _write_text_if_changed(
+        metadata_path, json.dumps(metadata, indent=2, sort_keys=True) + "\\n"
+    )
+    return {
+        "run_id": run_id,
+        "directory": str(result_dir),
+        "metadata_path": str(metadata_path),
+        "metadata_changed": metadata_changed,
+        "artifacts": synced,
+    }
 
 def execute(args: argparse.Namespace, client: httpx.Client) -> dict[str, Any]:
     if args.command == "create-project":
@@ -201,30 +370,10 @@ def execute(args: argparse.Namespace, client: httpx.Client) -> dict[str, Any]:
         response = client.get(f"/mlflow/runs/{args.run_id}")
     elif args.command == "rebuild-status":
         response = client.get(f"/mlflow/rebuilds/{args.rebuild_id}")
+    elif args.command == "sync-results":
+        return sync_results(client, args.run_id)
     elif args.command == "download-artifact":
-        if not args.output.parent.exists():
-            raise ValueError(f"Output directory does not exist: {args.output.parent}")
-        temporary_path = None
-        total = 0
-        try:
-            with client.stream("GET", f"/mlflow/artifacts/{args.artifact_id}/content") as response:
-                response.raise_for_status()
-                with tempfile.NamedTemporaryFile(
-                    mode="wb", prefix=f".{args.output.name}.", suffix=".part",
-                    dir=args.output.parent, delete=False,
-                ) as output:
-                    temporary_path = Path(output.name)
-                    for chunk in response.iter_bytes():
-                        total += len(chunk)
-                        if total > MAX_ARTIFACT_BYTES:
-                            raise ValueError("Downloaded artifact exceeds the 250 MiB limit")
-                        output.write(chunk)
-            os.replace(temporary_path, args.output)
-            os.chmod(args.output, 0o600)
-            return {"path": str(args.output), "size_bytes": total}
-        finally:
-            if temporary_path is not None:
-                temporary_path.unlink(missing_ok=True)
+        return download_artifact_to_path(client, args.artifact_id, args.output)
     elif args.command == "rebuild":
         response = client.post(
             f"/mlflow/snapshots/{args.snapshot_id}/rebuilds",
