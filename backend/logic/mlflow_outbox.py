@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from logic.artifacts import get_verified_artifact
 from logic.errors import BadRequestError, NotFoundError
-from mlflow_models import Artifact, MLFlowOutboxEvent, ModelSnapshot, RebuildAttempt
+from mlflow_models import Artifact, MLFlowLedgerEntry, MLFlowOutboxEvent, ModelRun, ModelSnapshot, RebuildAttempt
 
 DEFAULT_MAX_ATTEMPTS = 5
 MAX_ERROR_LENGTH = 500
@@ -14,6 +14,52 @@ MAX_ERROR_LENGTH = 500
 
 def _now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def enqueue_run_sealed_event(db: Session, snapshot, run, user_id: int):
+    event = MLFlowOutboxEvent(
+        id=str(uuid4()),
+        event_key=f"run:{run.id}:sealed",
+        event_type="RUN_SEALED",
+        aggregate_id=None,
+        run_id=run.id,
+        user_id=user_id,
+        payload={
+            "run_id": run.id,
+            "snapshot_id": snapshot.snapshot_id,
+            "experiment_id": snapshot.experiment_id,
+            "project_id": snapshot.project_id,
+            "model_id": snapshot.model_id,
+            "state": snapshot.state,
+            "code_sha256": snapshot.code_sha256,
+        },
+        status="PENDING",
+        attempts=0,
+        available_at=_now(),
+    )
+    db.add(event)
+    return event
+
+
+def consume_ledger_event(db: Session, event_key: str, payload: dict) -> bool:
+    """Persist a sealed-run event exactly once; the unique key is the idempotency boundary."""
+    if not event_key or len(event_key) > 160:
+        raise ValueError("event_key must contain 1–160 characters")
+    if not isinstance(payload, dict) or payload.get("state") != "RECORDED":
+        raise ValueError("Only RECORDED snapshot events can enter the ledger")
+    entry = MLFlowLedgerEntry(event_key=event_key, payload=payload)
+    db.add(entry)
+    try:
+        db.commit()
+        return True
+    except Exception as exc:
+        db.rollback()
+        from sqlalchemy.exc import IntegrityError
+        if isinstance(exc, IntegrityError):
+            existing = db.query(MLFlowLedgerEntry).filter(MLFlowLedgerEntry.event_key == event_key).first()
+            if existing is not None:
+                return False
+        raise
 
 
 def enqueue_rebuild_terminal_event(db: Session, attempt, snapshot, execution, user_id: int, state: str, log_artifact):
@@ -143,6 +189,25 @@ def mark_delivery_failed(
 
 
 def _still_eligible(db: Session, event: MLFlowOutboxEvent) -> bool:
+    if event.event_type == "RUN_SEALED":
+        run_id = event.run_id or event.payload.get("run_id")
+        snapshot_id = event.payload.get("snapshot_id")
+        snapshot = db.query(ModelSnapshot).filter(
+            ModelSnapshot.snapshot_id == snapshot_id,
+            ModelSnapshot.user_id == event.user_id,
+        ).first()
+        run = db.query(ModelRun).filter(
+            ModelRun.id == run_id,
+            ModelRun.user_id == event.user_id,
+        ).first()
+        return bool(
+            run is not None
+            and snapshot is not None
+            and snapshot.run_id == run.id
+            and snapshot.state == "RECORDED"
+            and event.event_key == f"run:{run.id}:sealed"
+            and event.payload.get("state") == "RECORDED"
+        )
     attempt = (
         db.query(RebuildAttempt)
         .filter(
