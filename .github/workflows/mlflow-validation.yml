@@ -57,6 +57,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
           PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
+          PRAYOG_RUN_PROFESSOR_POSTGRES_TESTS: "1"
         run: pytest -q
 
       - name: Build isolated worker runtime image
