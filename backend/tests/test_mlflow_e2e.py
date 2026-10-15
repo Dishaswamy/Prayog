@@ -297,6 +297,19 @@ class MLFlowEndToEndTests(unittest.TestCase):
         self.assertEqual(execution["status"], "SUCCEEDED", execution)
         self.assertIsNotNone(execution.get("finished_at"))
         self.assertIsNotNone(execution.get("logs_artifact_id"))
+        self.assertIsNotNone(execution.get("weights_artifact_id"))
+
+        response = self.client.get(f"/mlflow/experiments/{experiment_id}/snapshots")
+        self.assertEqual(response.status_code, 200, response.text)
+        snapshots = response.json()
+        rebuilt_snapshot = next(
+            (item for item in snapshots if item.get("run_id") == execution["id"]),
+            None,
+        )
+        self.assertIsNotNone(rebuilt_snapshot, snapshots)
+        self.assertEqual(rebuilt_snapshot["state"], "RECORDED")
+        self.assertEqual(rebuilt_snapshot["code_artifact_id"], execution["code_artifact_id"])
+        self.assertEqual(rebuilt_snapshot["weights_artifact_id"], execution["weights_artifact_id"])
 
 
     def test_failed_worker_rebuild_reaches_terminal_state_and_releases_container(self):
