@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from logic.errors import BadRequestError, ConflictError, NotFoundError
-from logic.mlflow import create_experiment, create_rebuild, create_run, finish_run, start_run, update_rebuild
+from logic.mlflow import create_experiment, create_rebuild, create_run, finish_run, log_metric, start_run, update_rebuild
 from mlflow_models import ModelSnapshot
 
 
@@ -28,6 +28,33 @@ class MLFlowLifecycleTests(unittest.TestCase):
             code_artifact_id=None, weights_artifact_id=None, logs_artifact_id=None,
             error_summary=None, finished_at=None, worker_id=None, worker_claimed_at=None,
         )
+
+    def test_log_metric_rejects_blank_or_overlong_names(self):
+        for name in ("   ", "m" * 101):
+            with self.subTest(name_length=len(name)):
+                self.db.reset_mock()
+                self.set_owned_item(self.running_run())
+                with self.assertRaises(BadRequestError):
+                    log_metric(self.db, 3, self.user, name, 1.0, 0)
+                self.db.add.assert_not_called()
+                self.db.commit.assert_not_called()
+
+    def test_log_metric_rejects_invalid_steps_and_nonfinite_values(self):
+        for value, step in ((1.0, -1), (1.0, True), (float("nan"), 0), (float("inf"), 0)):
+            with self.subTest(value=value, step=step):
+                self.db.reset_mock()
+                self.set_owned_item(self.running_run())
+                with self.assertRaises(BadRequestError):
+                    log_metric(self.db, 3, self.user, "accuracy", value, step)
+                self.db.add.assert_not_called()
+                self.db.commit.assert_not_called()
+
+    def test_log_metric_normalizes_name_before_persisting(self):
+        self.set_owned_item(self.running_run())
+        result = log_metric(self.db, 3, self.user, " accuracy ", 0.95, 1)
+        self.assertEqual(result.name, "accuracy")
+        self.assertEqual(result.step, 1)
+        self.db.commit.assert_called_once()
 
     def test_experiment_rejects_model_outside_owned_project(self):
         project = SimpleNamespace(project_id="project-1", user_id=7)

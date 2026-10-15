@@ -310,15 +310,20 @@ def log_metric(db: Session, run_id: int, user: User, name: str, value: float, st
     item = _owned_run(db, run_id, user, lock=True)
     if item.status != "RUNNING":
         raise ConflictError("Metrics can only be logged while a run is RUNNING")
+    name = name.strip()
+    if not name or len(name) > 100:
+        raise BadRequestError("Metric name must contain between 1 and 100 characters")
     if not isfinite(value):
         raise BadRequestError("Metric value must be finite")
-    metric = RunMetric(run_id=item.id, user_id=user.id, name=name.strip(), value=value, step=step)
+    if not isinstance(step, int) or isinstance(step, bool) or step < 0:
+        raise BadRequestError("Metric step must be a non-negative integer")
+    metric = RunMetric(run_id=item.id, user_id=user.id, name=name, value=value, step=step)
     db.add(metric)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
-        raise ConflictError("A metric with this name and step already exists for the run")
+        raise ConflictError("A metric with this name and step already exists for the run") from exc
     db.refresh(metric)
     return metric
 
