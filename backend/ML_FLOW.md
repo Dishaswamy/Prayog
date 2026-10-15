@@ -48,6 +48,19 @@ python mlflow_cli.py run-status --run-id 1
 ```
 
 The worker validates the archive and checksum, claims the queued run atomically, runs its entrypoint in the isolated runtime image, stores bounded logs and any output weights, then finalizes the run and records a snapshot when artifact validation permits. A nonzero exit code, invalid archive, or timeout marks the first-time run failed; it never invokes Steward. When `--code-artifact-id` is omitted, `start-run` retains the caller-managed workflow shown above, and the caller completes it with `finish-run`. Do not call `finish-run` for a worker-queued run.
+## Rebuild metric comparison
+
+Compare a successful rebuild with its source run using per-metric absolute tolerances:
+
+```sh
+curl -X POST "$PRAYOG_API_URL/mlflow/rebuilds/12/compare-metrics" \
+  -H "Authorization: Bearer $PRAYOG_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"tolerances":{"loss":0.01,"accuracy":0.02}}'
+```
+
+The response reports each metric and step, expected and actual values, absolute difference, applied tolerance, and an overall pass/fail result. A missing metric fails comparison. Metrics without an explicit tolerance use zero tolerance. Comparisons are permitted only for successful rebuilds and recorded source snapshots; an empty comparison is not considered a pass.
+
 ## Lifecycle
 
 1. Create a project using `POST /mlflow/projects`, then create a model in that project using `POST /mlflow/projects/{project_id}/models`. Project IDs and model IDs are separate, user-owned namespaces.
