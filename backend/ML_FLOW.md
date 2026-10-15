@@ -138,3 +138,8 @@ The artifact storage backend field reports the configured `PRAYOG_ARTIFACT_STORA
 ## Rebuild pre-initiation rejection boundary
 
 A rebuild request is rejected before creating an execution run or Attempt ID unless the authenticated user owns a `RECORDED` snapshot and all required source artifacts pass integrity verification. Missing, foreign-owned, incomplete, and corrupt/unavailable snapshots return the same generic `REBUILD_REJECTED: snapshot could not be validated` response. The response does not distinguish whether a snapshot exists, and pre-initiation rejection does not enqueue an outbox event or invoke Steward. Once an attempt has been created, subsequent execution failures retain that Attempt ID and follow the normal terminal failure path.
+
+
+## Transactional outbox and experiment ledger
+
+A successfully recorded snapshot creates a `RUN_SEALED` outbox event in the same database transaction as the run and snapshot state. The dispatcher revalidates the persisted run and recorded snapshot before delivery. The experiment-ledger consumer stores event metadata under a stable `event_key`; the database uniqueness constraint makes repeated delivery idempotent. Event payloads contain identifiers and the code digest, not artifact contents or secrets. Existing rebuild terminal events retain their leased dispatch, bounded retries, and dead-letter behavior.

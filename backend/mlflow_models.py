@@ -198,8 +198,9 @@ class MLFlowOutboxEvent(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     event_key: Mapped[str] = mapped_column(String(160), nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    aggregate_id: Mapped[int] = mapped_column(ForeignKey("ml_rebuild_attempts.id"), nullable=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    aggregate_id: Mapped[int | None] = mapped_column(ForeignKey("ml_rebuild_attempts.id"), nullable=True)
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("ml_model_runs.id"), nullable=True)
+    user_id = mapped_column(ForeignKey("users.id"), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -209,6 +210,16 @@ class MLFlowOutboxEvent(Base):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class MLFlowLedgerEntry(Base):
+    __tablename__ = "ml_event_ledger"
+    __table_args__ = (UniqueConstraint("event_key", name="uq_ml_event_ledger_event_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    event_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    consumed_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
 
 
 class DiagnosticLink(Base):
