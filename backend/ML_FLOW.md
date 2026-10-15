@@ -160,3 +160,8 @@ Approval changes project and completed-record ownership in one database transact
 ## Professor experiment ledger
 
 Authenticated Professors can query `GET /mlflow/professor/ledger` to see sealed experiment records for currently assigned students. The query is scoped to active approved student relationships and only returns run/snapshot identifiers and digest metadata for persisted `RECORDED` snapshots. It excludes source code, weights, hyperparameters, dataset metadata, logs, Steward sessions, and retrieval state. Non-Professor callers are rejected.
+
+
+## Professor read-only ML Flow views
+
+The `/mlflow/professor` endpoints expose projects, models, experiments, runs, snapshots, rebuilds, metrics, and artifact metadata only for currently assigned students/researchers with active approved relationships. Authorization is checked against database relationships, not client-supplied role claims. Unrelated resources are treated as not found. Responses omit artifact bytes, source code, weights, hyperparameters, and private run configuration.
