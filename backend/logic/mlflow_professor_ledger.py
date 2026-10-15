@@ -45,6 +45,8 @@ def list_professor_ledger(db, user: User) -> list[dict]:
     result = []
     for entry in entries:
         payload = entry.payload
+        if not isinstance(payload, dict):
+            continue
         run_id = payload.get("run_id")
         run = run_by_id.get(run_id)
         snapshot = snapshot_by_run_id.get(run_id)
