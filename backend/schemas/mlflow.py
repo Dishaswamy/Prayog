@@ -471,6 +471,18 @@ def _redact_sensitive_text(value):
 class MetricComparisonCreate(BaseModel):
     tolerances: dict[str, float] = Field(default_factory=dict)
 
+    @field_validator("tolerances", mode="before")
+    @classmethod
+    def reject_non_numeric_tolerances(cls, value):
+        if not isinstance(value, dict):
+            raise ValueError("Metric tolerances must be a mapping")
+        for name, tolerance in value.items():
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("Tolerance metric names must not be blank")
+            if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)):
+                raise ValueError("Metric tolerances must be numeric")
+        return value
+
     @field_validator("tolerances")
     @classmethod
     def validate_tolerances(cls, value):
