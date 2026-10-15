@@ -222,7 +222,7 @@ class RebuildOut(BaseModel):
 
 
 class DiagnosticLinkCreate(BaseModel):
-    ttl_seconds: int = Field(default=300, ge=60, le=900)
+    ttl_seconds: int = Field(default=300)
 
 
 class DiagnosticLinkOut(BaseModel):

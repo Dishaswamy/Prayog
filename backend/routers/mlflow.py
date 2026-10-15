@@ -85,7 +85,7 @@ def create_rebuild_diagnostic_link(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    token, expires_at = create_diagnostic_link(db, rebuild_id, user, body.ttl_seconds)
+    token, expires_at = create_diagnostic_link(db, rebuild_id, user, getattr(user, "session_id", ""), body.ttl_seconds)
     return DiagnosticLinkOut(
         path=f"/mlflow/diagnostic-artifacts/{token}",
         expires_at=expires_at,
@@ -93,8 +93,8 @@ def create_rebuild_diagnostic_link(
 
 
 @router.get("/diagnostic-artifacts/{token}", name="consume_diagnostic_link")
-def download_diagnostic_artifact(token: str, db: Session = Depends(get_db)):
-    artifact, path = consume_diagnostic_link(db, token)
+def download_diagnostic_artifact(token: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    artifact, path = consume_diagnostic_link(db, token, user, getattr(user, "session_id", ""))
     return FileResponse(
         path,
         media_type="application/octet-stream",

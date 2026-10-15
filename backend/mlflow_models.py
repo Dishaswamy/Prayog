@@ -231,6 +231,7 @@ class DiagnosticLink(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    session_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     rebuild_id: Mapped[int] = mapped_column(ForeignKey("ml_rebuild_attempts.id"), nullable=False)
     artifact_id: Mapped[str] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=False)
@@ -278,4 +279,24 @@ class StewardContextChunk(Base):
     source_type: Mapped[str] = mapped_column(String(30), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+
+
+class DiagnosticAccessAudit(Base):
+    __tablename__ = "ml_diagnostic_access_audit"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('CREATED', 'CONSUMED', 'INVALID_TTL', 'INVALID_TOKEN', 'EXPIRED', 'REPLAY', 'SESSION_MISMATCH', 'OWNER_MISMATCH', 'ATTEMPT_NOT_FOUND', 'STATE_REJECTED', 'NO_LOG_ARTIFACT', 'ARTIFACT_MISSING', 'ARTIFACT_INTEGRITY_FAILED')",
+            name="ck_ml_diagnostic_audit_outcome",
+        ),
+        Index("ix_ml_diagnostic_audit_user_created", "user_id", "created_at"),
+        Index("ix_ml_diagnostic_audit_attempt_created", "rebuild_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    rebuild_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    link_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    session_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(40), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
