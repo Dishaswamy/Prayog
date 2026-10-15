@@ -335,17 +335,26 @@ def get_snapshot(db: Session, snapshot_id: str, user: User) -> ModelSnapshot:
 
 
 def create_rebuild(db: Session, snapshot_id: str, user: User, environment: dict) -> RebuildAttempt:
-    snapshot = _owned_snapshot(db, snapshot_id, user)
-    if snapshot.state != "RECORDED":
-        raise BadRequestError("REBUILD_REJECTED: only RECORDED snapshots can be rebuilt")
+    # Missing, foreign, incomplete, and corrupt snapshots share one pre-init response.
+    snapshot = db.query(ModelSnapshot).filter(
+        ModelSnapshot.snapshot_id == snapshot_id,
+        ModelSnapshot.user_id == user.id,
+    ).first()
+    rejected = BadRequestError("REBUILD_REJECTED: snapshot could not be validated")
+    if snapshot is None or snapshot.state != "RECORDED":
+        raise rejected
     try:
-        code_artifact, _ = get_verified_artifact(db, snapshot.code_artifact_id, user.id, snapshot.experiment_id, "CODE")
+        code_artifact, _ = get_verified_artifact(
+            db, snapshot.code_artifact_id, user.id, snapshot.experiment_id, "CODE"
+        )
         if snapshot.code_sha256 and code_artifact.sha256 != snapshot.code_sha256:
             raise BadRequestError("Snapshot code digest does not match its artifact")
         if snapshot.weights_artifact_id:
-            get_verified_artifact(db, snapshot.weights_artifact_id, user.id, snapshot.experiment_id, "WEIGHTS")
-    except (BadRequestError, NotFoundError) as exc:
-        raise BadRequestError(f"REBUILD_REJECTED: required artifact validation failed ({exc})") from exc
+            get_verified_artifact(
+                db, snapshot.weights_artifact_id, user.id, snapshot.experiment_id, "WEIGHTS"
+            )
+    except Exception as exc:
+        raise rejected from exc
     rebuild_environment = {
         **(environment or snapshot.dependencies),
         "scheduler_label": f"reproduces:{snapshot.run_id}",
@@ -381,8 +390,6 @@ def create_rebuild(db: Session, snapshot_id: str, user: User, environment: dict)
     db.commit()
     db.refresh(item)
     return item
-
-
 def update_rebuild(
     db: Session,
     rebuild_id: int,
