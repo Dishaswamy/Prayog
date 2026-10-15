@@ -217,3 +217,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .DS_Store
+
+# Local development state
+.pgdata/
+.knowledge_cache/
+# Node agent state: holds the node's credential (python -m node_agent.simulated --state-dir ...)
+.agent-*/

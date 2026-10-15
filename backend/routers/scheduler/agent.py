@@ -80,7 +80,8 @@ def report_allocation(
     cfg: SchedulerConfig = Depends(get_scheduler_config),
     pass_sessions: sessionmaker = Depends(get_pass_sessions),
 ):
-    result = report(db, node.id, allocation_id, body.seq, body.outcome, body.exit_code, cfg=cfg)
+    result = report(db, node.id, allocation_id, body.seq, body.outcome, body.exit_code, cfg=cfg,
+                    log_tail=body.log_tail)
     if result is None:
         return ReportOut(applied=False, job_state=None)
     background.add_task(run_pass, pass_sessions, Trigger.RUN_END, cfg=cfg)            # FR-GPU-121

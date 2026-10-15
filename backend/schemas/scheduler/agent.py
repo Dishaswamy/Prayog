@@ -43,6 +43,9 @@ class ReportIn(BaseModel):
     seq: int = Field(ge=1, description="Increases with every report from this node (FR-GPU-128)")
     outcome: Outcome
     exit_code: int | None = None
+    # The end of the run's stdout/stderr, for the Steward's diagnosis (FR-GPU-146). Optional;
+    # the server keeps at most the last 64 KB and never serves it back.
+    log_tail: str | None = Field(default=None, max_length=1_000_000)
 
 
 class ReportOut(BaseModel):

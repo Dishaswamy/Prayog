@@ -1,0 +1,40 @@
+# Local stack: PostgreSQL, the Steward Runtime and the self-contained demo (API + UI +
+# Worker with fakes for the other sub-teams).
+#   docker compose up --build        then open http://localhost:8000/demo
+# Use real Claude: ANTHROPIC_API_KEY=... STEWARD_REASONING=claude docker compose up --build
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: steward
+      POSTGRES_PASSWORD: steward
+      POSTGRES_DB: prayog
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "steward"]
+      interval: 5s
+      retries: 10
+    volumes:
+      - steward-db:/var/lib/postgresql/data
+
+  runtime:
+    build: .
+    environment:
+      STEWARD_REASONING: ${STEWARD_REASONING:-heuristic}
+      STEWARD_MODEL: ${STEWARD_MODEL:-claude-opus-5-5}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports: ["8100:8100"]
+
+  demo:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+      runtime: { condition: service_started }
+    environment:
+      STEWARD_DEMO_ADMIN_URL: postgresql+psycopg://steward:steward@db:5432/prayog
+      STEWARD_RUNTIME_URL: http://runtime:8100
+    command: ["python", "tools/demo.py", "--host", "0.0.0.0", "--port", "8000", "--http-runtime"]
+    ports: ["8000:8000"]
+
+volumes:
+  steward-db:
