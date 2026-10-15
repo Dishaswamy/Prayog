@@ -43,8 +43,8 @@ This log records AI-assisted engineering decisions for the ML Flow lifecycle and
 - **Prompt/context:** Professors need a read-only view of enrolled students' recorded experiment snapshots, but must not gain access to Steward sessions or RAG state.
 - **AI recommendation:** Resolve the professor profile from the authenticated user, scope the query to currently approved students assigned to that professor, and verify the matching persisted run and recorded snapshot before returning metadata.
 - **Output:** [PR #14 — Professor-scoped read-only experiment ledger](https://github.com/baymaxisme/Prayog/pull/14).
-- **Evaluation:** Added tests for role enforcement, returned metadata, and fail-closed handling when the ledger entry does not match a persisted snapshot. Full CI validation is running; record its final result before treating this recommendation as validated.
-- **Decision:** Implemented; evaluation pending CI.
+- **Evaluation:** Added tests for role enforcement, returned metadata, and fail-closed handling when the ledger entry does not match a persisted snapshot. Full validation passed, including clean PostgreSQL migrations, Alembic check, lifecycle tests, Docker worker smoke tests, and authenticated API-to-worker end-to-end test ([run #336](https://github.com/baymaxisme/Prayog/actions/runs/38681071350)).
+- **Decision:** Accepted after CI validation. The PR remains open for review.
 
 ## Rejected alternatives and safety rationale
 
