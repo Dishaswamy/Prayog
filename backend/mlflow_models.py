@@ -259,3 +259,23 @@ class ProjectHandover(Base):
     failed_artifacts: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class StewardContextChunk(Base):
+    __tablename__ = "steward_context_chunks"
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN ('DIAGNOSTIC_LOG', 'MLFLOW_METADATA', 'EXTERNAL_DOC')",
+            name="ck_steward_context_source_type",
+        ),
+        Index("ix_steward_context_scope", "user_id", "rebuild_id", "created_at"),
+        Index("ix_steward_context_source", "user_id", "rebuild_id", "source_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    rebuild_id: Mapped[int] = mapped_column(ForeignKey("ml_rebuild_attempts.id"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
