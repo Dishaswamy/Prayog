@@ -329,6 +329,11 @@ def _end_access(db: Session, access_request: AccessRequest, reason: str, now: da
     No commit here.
     """
     reason = access_request.revoke_reason or reason     # the first reason sticks
+    # Submitting a job holds this row until it commits, so lock it first: a job being
+    # submitted right now is then seen below, and the revoke waits for it like any other.
+    db.query(SchedulingContext).filter(
+        SchedulingContext.user_id == access_request.user_id
+    ).with_for_update().first()
     if _has_unfinished_jobs(db, access_request.user_id):
         access_request.revoke_reason = reason
         if access_request.revoke_requested_at is None:

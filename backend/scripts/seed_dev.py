@@ -5,15 +5,17 @@ A small development world for the Steward, built through the platform's own flow
     python -m scripts.seed_dev [--password PASSWORD]
 
   admin@iitk.ac.in              ADMIN
-  prof@iitk.ac.in               PROFESSOR (supervises alice and bob)
+  prof@iitk.ac.in               PROFESSOR, runs lab vision (supervises alice)
+  prof2@iitk.ac.in              PROFESSOR, runs lab nlp (supervises bob)
   alice@iitk.ac.in              STUDENT, lab vision, access approved by prof and admin
-  bob@iitk.ac.in                RESEARCHER, lab nlp, access approved by prof and admin
+  bob@iitk.ac.in                RESEARCHER, lab nlp, access approved by prof2 and admin
   labs vision, nlp; nodes n1 (vision) and n2 (nlp), 4 GPUs each, shared
 
 Nodes are registered as an admin would (PENDING_AGENT); the script prints each new
 node's one-time enrolment token and the command that starts its simulated agent,
-whose first heartbeat makes the node AVAILABLE. Labs and scheduling contexts have no
-API yet, so they are inserted directly. Idempotent: existing rows are left as they
+whose first heartbeat makes the node AVAILABLE. Labs have no API yet, so they are
+inserted directly; each user's scheduling context is created by the approval itself,
+from their professor's lab. Idempotent: existing rows are left as they
 are (a node registered earlier prints no token). Development only.
 """
 
@@ -47,9 +49,6 @@ def seed(password: str) -> dict[str, str]:
             create_user_record(db, "admin@iitk.ac.in", password, "ADMIN")
             db.commit()
         admin = _user(db, "admin@iitk.ac.in")
-        if _user(db, "prof@iitk.ac.in") is None:
-            create_professor(db, "Prof. Demo", "prof@iitk.ac.in", "CSE", password)
-        prof = _user(db, "prof@iitk.ac.in")
 
         labs = {}
         for name in ("vision", "nlp"):
@@ -59,10 +58,19 @@ def seed(password: str) -> dict[str, str]:
                 db.add(lab)
                 db.flush()
             labs[name] = lab
-        prof_row = db.scalars(select(orm.Professor).where(orm.Professor.user_id == prof.id)).one()
-        if prof_row.lab_id is None:
-            prof_row.lab_id = labs["vision"].id      # approval puts research users in this lab
         db.commit()
+
+        # Each professor runs one lab; whoever they approve is scheduled under it
+        professors = {}
+        for email, name, lab in (("prof@iitk.ac.in", "Prof. Demo", "vision"), ("prof2@iitk.ac.in", "Prof. Demo Two", "nlp")):
+            if _user(db, email) is None:
+                create_professor(db, name, email, "CSE", password, lab_id=labs[lab].id)
+            professors[email] = _user(db, email)
+            row = db.scalars(select(orm.Professor).where(orm.Professor.email == email)).one()
+            if row.lab_id is None:
+                row.lab_id = labs[lab].id
+                db.commit()
+
         for node_name, lab in NODES:
             if db.scalars(select(orm.Node.id).where(orm.Node.name == node_name)).first() is None:
                 registration = register_node(db, node_name, labs[lab].id, DonationMode.SHARED,
@@ -70,25 +78,22 @@ def seed(password: str) -> dict[str, str]:
                 tokens[node_name] = registration.enrolment_token
 
         people = (
-            ("alice@iitk.ac.in", "STUDENT", "Alice", "vision", "21001"),
-            ("bob@iitk.ac.in", "RESEARCHER", "Bob", "nlp", "21002"),
+            ("alice@iitk.ac.in", "STUDENT", "Alice", "prof@iitk.ac.in", "21001"),
+            ("bob@iitk.ac.in", "RESEARCHER", "Bob", "prof2@iitk.ac.in", "21002"),
         )
         today = utc_now().replace(microsecond=0)
-        for email, role, name, lab, roll in people:
+        for email, role, name, professor_email, roll in people:
             user = _user(db, email) or register_user(db, email, password, role)
             if db.get(orm.SchedulingContext, user.id) is None:
                 request = create_access_request(
                     db, user, name=name, role=role, course="BTech", branch="CSE",
                     purpose="RESEARCH_PROJECT",
-                    professor_email="prof@iitk.ac.in", roll_number=roll,
+                    professor_email=professor_email, roll_number=roll,
                     start_date=today - timedelta(days=1),
                     end_date=today + timedelta(days=180) if role == "STUDENT" else None,
                 )
-                decide_access_request(db, request.id, prof, "APPROVED")
+                decide_access_request(db, request.id, professors[professor_email], "APPROVED")
                 decide_access_request(db, request.id, admin, "APPROVED")
-                # approval created the context under the professor's lab; bob works in nlp
-                db.get(orm.SchedulingContext, user.id).lab_id = labs[lab].id
-                db.commit()
     return tokens
 
 
@@ -96,7 +101,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m scripts.seed_dev")
     parser.add_argument("--password", default="prayog-dev-password")
     tokens = seed(parser.parse_args().password)
-    print("Seeded: admin, prof, alice (vision), bob (nlp); nodes n1, n2 with 4 GPUs each.")
+    print("Seeded: admin, prof (vision), prof2 (nlp), alice (vision), bob (nlp); nodes n1, n2 with 4 GPUs each.")
     print("All accounts use the password given with --password.")
     for node, token in tokens.items():
         print(f"Start node {node}'s agent (add --exit-code 1 --log-file run.log to simulate a failing job):")

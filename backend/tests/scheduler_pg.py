@@ -94,9 +94,10 @@ class SchedulerPostgresCase(unittest.TestCase):
         donation_mode: str = "shared",
         teaching_pool: bool = False,
         state: NodeState = NodeState.AVAILABLE,
+        owner: orm.Lab | None = None,
     ) -> orm.Node:
         node = orm.Node(
-            name=f"{label}-{self.suffix}", owner_lab_id=self.lab.id, donation_mode=donation_mode,
+            name=f"{label}-{self.suffix}", owner_lab_id=(owner or self.lab).id, donation_mode=donation_mode,
             teaching_pool=teaching_pool, state=state, unit_count=units, state_changed_at=self.now,
             last_heartbeat_at=self.now, reported_unit_count=units,
         )
