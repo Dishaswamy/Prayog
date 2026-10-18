@@ -1,8 +1,9 @@
 """
 The scheduling pass (GPU requirements section 7.4, FR-GPU-043, FR-GPU-121 to 124, FR-GPU-144).
 
+    bucket every eligible (job, node) pair under its class, once:  O(jobs x nodes)
     for cls in P0, P1, P2, P3:
-        pairs = every (job, node) with the job QUEUED, eligible, and class(job, node) == cls
+        pairs = the bucket's pairs that are still eligible after the earlier claims
         for job in pairs, ordered by rank_key (escalated, score, submit time, job id):
             for node the job can use at cls, ordered by (fewest usable units, node id):
                 if claim(job, node) succeeds: stop considering the job
@@ -32,7 +33,7 @@ import models as orm
 from logic.scheduler.claim import ClaimOutcome, ClaimStatus, claim, utc_now
 from logic.scheduler.classes import owners_with_queued_work, resolve_class
 from logic.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
-from logic.scheduler.domain import JobState, JobView, NodeView, PriorityClass, QueueReason
+from logic.scheduler.domain import JobState, JobView, NodeState, NodeView, PriorityClass, QueueReason
 from logic.scheduler.eligibility import ineligibility_reason, is_eligible, usable_units
 from logic.scheduler.loading import load_nodes, load_queued_jobs, load_usage
 from logic.scheduler.scoring import NO_USAGE, ScoreBreakdown, rank_key, score_job
@@ -107,6 +108,7 @@ class _Pass:
         # Owners waiting is fixed at the start of the pass (FR-GPU-039/040); the claim's
         # owner guard covers owners who submit after this point (FR-GPU-186).
         self.owners_waiting = owners_with_queued_work(jobs)
+        self.buckets = self._bucket_pairs()
 
         self.placed: dict[int, ClaimOutcome] = {}
         self.taken_elsewhere: set[int] = set()                  # another pass holds the job
@@ -127,9 +129,28 @@ class _Pass:
             failed_claims=self.failed_claims,
         )
 
+    def _bucket_pairs(self) -> dict[PriorityClass, dict[int, list[int]]]:
+        """
+        Every eligible (job, node) pair, filed under its class: the one pass over all jobs
+        and nodes. A pair's class cannot change during the pass (the owners waiting are
+        fixed at its start) and claims only use units up, so a pair can drop out of
+        eligibility but never join. Each round therefore re-checks only its own bucket.
+        A node that is not AVAILABLE, or has no free unit, is ineligible for every job.
+        """
+        buckets: dict[PriorityClass, dict[int, list[int]]] = {cls: {} for cls in PriorityClass}
+        open_nodes = [n for n in self.nodes.values() if n.state == NodeState.AVAILABLE and any(u.free for u in n.units)]
+        for job in self.jobs:
+            for node in open_nodes:
+                if is_eligible(job, node, self.now):
+                    cls = resolve_class(job, node, self.owners_waiting)
+                    if cls is not None:
+                        buckets[cls].setdefault(job.job_id, []).append(node.node_id)
+        return buckets
+
     def _round(self, cls: PriorityClass) -> None:
+        bucket = self.buckets[cls]
         pairs = {
-            job.job_id: [n.node_id for n in self.nodes.values() if self._pair_is(job, n, cls)]
+            job.job_id: [n for n in bucket.get(job.job_id, ()) if is_eligible(job, self.nodes[n], self.now)]
             for job in self.jobs
             if job.job_id not in self.placed and job.job_id not in self.taken_elsewhere
         }
@@ -151,9 +172,6 @@ class _Pass:
                     self.taken_elsewhere.add(job.job_id)
                     break
                 self.claim_failures[job.job_id] = outcome.queue_reason
-
-    def _pair_is(self, job: JobView, node: NodeView, cls: PriorityClass) -> bool:
-        return is_eligible(job, node, self.now) and resolve_class(job, node, self.owners_waiting) == cls
 
     def _best_fit(self, job: JobView, node_ids: list[int]) -> list[int]:
         """Nodes still eligible after earlier claims, fewest usable units first, then node id (FR-GPU-122)."""
