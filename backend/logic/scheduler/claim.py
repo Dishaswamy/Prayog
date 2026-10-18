@@ -31,8 +31,8 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 import models as orm
-from logic.scheduler.domain import JobState, NodeState, PriorityClass, QueueReason
-from logic.scheduler.eligibility import is_eligible
+from logic.scheduler.domain import DonationMode, JobState, NodeState, NodeView, PriorityClass, QueueReason
+from logic.scheduler.eligibility import is_eligible, may_use, right_pool
 from logic.scheduler.loading import load_node_view, to_job_view
 from logic.scheduler.scoring import ScoreBreakdown
 
@@ -135,6 +135,16 @@ def _claim(
         .execution_options(populate_existing=True)
     ).first()
     if node is None or node.state != NodeState.AVAILABLE:
+        return ClaimOutcome(ClaimStatus.NODE_UNAVAILABLE)
+    # The pass picked this node from a snapshot. An admin may have changed how it is shared
+    # since (change_sharing locks this same row), so the pool and lab rules are re-checked on
+    # the row just locked: a job never lands on a node that is reserved or in the wrong pool.
+    fresh = NodeView(
+        node_id=node.id, owner_lab_id=node.owner_lab_id, donation_mode=DonationMode(node.donation_mode),
+        teaching_pool=node.teaching_pool, state=NodeState(node.state),
+    )
+    job_view = to_job_view(job)
+    if not (right_pool(job_view, fresh) and may_use(job_view, fresh)):
         return ClaimOutcome(ClaimStatus.NODE_UNAVAILABLE)
 
     # 3. The units: free, and no maintenance overlapping [now, now + walltime) (FR-GPU-034).
