@@ -41,6 +41,14 @@ def get_current_user(
             detail="User not found",
         )
 
+    # A password reset bumps token_version; tokens issued before it are dead.
+    # Tokens from before this field existed count as version 0.
+    if payload.get("ver", 0) != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired, please log in again",
+        )
+
     user.session_id = payload.get("jti") or hashlib.sha256(credentials.credentials.encode("utf-8")).hexdigest()
     return user
 

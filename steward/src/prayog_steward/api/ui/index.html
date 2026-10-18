@@ -27,8 +27,15 @@
     <form id="signin" class="turn" hidden>
       <p class="q">Sign in to Prayog to open this Steward link</p>
       <p class="muted">Only the owner of the failed rebuild can open it.</p>
-      <label for="email">Email</label>
-      <input id="email" type="email" autocomplete="username" required>
+      <label for="email">Email or user ID</label>
+      <input id="email" type="text" autocomplete="username" required>
+      <label for="role">Role</label>
+      <select id="role" required>
+        <option value="STUDENT">Student</option>
+        <option value="RESEARCHER">Researcher</option>
+        <option value="PROFESSOR">Professor</option>
+        <option value="ADMIN">Admin</option>
+      </select>
       <label for="password">Password</label>
       <input id="password" type="password" autocomplete="current-password" required>
       <button type="submit">Sign in and open</button>

@@ -26,7 +26,7 @@
 | Area | What it does |
 |---|---|
 | **Authentication** | Self-registration for `@iitk.ac.in` students and researchers; JWT login (60-minute tokens); Argon2 password hashing. Professors are added by an admin; the first admin is created by a script. |
-| **Authorisation** | Users request access. A request needs the approval of **both** their professor and an admin before it takes effect. Admins can revoke approved access. Roles: `STUDENT`, `RESEARCHER`, `PROFESSOR`, `ADMIN`. |
+| **Authorisation** | Users request access, saying whether it is for a course project or for research (`purpose`). A request needs the approval of **both** their professor and an admin before it takes effect. Admins can revoke approved access, and a student's access ends automatically after their end date. If the user still has unfinished GPU jobs, the revoke waits for them to finish. Roles: `STUDENT`, `RESEARCHER`, `PROFESSOR`, `ADMIN`. |
 | **GPU scheduling** | Jobs ask for a number of GPUs on one node and a walltime (`HH:MM`). A scheduler places them using **priority classes** (P0: your own lab's node, P1/P2: another lab's shared node, P3: teaching pool for course jobs), then a **fair-share score** inside each class (waiting time, recent usage with a 7-day half-life, lab contribution, job size). Retried submissions with the same `client_request_id` are idempotent. Course accounts have a GPU-hour quota. |
 | **Node management** | Admins register nodes; each node's agent enrols with a one-time token, then heartbeats, pulls its allocations, and reports how each run ended. Nodes can be drained, returned, decommissioned, and booked for maintenance windows. A reaper marks silent nodes down and requeues their jobs. |
 | **Steward (AI agent)** | **S1** diagnoses failed runs and may propose a corrected job (more GPUs or walltime) that the owner approves. **S2** warns admins when failures from several users point at the same GPU. **S3** gives a single-use chat link after a failed rebuild. **S4** gives optimisation advice after a successful rebuild, citing reference papers. The Steward only reads and reasons; the server validates and writes every record. |
@@ -219,7 +219,7 @@ curl http://127.0.0.1:8000/health
 
    ```bash
    curl -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" \
-        -d '{"email": "alice@iitk.ac.in", "password": "dev-password"}'
+        -d '{"email": "alice@iitk.ac.in", "password": "dev-password", "role": "STUDENT"}'
 
    curl -X POST http://127.0.0.1:8000/jobs -H "Authorization: Bearer <token>" \
         -H "Content-Type: application/json" \
@@ -273,8 +273,8 @@ Full request and response formats are in [API.md](API.md) and [API_STEWARD.md](A
 
 **Not built yet, or interim:**
 
-- **Password reset.** `API.md` documents `POST /auth/forgot-password` and `POST /auth/verify-otp`, but these routes are not in the code yet. Token revocation on password reset is also still to do.
-- **Labs and scheduling contexts** have no API yet. `seed_dev` inserts them directly.
+- **Labs** have no API yet. `seed_dev` inserts them directly. A user's scheduling context is created when their access request is approved: `COURSE_PROJECT` gives a course account in the central lab, `RESEARCH_PROJECT` a research account in the supervising professor's lab (set `lab_id` when creating the professor).
+- **Password reset emails.** The reset works, but without `SMTP_*` settings in `.env` the OTP is printed in the API terminal instead of being emailed.
 - **Real node execution.** The node agent in this repo is simulated. It does not start containers or touch real GPUs.
 - **Steward and ledger wiring.** The Experiment Ledger is in the repository, but the Steward still uses interim adapters: projects are scoped to their owner and `run_logs` holds the log tail.
 - **Not yet verified.** A live Claude call, the Docker image, and the S1 accuracy evaluation on real, hand-labelled failed runs. `steward/eval/` currently holds a synthetic seed set.

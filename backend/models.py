@@ -66,6 +66,38 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
 
+    # Bumped on every password reset. Stored inside the JWT, so all tokens
+    # issued before the reset stop working immediately.
+    token_version: Mapped[int] = mapped_column(
+        Integer, server_default=text("0"), default=0, nullable=False
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=UTC_NOW, nullable=False
+    )
+
+
+# ─────────────────────────────────────────────
+# Password reset by OTP
+# Step 1 stores the OTP + the new password (both hashed).
+# Step 2 applies the new password only if the OTP is correct.
+# ─────────────────────────────────────────────
+class PasswordResetOTP(Base):
+    __tablename__ = "password_reset_otps"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    otp_hash: Mapped[str] = mapped_column(String(64), nullable=False)            # HMAC of the 6 digits
+    new_password_hash: Mapped[str] = mapped_column(String(255), nullable=False)  # applied after OTP check
+
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"), default=0, nullable=False)
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)    # set when used or cancelled
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=UTC_NOW, nullable=False
     )
@@ -86,6 +118,9 @@ class Professor(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     department: Mapped[str] = mapped_column(String(100), nullable=False)
+    # The lab this professor runs. Research-project students and researchers are
+    # scheduled under it once approved. NULL until an admin assigns one.
+    lab_id: Mapped[int | None] = mapped_column(ForeignKey("labs.id"), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=UTC_NOW, nullable=False
@@ -102,11 +137,22 @@ class AccessRequest(Base):
         CheckConstraint(f"status_professor IN {DECISIONS}", name="ck_ar_status_professor"),
         CheckConstraint(f"status_admin IN {DECISIONS}", name="ck_ar_status_admin"),
         CheckConstraint(f"final_status IN {FINAL_STATUSES}", name="ck_ar_final_status"),
+        CheckConstraint(
+            "revoke_reason IS NULL OR revoke_reason IN ('ADMIN', 'EXPIRED')", name="ck_ar_revoke_reason"
+        ),
         # Students: end date required and after start. Researchers: no end date.
         CheckConstraint(
             "(role = 'RESEARCHER' AND end_date IS NULL) OR "
             "(role = 'STUDENT' AND end_date IS NOT NULL AND end_date > start_date)",
             name="ck_ar_dates",
+        ),
+        CheckConstraint(
+            "purpose IN ('COURSE_PROJECT', 'RESEARCH_PROJECT')", name="ck_ar_purpose"
+        ),
+        # Researchers always do research. Students choose: a course project (teaching
+        # pool) or research under a professor (lab GPUs).
+        CheckConstraint(
+            "role = 'STUDENT' OR purpose = 'RESEARCH_PROJECT'", name="ck_ar_purpose_role"
         ),
         Index("ix_ar_user_status", "user_id", "final_status"),
         Index("ix_ar_professor_status", "professor_id", "final_status"),
@@ -123,6 +169,10 @@ class AccessRequest(Base):
     course: Mapped[str] = mapped_column(String(100), nullable=False)
     branch: Mapped[str] = mapped_column(String(100), nullable=False)
 
+    # Why GPU access is requested. Decides the account type once approved:
+    # COURSE_PROJECT -> teaching pool, RESEARCH_PROJECT -> lab GPUs.
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False)
+
     # Resolved from the professor email submitted in the request
     professor_id: Mapped[int] = mapped_column(ForeignKey("professors.id"), nullable=False)
 
@@ -135,6 +185,14 @@ class AccessRequest(Base):
     status_professor: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False)
     status_admin: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False)
     final_status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False)
+
+    # Set when final_status becomes REVOKED. ADMIN: removed by an admin.
+    # EXPIRED: a student's end date passed and the system removed access.
+    # revoke_requested_at: an admin revoked it or the student expired, but the user still
+    # has unfinished jobs, so access ends when they finish. No new work is accepted meanwhile.
+    revoke_requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoke_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=UTC_NOW, nullable=False
