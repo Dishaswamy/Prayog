@@ -22,6 +22,8 @@ class AccessRequestCreate(BaseModel):
     role: Literal["STUDENT", "RESEARCHER"]
     course: str = Field(min_length=1, max_length=100)
     branch: str = Field(min_length=1, max_length=100)
+    # Students choose; researchers are always RESEARCH_PROJECT (default if omitted)
+    purpose: Literal["COURSE_PROJECT", "RESEARCH_PROJECT"] | None = None
     professor_email: EmailStr
     roll_number: str = Field(min_length=1, max_length=50)   # required for both roles
     start_date: datetime
@@ -30,6 +32,11 @@ class AccessRequestCreate(BaseModel):
     @field_validator("role", mode="before")
     @classmethod
     def upper_role(cls, v):
+        return v.upper() if isinstance(v, str) else v
+
+    @field_validator("purpose", mode="before")
+    @classmethod
+    def upper_purpose(cls, v):
         return v.upper() if isinstance(v, str) else v
 
     @field_validator("start_date", "end_date")
@@ -56,6 +63,7 @@ class AccessRequestOut(BaseModel):
     role: str
     course: str
     branch: str
+    purpose: str
     professor_id: int
     roll_number: str
     start_date: datetime
@@ -63,5 +71,8 @@ class AccessRequestOut(BaseModel):
     status_professor: str
     status_admin: str
     final_status: str
+    revoke_requested_at: datetime | None
+    revoked_at: datetime | None
+    revoke_reason: str | None
     created_at: datetime
     updated_at: datetime

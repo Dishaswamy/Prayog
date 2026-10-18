@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import sessionmaker
 
+from logic.access_request import sweep_access_revocations
 from logic.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
 from logic.scheduler.passes import Trigger, run_pass
 from logic.scheduler.reaper import reap
@@ -31,6 +32,8 @@ def run_ticks(
         try:
             with sessions() as session:
                 reap(session, cfg=cfg)            # timeouts, stops and retirements first
+                if sweep_access_revocations(session):   # expired students, and revokes waiting on jobs
+                    log.info("ended access that was due")
             run_pass(sessions, Trigger.TICK, cfg=cfg)
         except Exception:                         # a failed pass must not stop the tick; the next one retries
             log.exception("tick pass failed")

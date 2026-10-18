@@ -154,9 +154,9 @@ Logs in and returns a JWT.
 **Body**
 | Field | Type | Rules |
 |---|---|---|
-| `email` | string | registered email (any case) |
+| `email` | string | registered email **or user ID** (the part before `@`), any case |
 | `password` | string | |
-| `role` | string | must match the account's role |
+| `role` | string | `STUDENT` / `RESEARCHER` / `PROFESSOR` / `ADMIN`; must match the account's role |
 
 ```json
 { "email": "dishac22@iitk.ac.in", "password": "MyPass1234", "role": "STUDENT" }
@@ -169,7 +169,7 @@ Logs in and returns a JWT.
 
 | Error | When |
 |---|---|
-| 401 `Invalid email, password or role` | any of the three is wrong (deliberately the same message) |
+| 401 `Invalid email, password or role` | unknown account, wrong password or wrong role (deliberately the same message) |
 | 422 | missing field or invalid role value |
 
 ```bash
@@ -213,9 +213,10 @@ New professors use this to set their first password.
 |---|---|---|
 | `email` | string | registered email |
 | `new_password` | string | 8–128 characters |
+| `confirm_password` | string, optional | the password typed a second time; if sent, it must equal `new_password` |
 
 ```json
-{ "email": "dishac22@iitk.ac.in", "new_password": "NewPass5678" }
+{ "email": "dishac22@iitk.ac.in", "new_password": "NewPass5678", "confirm_password": "NewPass5678" }
 ```
 
 **200**, always the same, whether or not the email exists:
@@ -231,7 +232,7 @@ New professors use this to set their first password.
 
 | Error | When |
 |---|---|
-| 422 | invalid email or password shorter than 8 characters |
+| 422 | invalid email, password shorter than 8 characters, or `confirm_password` differs |
 
 ---
 
@@ -282,7 +283,7 @@ Lists all professors, for example to fill the "choose professor" dropdown on the
 ### POST /professors
 Creates a professor: the `PROFESSOR` login account and the professor profile, in one transaction.
 
-The account gets a **random password that nobody sees**. Tell the professor to set their own with [forgot-password](#post-authforgot-password).
+If you leave out `password`, the server generates one and returns it **once**, in `temporary_password`. Give it to the professor: they log in with it directly (role `PROFESSOR`) and can change it later with [forgot-password](#post-authforgot-password). It is not stored in readable form, so it cannot be shown again.
 
 **Auth:** `ADMIN`
 
@@ -292,14 +293,16 @@ The account gets a **random password that nobody sees**. Tell the professor to s
 | `name` | string | 1–100 characters |
 | `email` | string | `@iitk.ac.in` |
 | `department` | string | 1–100 characters |
+| `lab_id` | integer, optional | the lab this professor runs; research students and researchers they approve are scheduled under it |
+| `password` | string, optional, 8–128 characters | leave it out (recommended) and the server generates one and returns it once as `temporary_password` |
 
 ```json
-{ "name": "Prof A", "email": "profa@iitk.ac.in", "department": "AE" }
+{ "name": "Prof A", "email": "profa@iitk.ac.in", "department": "AE", "lab_id": 1 }
 ```
 
-**201** returns a [Professor](#professor)
+**201** returns a [Professor](#professor) plus `temporary_password` (only when the server generated one; shown once)
 ```json
-{ "id": 1, "name": "Prof A", "email": "profa@iitk.ac.in", "department": "AE" }
+{ "id": 1, "name": "Prof A", "email": "profa@iitk.ac.in", "department": "AE", "lab_id": 1, "temporary_password": "k3Jx9...generated" }
 ```
 
 | Error | When |
@@ -325,6 +328,7 @@ Submits an access request.
 | `role` | string | `STUDENT` / `RESEARCHER`; must match your registered role |
 | `course` | string | 1–100 characters |
 | `branch` | string | 1–100 characters |
+| `purpose` | string | `COURSE_PROJECT` (teaching pool) / `RESEARCH_PROJECT` (lab GPUs). **Students:** required. **Researchers:** defaults to `RESEARCH_PROJECT`; `COURSE_PROJECT` is refused |
 | `professor_email` | string | email of an existing professor |
 | `roll_number` | string | 1–50 characters, required for both roles |
 | `start_date` | date-time | required |
@@ -336,6 +340,7 @@ Submits an access request.
   "role": "STUDENT",
   "course": "BTech",
   "branch": "AE",
+  "purpose": "COURSE_PROJECT",
   "professor_email": "profa@iitk.ac.in",
   "roll_number": "220345",
   "start_date": "2026-10-15T00:00:00",
@@ -347,6 +352,8 @@ Submits an access request.
 
 | Error | When |
 |---|---|
+| 400 `Purpose is required for students…` | student without `purpose` |
+| 400 `Researchers can only request RESEARCH_PROJECT access` | researcher sent `COURSE_PROJECT` |
 | 400 `End date is required for students` | student without `end_date` |
 | 400 `End date must be after start date` | |
 | 403 `Requires role: STUDENT, RESEARCHER` | caller is a professor or admin |
@@ -488,6 +495,7 @@ Removes approved access. Deletes the user's `students`/`researchers` row and set
 | `name` | string |
 | `email` | string |
 | `department` | string |
+| `lab_id` | integer or null, the lab this professor runs |
 
 ### AccessRequest
 | Field | Type | Description |
@@ -498,6 +506,7 @@ Removes approved access. Deletes the user's `students`/`researchers` row and set
 | `role` | string | `STUDENT` / `RESEARCHER` |
 | `course` | string | |
 | `branch` | string | |
+| `purpose` | string | `COURSE_PROJECT` / `RESEARCH_PROJECT` |
 | `professor_id` | integer | the professor the request is addressed to |
 | `roll_number` | string | |
 | `start_date` | date-time | UTC |
@@ -505,6 +514,9 @@ Removes approved access. Deletes the user's `students`/`researchers` row and set
 | `status_professor` | string | `PENDING` / `APPROVED` / `REJECTED` |
 | `status_admin` | string | `PENDING` / `APPROVED` / `REJECTED` |
 | `final_status` | string | `PENDING` / `APPROVED` / `REJECTED` / `REVOKED` |
+| `revoke_requested_at` | date-time or null | UTC. Set while a revoke is pending: the user still has unfinished GPU jobs, so no new work is accepted and access ends when they finish. `final_status` stays `APPROVED` until then |
+| `revoked_at` | date-time or null | UTC, set when `final_status` becomes `REVOKED` |
+| `revoke_reason` | string or null | `ADMIN` (removed by an admin) or `EXPIRED` (a student's `end_date` passed; revoked automatically) |
 | `created_at` | date-time | UTC |
 | `updated_at` | date-time | UTC, changes on every decision |
 
@@ -516,6 +528,7 @@ Removes approved access. Deletes the user's `students`/`researchers` row and set
   "role": "STUDENT",
   "course": "BTech",
   "branch": "AE",
+  "purpose": "COURSE_PROJECT",
   "professor_id": 1,
   "roll_number": "220345",
   "start_date": "2026-10-15T00:00:00",

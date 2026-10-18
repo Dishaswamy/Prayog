@@ -125,9 +125,11 @@ def submit_job(
             return Submission(original, created=False)
         raise ConflictError("This client request ID was already used for an earlier request.")
 
+    account_type = authorized_account_type(db, user_id, context, now)
+
     gpu_count = parse_gpus(gpus)
     minutes = parse_walltime(walltime, cfg)
-    check_request(db, context.lab_id, context.account_type, gpu_count, minutes, cfg, cap=context.course_cap_gpu_hours)
+    check_request(db, context.lab_id, account_type, gpu_count, minutes, cfg, cap=context.course_cap_gpu_hours)
 
     active = db.scalar(
         select(func.count()).select_from(orm.Job)
@@ -145,7 +147,7 @@ def submit_job(
         snapshot_hash=snapshot_hash,
         reproduces=reproduces,
         lab_id=context.lab_id,
-        account_type=context.account_type,
+        account_type=account_type,
         gpus=gpu_count,
         walltime_minutes=minutes,
         state=JobState.QUEUED,
@@ -156,6 +158,39 @@ def submit_job(
     db.add(job)
     db.commit()
     return Submission(job, created=True)
+
+
+def authorized_account_type(
+    db: Session, user_id: int, context: orm.SchedulingContext, now: datetime
+) -> AccountType:
+    """
+    The pool a user may schedule on, decided by the purpose of their approved access
+    request: COURSE_PROJECT -> course account (teaching pool), RESEARCH_PROJECT ->
+    research account (their lab's and shared GPUs). Access that was never approved,
+    was revoked, or has passed its end date is inactive. The context row only
+    supplies the lab, and must agree with the purpose.
+    """
+    approved = db.scalars(
+        select(orm.AccessRequest)
+        .where(orm.AccessRequest.user_id == user_id, orm.AccessRequest.final_status == "APPROVED")
+        .order_by(orm.AccessRequest.id.desc())
+    ).first()
+    if approved is None:
+        raise SubmissionRejected(RejectCode.AUTHORIZATION_INACTIVE, "You have no approved GPU access request.")
+    if approved.revoke_requested_at is not None:
+        raise SubmissionRejected(
+            RejectCode.AUTHORIZATION_INACTIVE, "Your GPU access is ending; no new work is accepted."
+        )
+    if approved.end_date is not None and approved.end_date <= now:
+        raise SubmissionRejected(RejectCode.AUTHORIZATION_INACTIVE, "Your GPU access has ended.")
+
+    account_type = AccountType.COURSE if approved.purpose == "COURSE_PROJECT" else AccountType.RESEARCH
+    if context.account_type != account_type:
+        raise SubmissionRejected(
+            RejectCode.AUTHORIZATION_INACTIVE,
+            f"Your GPU account does not match your approved purpose ({approved.purpose}). Ask an admin to fix it.",
+        )
+    return account_type
 
 
 def check_request(
@@ -313,8 +348,13 @@ def edit_job(
 
         new_gpus = job.gpus if gpus is UNCHANGED else parse_gpus(gpus)
         new_minutes = job.walltime_minutes if walltime is UNCHANGED else parse_walltime(walltime, cfg)
+        # A job already submitted keeps running if access ends, but it can no longer be
+        # changed: editing needs the same active access as submitting.
         context = db.get(orm.SchedulingContext, user_id)
-        cap = context.course_cap_gpu_hours if context is not None else None
+        if context is None:
+            raise SubmissionRejected(RejectCode.AUTHORIZATION_INACTIVE, "You have no active GPU authorization.")
+        authorized_account_type(db, user_id, context, now)
+        cap = context.course_cap_gpu_hours
         check_request(db, job.lab_id, job.account_type, new_gpus, new_minutes, cfg, cap=cap, editing_job_id=job.id)
 
         if new_gpus > job.gpus or new_minutes > job.walltime_minutes:

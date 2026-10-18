@@ -174,7 +174,7 @@ async function askToSignIn(token) {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: $("email").value, password: $("password").value }),
+        body: JSON.stringify({ email: $("email").value, password: $("password").value, role: $("role").value }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.access_token) throw new Error(body.detail || "Sign-in failed.");

@@ -36,7 +36,7 @@ class MLFlowEndToEndTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         response = self.client.post(
             "/auth/login",
-            json={"email": email, "password": "Test-password-2026!"},
+            json={"email": email, "password": "Test-password-2026!", "role": "STUDENT"},
         )
         self.assertEqual(response.status_code, 200, response.text)
         self.client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})

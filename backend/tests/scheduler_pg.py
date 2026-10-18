@@ -12,7 +12,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import any_
+from sqlalchemy import any_, select
 
 import models as orm
 from database import SessionLocal
@@ -44,7 +44,9 @@ class SchedulerPostgresCase(unittest.TestCase):
         self.db.commit()
         return lab
 
-    def make_user(self, label: str, role: str = "RESEARCHER", lab: orm.Lab | None = None) -> orm.User:
+    def make_user(
+        self, label: str, role: str = "RESEARCHER", lab: orm.Lab | None = None, access: bool = True
+    ) -> orm.User:
         user = orm.User(
             user_id=f"{label}-{self.suffix}"[:50],
             email=f"{label}-{self.suffix}@example.test",
@@ -57,8 +59,33 @@ class SchedulerPostgresCase(unittest.TestCase):
             self.db.add(orm.SchedulingContext(
                 user_id=user.id, lab_id=(lab or self.lab).id, account_type=AccountType.RESEARCH,
             ))
+            self.db.flush()
+            if access and role in ("STUDENT", "RESEARCHER"):
+                self.approve_access(user, role)
         self.db.commit()
         return user
+
+    def approve_access(self, user: orm.User, role: str, purpose: str = "RESEARCH_PROJECT") -> orm.AccessRequest:
+        """An APPROVED access request, which job submission requires."""
+        professor = self.db.scalars(select(orm.Professor).where(orm.Professor.email == f"prof-{self.suffix}@example.test")).first()
+        if professor is None:
+            prof_user = orm.User(
+                user_id=f"prof-{self.suffix}"[:50], email=f"prof-{self.suffix}@example.test",
+                password_hash="not-a-real-password-hash", role="PROFESSOR",
+            )
+            self.db.add(prof_user)
+            self.db.flush()
+            professor = orm.Professor(user_id=prof_user.id, name="Prof", email=prof_user.email, department="CSE")
+            self.db.add(professor)
+            self.db.flush()
+        request = orm.AccessRequest(
+            user_id=user.id, name=user.user_id, role=role, course="BTech", branch="CSE", purpose=purpose,
+            professor_id=professor.id, roll_number=f"r-{user.user_id}"[:50], start_date=self.now - timedelta(days=1),
+            end_date=self.now + timedelta(days=30) if role == "STUDENT" else None,
+            status_professor="APPROVED", status_admin="APPROVED", final_status="APPROVED",
+        )
+        self.db.add(request)
+        return request
 
     def make_node(
         self,

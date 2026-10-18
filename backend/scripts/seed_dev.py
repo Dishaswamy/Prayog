@@ -28,7 +28,7 @@ from logic.access_request import create_access_request, decide_access_request
 from logic.admin import create_professor
 from logic.auth import create_user_record, register_user
 from logic.scheduler.claim import utc_now
-from logic.scheduler.domain import AccountType, DonationMode
+from logic.scheduler.domain import DonationMode
 from logic.scheduler.nodes import register_node
 
 NODES = (("n1", "vision"), ("n2", "nlp"))
@@ -59,6 +59,9 @@ def seed(password: str) -> dict[str, str]:
                 db.add(lab)
                 db.flush()
             labs[name] = lab
+        prof_row = db.scalars(select(orm.Professor).where(orm.Professor.user_id == prof.id)).one()
+        if prof_row.lab_id is None:
+            prof_row.lab_id = labs["vision"].id      # approval puts research users in this lab
         db.commit()
         for node_name, lab in NODES:
             if db.scalars(select(orm.Node.id).where(orm.Node.name == node_name)).first() is None:
@@ -76,14 +79,15 @@ def seed(password: str) -> dict[str, str]:
             if db.get(orm.SchedulingContext, user.id) is None:
                 request = create_access_request(
                     db, user, name=name, role=role, course="BTech", branch="CSE",
+                    purpose="RESEARCH_PROJECT",
                     professor_email="prof@iitk.ac.in", roll_number=roll,
                     start_date=today - timedelta(days=1),
                     end_date=today + timedelta(days=180) if role == "STUDENT" else None,
                 )
                 decide_access_request(db, request.id, prof, "APPROVED")
                 decide_access_request(db, request.id, admin, "APPROVED")
-                db.add(orm.SchedulingContext(user_id=user.id, lab_id=labs[lab].id,
-                                             account_type=AccountType.RESEARCH))
+                # approval created the context under the professor's lab; bob works in nlp
+                db.get(orm.SchedulingContext, user.id).lab_id = labs[lab].id
                 db.commit()
     return tokens
 

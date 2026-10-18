@@ -5,7 +5,7 @@ from database import get_db
 from logic.admin import create_professor, list_professors
 from logic.dependencies import get_current_user, require_roles
 from models import User
-from schemas.professor import ProfessorCreate, ProfessorOut
+from schemas.professor import ProfessorCreate, ProfessorCreatedOut, ProfessorOut
 
 router = APIRouter(prefix="/professors", tags=["professors"])
 
@@ -20,7 +20,7 @@ def all_professors(
 
 
 # Admin only: create a professor account + profile
-@router.post("", response_model=ProfessorOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ProfessorCreatedOut, status_code=status.HTTP_201_CREATED)
 def add_professor(
     body: ProfessorCreate,
     db: Session = Depends(get_db),
@@ -32,4 +32,5 @@ def add_professor(
         email=body.email,
         department=body.department,
         password=body.password,
+        lab_id=body.lab_id,
     )
