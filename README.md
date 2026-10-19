@@ -255,7 +255,7 @@ Every protected endpoint takes `Authorization: Bearer <token>` from `/auth/login
 | Area | Endpoints | Who |
 |---|---|---|
 | Health and metrics | `GET /health`, `GET /metrics` | anyone |
-| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` | anyone / logged in |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | anyone / logged in |
 | Professors | `GET /professors`, `POST /professors` | logged in / ADMIN |
 | Access requests | `POST /access-requests`, `GET /access-requests/me`, `GET /access-requests`, `GET /access-requests/{id}`, `POST /access-requests/{id}/decision`, `POST /access-requests/{id}/revoke` | students and researchers request; professors and admins decide; admins revoke |
 | Jobs | `POST /jobs`, `GET /jobs/quota`, `GET /jobs/{id}`, `PATCH /jobs/{id}`, `POST /jobs/{id}/cancel` | logged in |

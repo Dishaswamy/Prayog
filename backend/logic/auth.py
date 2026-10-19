@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from logic.errors import BadRequestError, ConflictError, ForbiddenError
-from models import PasswordResetOTP, User
+from models import PasswordResetOTP, RevokedToken, User
 
 load_dotenv()
 
@@ -124,6 +124,22 @@ def create_access_token(user: User) -> str:
         "exp": expire,
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def revoke_session(db: Session, user: User) -> None:
+    """
+    Log out the token the caller used (set on `user` by get_current_user). Other
+    sessions of the same user are not touched. Rows for tokens that have expired
+    anyway are dropped here, so the table stays small.
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    expires_at = datetime.fromtimestamp(int(user.token_exp), timezone.utc).replace(tzinfo=None)
+    db.query(RevokedToken).filter(RevokedToken.expires_at < now).delete(synchronize_session=False)
+    db.add(RevokedToken(jti=user.session_id, user_id=user.id, expires_at=expires_at))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()       # two logouts at the same moment: already revoked, which is the goal
 
 
 # ─────────────────────────────────────────────

@@ -104,6 +104,23 @@ class PasswordResetOTP(Base):
 
 
 # ─────────────────────────────────────────────
+# Logged-out sessions. A JWT can't be recalled, so logout records its jti here and
+# get_current_user rejects it until it would have expired anyway (then the row is pruned).
+# ─────────────────────────────────────────────
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True, nullable=False)   # the token's own exp
+    revoked_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=UTC_NOW, nullable=False
+    )
+
+
+# ─────────────────────────────────────────────
 # Professor profile (one per PROFESSOR user, created by an admin)
 # ─────────────────────────────────────────────
 class Professor(Base):

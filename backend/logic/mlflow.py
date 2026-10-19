@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from math import isfinite
 from uuid import uuid4
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -68,9 +69,19 @@ def _owned_rebuild(db: Session, rebuild_id: int, user: User) -> RebuildAttempt:
 
 
 def create_project(db: Session, user: User, name: str, description: str | None) -> Project:
-    item = Project(project_id=str(uuid4()), user_id=user.id, name=name.strip(), description=description)
+    name = name.strip()
+    taken = db.query(Project.project_id).filter(
+        Project.user_id == user.id, func.lower(Project.name) == name.lower()
+    ).first()
+    if taken:
+        raise ConflictError(f"You already have a project named '{name}'")
+    item = Project(project_id=str(uuid4()), user_id=user.id, name=name, description=description)
     db.add(item)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:          # two creates of the same name at the same moment
+        db.rollback()
+        raise ConflictError(f"You already have a project named '{name}'")
     db.refresh(item)
     return item
 

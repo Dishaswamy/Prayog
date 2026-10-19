@@ -42,7 +42,7 @@ class MLFlowEndToEndTests(unittest.TestCase):
         self.client.headers.update({"Authorization": f"Bearer {response.json()['access_token']}"})
 
     def create_run(self, script):
-        response = self.client.post("/mlflow/projects", json={"name": "E2E project"})
+        response = self.client.post("/mlflow/projects", json={"name": f"E2E project {uuid4().hex[:8]}"})   # names are unique per user
         self.assertEqual(response.status_code, 201, response.text)
         project_id = response.json()["project_id"]
 

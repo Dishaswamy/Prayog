@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from logic.auth import ALGORITHM, SECRET_KEY
-from models import User
+from models import RevokedToken, User
 
 security = HTTPBearer()
 
@@ -49,7 +49,17 @@ def get_current_user(
             detail="Session expired, please log in again",
         )
 
-    user.session_id = payload.get("jti") or hashlib.sha256(credentials.credentials.encode("utf-8")).hexdigest()
+    session_id = payload.get("jti") or hashlib.sha256(credentials.credentials.encode("utf-8")).hexdigest()
+
+    # POST /auth/logout puts the token here; it stays dead until it would have expired.
+    if db.get(RevokedToken, session_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Logged out, please log in again",
+        )
+
+    user.session_id = session_id
+    user.token_exp = payload.get("exp")      # unix seconds; used by logout to know how long to remember it
     return user
 
 
@@ -67,3 +77,4 @@ def require_roles(*roles: str):
         return current_user
 
     return checker
+

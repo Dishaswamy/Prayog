@@ -19,6 +19,8 @@ For architecture, setup and the reasons behind the rules, see [README.md](README
 - [Auth (authentication)](#auth-authentication)
   - [POST /auth/register](#post-authregister)
   - [POST /auth/login](#post-authlogin)
+  - [POST /auth/cli/login](#post-authclilogin)
+  - [POST /auth/logout](#post-authlogout)
   - [GET /auth/me](#get-authme)
   - [POST /auth/forgot-password](#post-authforgot-password)
   - [POST /auth/verify-otp](#post-authverify-otp)
@@ -46,7 +48,7 @@ Protected endpoints need the token from `/auth/login`:
 Authorization: Bearer <access_token>
 ```
 
-Tokens expire after **60 minutes**, and also stop working when the user resets their password.
+Tokens expire after **60 minutes**, and also stop working when the user resets their password or calls [logout](#post-authlogout).
 
 ### Enum values
 Values are **uppercase**. Request bodies also accept lowercase for `role` and `status` (`"student"` becomes `"STUDENT"`).
@@ -180,6 +182,61 @@ curl -X POST http://127.0.0.1:8000/auth/login \
 
 ---
 
+### POST /auth/cli/login
+The login used by the `prayog` command line. Same body, same token and same generic `401` as [POST /auth/login](#post-authlogin), but it only succeeds for users who **currently have access**. The web portal keeps using `/auth/login`, because a student has to log in there to request access in the first place.
+
+**Auth:** none
+
+**Body:** same as `/auth/login` (`email`, `password`, `role`)
+
+**200** `{ "access_token": "...", "token_type": "bearer" }`
+
+| Error | When |
+|---|---|
+| 401 `Invalid email, password or role` | unknown account, wrong password or wrong role (the same message as `/auth/login`; it says nothing about access) |
+| 403 `code: INSUFFICIENT_PERMISSION` | the password was right but access was never approved: no request, still waiting for the professor and/or admin, or rejected (the `detail` says which) |
+| 403 `code: ACCESS_EXPIRED` | a student's approved period has ended (checked against server time, even before the automatic revoke runs) |
+| 403 `code: ACCESS_REVOKED` | an admin revoked the access |
+
+Students and researchers need an approved access record; professors need a professor profile; admins always pass. The check happens **at login only**: a token already issued keeps working until it expires (60 minutes) or is logged out, even if access is revoked later.
+
+---
+
+### POST /auth/logout
+Ends **this login**: the token in the `Authorization` header stops working at once, on every protected endpoint. The user's other logins (another browser, the CLI) are not affected. Used by `prayog logout` and available to the web portal.
+
+The server remembers the token only until it would have expired anyway, then forgets it.
+
+**For the web portal (frontend):** the "Log out" button must call this endpoint with the user's token **first**, and only then delete the token it stored in the browser. Deleting the stored token alone only hides it: the token stays valid on the server until it expires (60 minutes), so a copy of it (shared computer, leaked log) would still work. Clear the stored token even if the call fails (for example, offline), so the user always appears logged out. A `401` reply means the token is already dead, which is fine.
+
+```js
+async function logout() {
+  try {
+    await fetch(`${API}/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+  } finally {
+    localStorage.removeItem("token");   // wherever the portal keeps it
+  }
+}
+```
+
+The terminal (`prayog logout`) and the browser have separate tokens, so logging out in one does not log out the other.
+
+**Auth:** any logged-in user
+
+**Body:** none
+
+**200**
+```json
+{ "message": "Logged out." }
+```
+
+| Error | When |
+|---|---|
+| 401 `Logged out, please log in again` | this token was already logged out (so a second logout also gets this) |
+| 401 / 403 | missing, invalid or expired token |
+
+---
+
 ### GET /auth/me
 Returns the logged-in user.
 
@@ -195,6 +252,7 @@ Returns the logged-in user.
 | 401 `Invalid authentication token` | missing, malformed or tampered token |
 | 401 `Token has expired` | more than 60 minutes after login |
 | 401 `Session expired, please log in again` | the password was reset after this token was issued |
+| 401 `Logged out, please log in again` | the token was ended with `POST /auth/logout` |
 | 401 `User not found` | the account no longer exists |
 
 These 401 errors apply to **every** protected endpoint.
@@ -550,6 +608,8 @@ Removes approved access. Deletes the user's `students`/`researchers` row and set
 | GET | `/health` | none | API and database status |
 | POST | `/auth/register` | none | create a student/researcher account |
 | POST | `/auth/login` | none | get a JWT (email + password + role) |
+| POST | `/auth/cli/login` | none | terminal login: like `/auth/login`, but only for users with current access |
+| POST | `/auth/logout` | any | end this login (the token stops working) |
 | GET | `/auth/me` | any | current user |
 | POST | `/auth/forgot-password` | none | step 1: email + new password → OTP emailed |
 | POST | `/auth/verify-otp` | none | step 2: email + OTP → password changed |
