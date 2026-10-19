@@ -11,7 +11,7 @@ class ArtifactStorageTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name) / "artifacts"
+        self.root = Path(self.temporary.name).resolve() / "artifacts"
         self.root.mkdir(mode=0o700)
         self.root_patch = patch.object(artifact_storage, "ARTIFACT_ROOT", self.root)
         self.root_patch.start()

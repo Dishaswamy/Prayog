@@ -22,7 +22,7 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
     async def test_upload_records_server_computed_digest_and_download_verifies_it(self):
         payload = b"private model source archive"
         with tempfile.TemporaryDirectory() as directory:
-            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory)), patch("logic.artifact_storage.ARTIFACT_ROOT", Path(directory)):
+            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory).resolve()), patch("logic.artifact_storage.ARTIFACT_ROOT", Path(directory).resolve()):
                 db = MagicMock()
                 user = SimpleNamespace(id=9)
                 experiment = SimpleNamespace(id=4, project_id="project-1", model_id="model-1")
@@ -32,7 +32,7 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(artifact.sha256, hashlib.sha256(payload).hexdigest())
                 self.assertEqual(artifact.size_bytes, len(payload))
-                stored = Path(directory) / artifact.storage_key
+                stored = Path(directory).resolve() / artifact.storage_key
                 self.assertEqual(stored.read_bytes(), payload)
 
                 db.query.return_value.filter.return_value.first.return_value = artifact
@@ -46,7 +46,7 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_empty_upload_is_rejected_and_not_registered(self):
         with tempfile.TemporaryDirectory() as directory:
-            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory)):
+            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory).resolve()):
                 db = MagicMock()
                 with self.assertRaises(BadRequestError):
                     await store_artifact(
