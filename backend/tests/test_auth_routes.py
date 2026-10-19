@@ -118,3 +118,48 @@ class AuthRouteTests(SchedulerPostgresCase):
         # the password is shown once: the list never includes it
         listing = self.client.get("/professors", headers=auth).json()
         self.assertTrue(all("temporary_password" not in p for p in listing))
+
+    def test_logout_ends_only_that_session(self):
+        self._register()
+        first = {"Authorization": f"Bearer {self._login(self.email, OLD, 'STUDENT').json()['access_token']}"}
+        second = {"Authorization": f"Bearer {self._login(self.email, OLD, 'STUDENT').json()['access_token']}"}
+        self.assertEqual(self.client.get("/auth/me", headers=first).status_code, 200)
+
+        r = self.client.post("/auth/logout", headers=first)
+        self.assertEqual((r.status_code, r.json()["message"]), (200, "Logged out."))
+
+        # the token that logged out is dead for every protected route...
+        for path in ("/auth/me", "/access-requests/me", "/professors"):
+            r = self.client.get(path, headers=first)
+            self.assertEqual((r.status_code, r.json()["detail"]), (401, "Logged out, please log in again"), path)
+        # ...a second login (another browser, another terminal) is untouched
+        self.assertEqual(self.client.get("/auth/me", headers=second).status_code, 200)
+        # and logging in again works
+        again = {"Authorization": f"Bearer {self._login(self.email, OLD, 'STUDENT').json()['access_token']}"}
+        self.assertEqual(self.client.get("/auth/me", headers=again).status_code, 200)
+
+    def test_logout_twice_and_without_a_token(self):
+        self._register()
+        auth = {"Authorization": f"Bearer {self._login(self.email, OLD, 'STUDENT').json()['access_token']}"}
+        self.assertEqual(self.client.post("/auth/logout", headers=auth).status_code, 200)
+        self.assertEqual(self.client.post("/auth/logout", headers=auth).status_code, 401)   # already logged out
+        self.assertIn(self.client.post("/auth/logout").status_code, (401, 403))              # no token at all
+
+    def test_logout_remembers_the_token_only_until_it_expires(self):
+        from datetime import datetime, timedelta, timezone
+
+        from models import RevokedToken
+        self._register()
+        auth = {"Authorization": f"Bearer {self._login(self.email, OLD, 'STUDENT').json()['access_token']}"}
+        self.client.post("/auth/logout", headers=auth)
+        with SessionLocal() as db:
+            row = db.query(RevokedToken).order_by(RevokedToken.revoked_at.desc()).first()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            self.assertTrue(now < row.expires_at <= now + timedelta(minutes=61))
+            row.expires_at = now - timedelta(seconds=1)     # pretend the token has expired
+            db.commit()
+        # the next logout (any user) prunes expired rows
+        other = {"Authorization": f"Bearer {self._login(self.email, OLD, 'STUDENT').json()['access_token']}"}
+        self.client.post("/auth/logout", headers=other)
+        with SessionLocal() as db:
+            self.assertEqual(db.query(RevokedToken).filter(RevokedToken.expires_at < now).count(), 0)

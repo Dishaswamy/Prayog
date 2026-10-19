@@ -16,7 +16,7 @@ Set `PRAYOG_ARTIFACT_ROOT` to a private local cache/staging directory writable b
 
 ## CLI client
 
-Set `PRAYOG_API_URL` and `PRAYOG_TOKEN`, then run commands from `backend` with `python mlflow_cli.py --help`. The client supports `create-project`, `create-model`, `create-experiment`, `create-run`, `start-run` (including worker-managed execution via `--code-artifact-id` and optional `--weights-artifact-id`), `upload-artifact`, `download-artifact`, `list-snapshots`, `snapshot`, `run-status`, `metric`, `finish-run`, `rebuild`, `rebuild-status`, and `finish-rebuild`. It uploads local files as artifact bytes and passes only server-issued artifact IDs to lifecycle endpoints. Keep the token in the environment rather than the shell command history.
+Set `PRAYOG_API_URL` and `PRAYOG_TOKEN`, then run commands from `backend` with `python mlflow_cli.py --help`. Projects are created with the Prayog CLI (`prayog project create NAME`, see `cli/README.md`), not with this script. The client supports `create-model`, `create-experiment`, `create-run`, `start-run` (including worker-managed execution via `--code-artifact-id` and optional `--weights-artifact-id`), `upload-artifact`, `download-artifact`, `list-snapshots`, `snapshot`, `run-status`, `metric`, `finish-run`, `rebuild`, `rebuild-status`, and `finish-rebuild`. It uploads local files as artifact bytes and passes only server-issued artifact IDs to lifecycle endpoints. Keep the token in the environment rather than the shell command history.
 
 The CLI is an API client, not a sandbox or execution worker. The rebuild command records a rebuild request and returns the new attempt/execution IDs. When `start-run` receives a verified `--code-artifact-id`, it moves the first-time run to `QUEUED`; the separate `mlflow_worker.py` process claims it and moves it to `RUNNING`. The worker consumes queued first-time runs and rebuild attempts and executes the archived project in a restricted Docker container. It does not run user code in the API process.
 
@@ -25,7 +25,7 @@ Example first-time run (replace the IDs and file paths with the values returned 
 ```sh
 export PRAYOG_API_URL=http://localhost:8000
 export PRAYOG_TOKEN="paste-your-existing-bearer-token-here"
-python mlflow_cli.py create-project --name "research-project"
+# first, with the Prayog CLI:  prayog project create research-project   (prints the project ID)
 python mlflow_cli.py create-model --project-id "PROJECT_ID_FROM_RESPONSE" --name "baseline-model"
 python mlflow_cli.py create-experiment --project-id "PROJECT_ID_FROM_RESPONSE" --model-id "MODEL_ID_FROM_RESPONSE" --name "baseline-training"
 python mlflow_cli.py create-run --experiment-id 1 --hyperparameters-json '{"learning_rate": 0.001}' --environment-json '{"python": "3.12"}'
@@ -63,7 +63,7 @@ The response reports each metric and step, expected and actual values, absolute 
 
 ## Lifecycle
 
-1. Create a project using `POST /mlflow/projects`, then create a model in that project using `POST /mlflow/projects/{project_id}/models`. Project IDs and model IDs are separate, user-owned namespaces.
+1. Create a project using `POST /mlflow/projects`, then create a model in that project using `POST /mlflow/projects/{project_id}/models`. Project IDs and model IDs are separate, user-owned namespaces. A user's project names are unique, ignoring case and surrounding spaces; creating a second project with the same name returns `409 You already have a project named 'X'`.
 2. Create an experiment using `POST /mlflow/experiments` with both `project_id` and `model_id`. The server verifies that the model belongs to the authenticated user's project.
 3. Create a run using `POST /mlflow/experiments/{experiment_id}/runs`.
 4. Start it with `POST /mlflow/runs/{run_id}/start`.

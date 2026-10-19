@@ -44,10 +44,6 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--token", default=os.getenv("PRAYOG_TOKEN"), help="Defaults to PRAYOG_TOKEN; avoid passing secrets in shell history")
     commands = root.add_subparsers(dest="command", required=True)
 
-    project = commands.add_parser("create-project")
-    project.add_argument("--name", required=True)
-    project.add_argument("--description")
-
     model = commands.add_parser("create-model")
     model.add_argument("--project-id", required=True)
     model.add_argument("--name", required=True)
@@ -890,12 +886,7 @@ def materialize_project_snapshot(
     }
 
 def execute(args: argparse.Namespace, client: httpx.Client) -> dict[str, Any]:
-    if args.command == "create-project":
-        response = client.post(
-            "/mlflow/projects",
-            json={"name": args.name, "description": args.description},
-        )
-    elif args.command == "create-model":
+    if args.command == "create-model":
         response = client.post(
             f"/mlflow/projects/{args.project_id}/models",
             json={"name": args.name, "description": args.description},

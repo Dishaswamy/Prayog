@@ -10,7 +10,9 @@ UTC_NOW = text("(now() AT TIME ZONE 'utc')")
 
 class Project(Base):
     __tablename__ = "ml_projects"
-    __table_args__ = (Index("ix_ml_projects_user_updated", "user_id", "updated_at"),)
+    __table_args__ = (
+        Index("ix_ml_projects_user_updated", "user_id", "updated_at"),
+    )
 
     project_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
@@ -18,6 +20,10 @@ class Project(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, onupdate=func.timezone("utc", func.now()), nullable=False)
+
+
+# Projects are looked up by name from the CLI, so a user's names must be distinct ("A" and "a" clash).
+Index("uq_ml_projects_user_lower_name", Project.user_id, func.lower(Project.name), unique=True)
 
 
 class MLModel(Base):
