@@ -14,7 +14,7 @@ from typing import Callable, Optional, Sequence
 import httpx
 
 from prayog import __version__
-from prayog.commands import access, auth, help as help_cmd, project, review
+from prayog.commands import access, auth, help as help_cmd, project, review, run as run_cmd
 from prayog.context import Context
 from prayog.credentials import Credentials, load
 from prayog.errors import CliError, INSUFFICIENT_PERMISSION, NOT_AUTHENTICATED, USAGE
@@ -35,6 +35,8 @@ COMMANDS = (
     Command("logout", "end your session and remove the saved login", auth.setup_logout),
     Command("whoami", "show who you are logged in as", auth.setup_whoami),
     Command("project", "create and manage your projects", project.setup_project,
+            roles=("STUDENT", "RESEARCHER", "PROFESSOR")),
+    Command("run", "run a project on the GPUs", run_cmd.setup_run,
             roles=("STUDENT", "RESEARCHER", "PROFESSOR")),
     Command("access", "check the status of your access request", access.setup_access,
             roles=("STUDENT", "RESEARCHER")),

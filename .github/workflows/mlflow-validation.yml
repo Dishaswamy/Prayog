@@ -6,6 +6,22 @@ name: ML Flow validation
     branches: [main, feature/ml-flow-lifecycle, 'feature/**']
 
 jobs:
+  cli:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]     # the CLI supports 3.9 and up
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the CLI
+        run: pip install -e './cli[test]'
+      - name: Run CLI tests
+        working-directory: cli
+        run: pytest -q
+
   backend:
     runs-on: ubuntu-latest
     services:
@@ -42,6 +58,7 @@ jobs:
         run: |
           pip install -r backend/requirements.txt
           pip install -e ./steward
+          pip install -e ./cli          # the CLI-to-server end-to-end test (backend/tests/test_cli_end_to_end.py)
       - name: Compile backend Python files
         working-directory: backend
         run: python -m compileall -q .
@@ -76,6 +93,16 @@ jobs:
           PRAYOG_RUN_DOCKER_SMOKE: "1"
           PRAYOG_WORKER_IMAGE: prayog-ml-runtime:python3.12
         run: pytest -q tests/test_mlflow_worker_docker.py
+
+      - name: Run GPU node agent tests in the real hardened container
+        working-directory: backend
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
+          PRAYOG_RUN_DOCKER_SMOKE: "1"
+          PRAYOG_RUN_SCHEDULER_POSTGRES_TESTS: "1"
+          PRAYOG_WORKER_IMAGE: prayog-ml-runtime:python3.12
+        run: pytest -q tests/test_node_agent_docker.py
 
       - name: Run authenticated API-to-worker end-to-end test
         working-directory: backend

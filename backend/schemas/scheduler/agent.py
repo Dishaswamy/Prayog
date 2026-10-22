@@ -51,3 +51,50 @@ class ReportIn(BaseModel):
 class ReportOut(BaseModel):
     applied: bool                        # False: a repeat of a report already applied
     job_state: str | None
+
+
+class WorkloadChunk(BaseModel):
+    artifact_id: str
+    sha256: str
+    size_bytes: int
+
+
+class WorkloadDatasetFile(BaseModel):
+    path: str
+    size_bytes: int
+    blake3: str
+
+
+class WorkloadOut(BaseModel):
+    """What the agent runs for an allocation that carries an ML Flow run."""
+    run_id: int
+    label: str                           # "A run 1"
+    entrypoint: str
+    hyperparameters: dict
+    walltime_minutes: int
+    manifest_artifact_id: str
+    archive_sha256: str
+    archive_size_bytes: int
+    chunks: list[WorkloadChunk]          # the code archive, in order; fetch each, verify, join, extract
+    files: list[dict]                    # the version's inventory: path, size_bytes, sha256, role
+    dataset: list[WorkloadDatasetFile]   # to mount read-only at /data
+
+
+class MetricIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    value: float
+    step: int = Field(default=0, ge=0)
+
+
+class MetricsIn(BaseModel):
+    metrics: list[MetricIn] = Field(min_length=1, max_length=500)
+
+
+class MetricsOut(BaseModel):
+    recorded: int
+
+
+class ResultOut(BaseModel):
+    artifact_id: str
+    kind: str
+    size_bytes: int
