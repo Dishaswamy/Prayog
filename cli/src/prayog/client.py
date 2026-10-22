@@ -3,7 +3,8 @@
 The server decides authorization; this only translates its answers (spec NFR-AUTH-03, -09, -10).
 Anything that cannot be established reliably fails closed (NFR-AUTH-08).
 """
-from typing import Any, Optional
+from contextlib import contextmanager
+from typing import Any, Iterator, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -13,6 +14,7 @@ from prayog.errors import CliError
 
 LOGIN_HINT = "Run `prayog login`."
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+TRANSFER_TIMEOUT = 300.0     # file bytes in either direction; ordinary calls keep the short default
 
 
 def is_secure_enough(api_url: str) -> bool:
@@ -72,14 +74,15 @@ class Client:
         self.token = token
         self._http = httpx.Client(base_url=self.api_url, transport=transport, timeout=timeout)
 
-    def request(self, method: str, path: str, *, json: Any = None, params: Optional[dict] = None) -> Any:
-        headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
-        try:
-            response = self._http.request(method, path, json=json, params=params, headers=headers)
-        except httpx.HTTPError as exc:
-            raise CliError(f"Could not reach the Prayog server at {self.api_url} ({type(exc).__name__}). "
-                           "Check your connection and `--api-url`; nothing was changed.",
-                           errors.SERVER_UNREACHABLE) from exc
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+
+    def _unreachable(self, exc: httpx.HTTPError) -> CliError:
+        return CliError(f"Could not reach the Prayog server at {self.api_url} ({type(exc).__name__}). "
+                        "Check your connection and `--api-url`; nothing was changed.",
+                        errors.SERVER_UNREACHABLE)
+
+    def _json(self, response: httpx.Response) -> Any:
         if response.status_code >= 400:
             raise error_for(response, authenticated=self.token is not None)
         try:
@@ -87,8 +90,42 @@ class Client:
         except ValueError as exc:
             raise CliError("The server sent an unreadable reply.") from exc
 
+    def request(self, method: str, path: str, *, json: Any = None, params: Optional[dict] = None) -> Any:
+        try:
+            response = self._http.request(method, path, json=json, params=params, headers=self._headers())
+        except httpx.HTTPError as exc:
+            raise self._unreachable(exc) from exc
+        return self._json(response)
+
+    def upload(self, path: str, params: dict, payload: Any, method: str = "POST") -> Any:
+        """Send raw bytes (bytes, or an iterator of bytes for a large file); returns the server's JSON."""
+        try:
+            response = self._http.request(method, path, params=params, content=payload, timeout=TRANSFER_TIMEOUT,
+                                          headers={**self._headers(), "Content-Type": "application/octet-stream"})
+        except httpx.HTTPError as exc:
+            raise self._unreachable(exc) from exc
+        return self._json(response)
+
+    @contextmanager
+    def stream(self, path: str) -> Iterator[httpx.Response]:
+        """GET a large body without holding it in memory; read it with response.iter_bytes()."""
+        try:
+            with self._http.stream("GET", path, headers=self._headers(), timeout=TRANSFER_TIMEOUT) as response:
+                if response.status_code >= 400:
+                    response.read()
+                    raise error_for(response, authenticated=self.token is not None)
+                yield response
+        except httpx.HTTPError as exc:
+            raise self._unreachable(exc) from exc
+
     def get(self, path: str, **kw: Any) -> Any:
         return self.request("GET", path, **kw)
 
     def post(self, path: str, **kw: Any) -> Any:
         return self.request("POST", path, **kw)
+
+    def put(self, path: str, **kw: Any) -> Any:
+        return self.request("PUT", path, **kw)
+
+    def delete(self, path: str, **kw: Any) -> Any:
+        return self.request("DELETE", path, **kw)

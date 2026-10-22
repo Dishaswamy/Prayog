@@ -14,40 +14,24 @@ pytest -q
 
 Set `PRAYOG_ARTIFACT_ROOT` to a private local cache/staging directory writable by the API and worker processes. The default is `backend/artifacts`. Artifact files are never exposed as static files. Uploads are limited to 250 MiB per artifact. `PRAYOG_ARTIFACT_STORAGE=local` (default) stores objects on local disk; all API and worker instances must share that private durable volume. For durable S3-compatible storage, set `PRAYOG_ARTIFACT_STORAGE=s3`, `PRAYOG_S3_BUCKET`, and optionally `PRAYOG_S3_PREFIX` (default `prayog-artifacts`), `PRAYOG_S3_REGION` / `AWS_DEFAULT_REGION`, `PRAYOG_S3_ENDPOINT_URL` for compatible providers, and `PRAYOG_S3_SERVER_SIDE_ENCRYPTION` (default `AES256`). Credentials are loaded by the standard AWS SDK credential chain (environment, workload role, or configured profile); do not store credentials in source control. The bucket must be private, block public access, enforce TLS, and restrict read/write/delete access to the API and worker identities. In S3 mode, `PRAYOG_ARTIFACT_ROOT` is a local cache/staging path, not the source of truth; each API and worker must have enough private disk space for the largest artifact being processed. The secure, expiring diagnostic-link API is described below; links are minted only for verified logs from failed rebuild attempts. After configuring local or S3-compatible storage, run `python mlflow_storage_smoke.py` from `backend` to verify upload, download/checksum, and cleanup using a temporary random key; this smoke test does not touch ML Flow database records.
 
-## CLI client
+## Command-line client
 
-Set `PRAYOG_API_URL` and `PRAYOG_TOKEN`, then run commands from `backend` with `python mlflow_cli.py --help`. Projects are created with the Prayog CLI (`prayog project create NAME`, see `cli/README.md`), not with this script. The client supports `create-model`, `create-experiment`, `create-run`, `start-run` (including worker-managed execution via `--code-artifact-id` and optional `--weights-artifact-id`), `upload-artifact`, `download-artifact`, `list-snapshots`, `snapshot`, `run-status`, `metric`, `finish-run`, `rebuild`, `rebuild-status`, and `finish-rebuild`. It uploads local files as artifact bytes and passes only server-issued artifact IDs to lifecycle endpoints. Keep the token in the environment rather than the shell command history.
-
-The CLI is an API client, not a sandbox or execution worker. The rebuild command records a rebuild request and returns the new attempt/execution IDs. When `start-run` receives a verified `--code-artifact-id`, it moves the first-time run to `QUEUED`; the separate `mlflow_worker.py` process claims it and moves it to `RUNNING`. The worker consumes queued first-time runs and rebuild attempts and executes the archived project in a restricted Docker container. It does not run user code in the API process.
-
-Example first-time run (replace the IDs and file paths with the values returned by your API):
-
-```sh
-export PRAYOG_API_URL=http://localhost:8000
-export PRAYOG_TOKEN="paste-your-existing-bearer-token-here"
-# first, with the Prayog CLI:  prayog project create research-project   (prints the project ID)
-python mlflow_cli.py create-model --project-id "PROJECT_ID_FROM_RESPONSE" --name "baseline-model"
-python mlflow_cli.py create-experiment --project-id "PROJECT_ID_FROM_RESPONSE" --model-id "MODEL_ID_FROM_RESPONSE" --name "baseline-training"
-python mlflow_cli.py create-run --experiment-id 1 --hyperparameters-json '{"learning_rate": 0.001}' --environment-json '{"python": "3.12"}'
-python mlflow_cli.py start-run --run-id 1
-python mlflow_cli.py metric --run-id 1 --name loss --value 0.42 --step 1
-python mlflow_cli.py finish-run --run-id 1 --experiment-id 1 --status SUCCEEDED --code-file ./code.zip --weights-file ./weights.bin
-```
-
-The example assumes the server returned experiment ID `1` and run ID `1`; always use the actual IDs returned by the API. For a rebuild, run `python mlflow_cli.py rebuild --snapshot-id <SNAPSHOT_ID>`, then have the execution worker report the outcome with `finish-rebuild`.
+All command-line tooling lives in the `cli/` package and is installed as `prayog` (see `cli/README.md` for every command). The former `backend/mlflow_cli.py` script was removed: creating projects, uploading and versioning a folder, running on the GPUs, reading results, downloading checkpoints, rebuilding and comparing are all `prayog` commands. The lower-level lifecycle endpoints (`/mlflow/experiments`, `/mlflow/runs/{id}/start|finish|metrics`, `/mlflow/snapshots/{id}/rebuilds`, ...) remain part of the HTTP API and are called directly, with the Prayog bearer token, by services such as the isolated worker below. The API stores and checks artifact bytes itself; lifecycle endpoints accept only server-issued artifact IDs.
 
 ## Worker-managed first-time execution
 
-Upload the code archive before starting the run. Use the artifact ID returned by the upload command:
+This is the older, DB-polling worker (`mlflow_worker.py`); GPU runs started with `prayog run` use the node agent instead (see "Versions, GPU runs and rebuilds"). Upload the code archive first, then start the run with the returned artifact ID:
 
 ```sh
-python mlflow_cli.py upload-artifact --experiment-id 1 --kind CODE --file ./code.zip
-python mlflow_cli.py start-run --run-id 1 --code-artifact-id CODE_ARTIFACT_ID --environment-json '{"entrypoint":"main.py","python":"3.12"}'
+curl -X POST "$PRAYOG_API_URL/mlflow/experiments/1/artifacts?kind=CODE" -H "Authorization: Bearer $PRAYOG_TOKEN" \
+  -H "Content-Type: application/octet-stream" --data-binary @./code.zip
+curl -X POST "$PRAYOG_API_URL/mlflow/runs/1/start" -H "Authorization: Bearer $PRAYOG_TOKEN" -H "Content-Type: application/json" \
+  -d '{"code_artifact_id": "CODE_ARTIFACT_ID", "environment": {"entrypoint": "main.py", "python": "3.12"}}'
 python mlflow_worker.py --once
-python mlflow_cli.py run-status --run-id 1
+curl "$PRAYOG_API_URL/mlflow/runs/1" -H "Authorization: Bearer $PRAYOG_TOKEN"
 ```
 
-The worker validates the archive and checksum, claims the queued run atomically, runs its entrypoint in the isolated runtime image, stores bounded logs and any output weights, then finalizes the run and records a snapshot when artifact validation permits. A nonzero exit code, invalid archive, or timeout marks the first-time run failed; it never invokes Steward. When `--code-artifact-id` is omitted, `start-run` retains the caller-managed workflow shown above, and the caller completes it with `finish-run`. Do not call `finish-run` for a worker-queued run.
+The worker validates the archive and checksum, claims the queued run atomically, runs its entrypoint in the isolated runtime image, stores bounded logs and any output weights, then finalizes the run and records a snapshot when artifact validation permits. A nonzero exit code, invalid archive, or timeout marks the first-time run failed; it never invokes Steward. When no `code_artifact_id` is given, `start` retains the caller-managed workflow, and the caller completes it with `POST /mlflow/runs/{id}/finish`. Do not call `finish` for a worker-queued run.
 ## Rebuild metric comparison
 
 Compare a successful rebuild with its source run using per-metric absolute tolerances:
@@ -125,20 +109,93 @@ The default runtime image contains Python only. Do not install arbitrary project
 
 The worker now supports first-time run dispatch through the verified code-artifact ID supplied at start time, alongside snapshot rebuilds. It does not install arbitrary dependencies, provision GPUs, or restore a fully captured operating-system image. S3-compatible artifact storage, secure expiring one-time diagnostic log links, and a transactional outbox for eligible terminal rebuild events are implemented; deployment-specific bucket configuration and real AI consumers remain follow-up work. Steward RAG, post-success optimization generation, frontend progress integration, and professor enrollment/RBAC also remain follow-up work. The safety gates and downstream interface are documented in [AI_INTEGRATION.md](AI_INTEGRATION.md): Steward diagnosis is enqueued only after a persisted rebuild failure with a verified log; it must never be invoked for a first-time run failure, modify user code, or execute user code. Optimization is enqueued only after a persisted successful rebuild. Outbox delivery has leased claims, persisted-state revalidation, bounded retries, and dead-letter status, but the production transport, service-to-service authorization, and real downstream consumers are not configured. GPU provisioning and authentication/authorization remain outside this worker's scope.
 
-## Project snapshots with chunk reuse
+## Versions, GPU runs and rebuilds
 
-The CLI can package the current working tree, including uncommitted edits, with `snapshot-project --experiment-id ID --project-dir PATH`. It inventories eligible files by relative path, records SHA-256 and byte size for every file, and labels lockfiles, configuration, seeds, data, and source files. Dataset files are fingerprinted but not uploaded or included in the materialized archive; this avoids silently transferring large or sensitive datasets. Common build caches, virtual environments, version-control metadata, result/artifact folders, and likely secret files are excluded; symbolic links are refused so the archive cannot silently include files outside the project tree.
+This is how a project goes from a folder on a user's disk to numbered GPU runs that can be reproduced. The user-facing commands are in `cli/README.md`; this section is the server's side.
 
-The CLI creates a deterministic archive, divides it into bounded chunks, and checks the experiment's existing artifact metadata before uploading each chunk. Matching content-addressed chunks are reused. A separate manifest artifact records the ordered chunk IDs, digests, file inventory, archive digest, and size. Use `materialize-project-snapshot --experiment-id ID --manifest-artifact-id ID --output-dir PATH --data-dir PATH` to download the manifest and chunks, verify each chunk and the combined archive, verify every extracted file against the inventory, and verify external dataset fingerprints against a local data root with the same relative paths. If the manifest contains data fingerprints, `--data-dir` is required. Extraction rejects traversal paths, duplicate entries, symbolic links, special files, and output directories that already exist.
+### What is stored where
 
-Example:
-
-```bash
-python mlflow_cli.py snapshot-project --experiment-id 12 --project-dir .
-python mlflow_cli.py materialize-project-snapshot --experiment-id 12 --manifest-artifact-id ARTIFACT_ID --output-dir ./restored-project --data-dir .
+```
+Project
+ └─ ProjectVersion  A, B, C ...   one per distinct folder upload, identified by the BLAKE3 digest of its manifest
+     └─ ModelRun    "A run 1", "A run 2" ...   numbered within the version; linked to its scheduler Job
+         ├─ RunDatasetFile  path, size, BLAKE3 of each dataset file: kept for good, the bytes are not
+         ├─ RunMetric       the training metrics
+         ├─ RunCheckpoint   saved training states (step, best flag) -> WEIGHTS artifacts
+         └─ ModelSnapshot   sealed when the run succeeds: version manifest + best checkpoint + settings
 ```
 
-The returned `manifest_artifact_id` identifies the manifest; the manifest references the chunk artifact IDs. Keep the manifest ID with the project record. This project snapshot bundle is distinct from the sealed ML Flow `ModelSnapshot` row: materialize it and, when recording a model run, upload the resulting code archive through the normal run lifecycle.
+* **Code** is the version's manifest and its code chunks (see "Project snapshots with chunk reuse"). Every stored object is addressed by its BLAKE3 digest, so identical content is kept once, however many versions, runs or users name it.
+* **Datasets are not kept.** To train on one, the user stages its files (`ml_staged_files`, per user, BLAKE3-addressed). A GPU node reads them for the run, and they are deleted `PRAYOG_STAGING_RETENTION_HOURS` (default 48) after the end of the last run that used them, or earlier on request. A file in use by an unfinished run is never deleted; a re-upload restarts the clock; an object is removed from storage only when no artifact and no other staged file names it. The run keeps each file's fingerprint (`ml_run_dataset_files`), so a later rebuild can insist on exactly the same data.
+* **Two pointers per project**, as in a migration tool: *head* (the newest version) and *current* (`ml_projects.current_version_id`, what a run uses by default). Registering a version makes it current; `PUT /mlflow/projects/{id}/current` moves the pointer without changing any version. Registering identical content again finds the existing version rather than adding one.
+
+### API (all under `/mlflow`, owner-scoped; another user's resources are "not found")
+
+| | |
+|---|---|
+| `POST /projects/{id}/versions` | register a manifest artifact as the next version (idempotent by manifest hash); makes it current |
+| `GET /projects/{id}/versions` | versions newest first, with head/current flags and run counts |
+| `PUT /projects/{id}/current` | choose the current version (`{"version": "A"}`) |
+| `POST /staging/missing` | which of these (BLAKE3, size) files must still be uploaded |
+| `PUT /staging/files/{blake3}?size=N` | stage one file; the server recomputes the digest and refuses a mismatch |
+| `POST /projects/{id}/runs` | queue a run (see below) |
+| `GET /projects/{id}/runs[?version=A]`, `GET .../runs/{version}/{n}` | list / read runs |
+| `GET /projects/{id}/runs/{version}/{n}/compare?tolerance=` | compare a rebuild with its original |
+| `GET /projects/{id}/status` | current/head version, latest run, staged data held |
+| `DELETE /projects/{id}/staged-data` | delete this project's finished-run data now |
+
+`POST /projects/{id}/runs` takes `gpus`, `walltime` (HH:MM), `client_request_id`, and optionally `version`, `entrypoint`, `hyperparameters` and `dataset` (path, size, BLAKE3 per file, all already staged, else `409 DATASET_NOT_STAGED`). It submits an ordinary scheduler job (so every scheduling rule, access check and quota applies), creates the numbered run linked to it, and records the dataset fingerprint. The same `client_request_id` returns the same run.
+
+### A rebuild
+
+`rebuild_of: "A/1"` reproduces a finished run: the same version, entrypoint and hyperparameters (none may be given), and a dataset that must equal the original's recorded fingerprint exactly (`409 DATASET_MISMATCH` names the files that differ). The original must have a verified, sealed snapshot; anything wrong with it, including that it does not exist or belongs to someone else, is the same `404 REBUILD_REJECTED`. The rebuild is a normal job labelled `reproduces:<run id>`, with no priority advantage. `compare` reports each original metric against the rebuild's within an absolute tolerance, and whether the saved weights are the same bytes (equal BLAKE3 storage keys). **Metrics and weights can only match if the user's program is deterministic** (fixed seeds, deterministic kernels); otherwise the comparison reports the difference honestly.
+
+### How the job ends reaches the run
+
+The node agent reports through the scheduler. A release hook (`logic/mlflow_release.py`, registered by the API process and by the scheduler tick) follows the job inside the release transaction: running -> RUNNING; back in the queue after a platform stop -> QUEUED with the partial attempt's metrics and checkpoints discarded; completed -> SUCCEEDED and the snapshot is sealed (with a `RUN_SEALED` outbox event); failed or past its walltime -> FAILED with a reason; cancelled -> CANCELLED. Checkpoints and metrics of a failed or cancelled run are kept. A path with no release (a queued job cancelled) is caught by a sweep on the scheduler tick; the API also shows a finished job's outcome at once. The same tick deletes expired staged data.
+
+### The node agent that executes runs
+
+`python -m node_agent.agent` is the simulated agent plus real execution of allocations that carry a run (plain jobs behave as before):
+
+```
+python -m node_agent.agent --server https://prayog.example --units 4 --state-dir /var/lib/prayog-agent \
+    --runner docker --image prayog-ml-runtime:python3.12 [--memory 16g --cpus 8] [--enrolment-token TOKEN]
+```
+
+1. acknowledges the start (a 409 means cancelled or requeued: nothing runs); 2. downloads the version's code chunks and the run's dataset through node-scoped endpoints (`/agent/allocations/{id}/workload|code|data`) and **verifies every byte** (chunk and archive SHA-256, each file against its inventory, each dataset file's BLAKE3, safe paths, no links), failing the run without starting it on any mismatch; 3. starts the program in a container with no network, a read-only root, no capabilities, a non-root user, process/memory/CPU limits and only the allocated GPUs (`--no-gpu-passthrough` for a node with no NVIDIA runtime); the code and data are read-only; 4. while it runs, sends new metrics and checkpoints (`/agent/allocations/{id}/metrics|results`); 5. at the end sends the rest and the log, and only then reports the exit, because the report releases the allocation and the server refuses later results. It enforces the walltime itself, stops the program when the server asks, and survives its own restarts (the started allocation is persisted before anything runs). Agent endpoints accept only a live allocation on the calling node.
+
+**What the user's program sees.** It is started as `python <entrypoint>` in the code directory, with:
+
+| | |
+|---|---|
+| `PRAYOG_HYPERPARAMETERS_JSON` | the run's hyperparameters |
+| `PRAYOG_DATA_DIR` | the dataset, read-only, at the paths the user's dataset had |
+| `PRAYOG_OUTPUT_DIR` | where to write results |
+
+and writes `checkpoints/step-<N>.<ext>` (or `step-<N>-best.<ext>` for the best so far; write to `*.tmp` and rename, so a half-written file is never sent) and `metrics.jsonl` (one `{"name":..., "value":..., "step":...}` per line). stdout and stderr become the run's log. `--runner subprocess` runs the program with no isolation and is for a developer's own code on their own machine only.
+
+### Configuration
+
+| Variable | Default | |
+|---|---|---|
+| `PRAYOG_STAGING_RETENTION_HOURS` | 48 | how long staged data outlives the last run that used it |
+| `PRAYOG_STAGING_MAX_FILE_BYTES` | 10 GiB | largest single staged file |
+
+### Known limits
+
+* A checkpoint or the log may be at most 250 MiB (the artifact limit); a larger checkpoint is skipped, not sent.
+* The runtime image must already contain the program's dependencies: the node installs nothing and has no network. The environment recorded with a run is only its entrypoint, GPUs and walltime, not the runtime image's digest or its installed packages, so a rebuild on a different image is not detected.
+* Staged data has a per-file limit but no per-user quota yet.
+* Staging a file copies it once into the artifact store before it is linked, so a very large file briefly takes about twice its size on the server.
+
+## Project snapshots with chunk reuse
+
+The Prayog CLI (`cli/`, see `cli/README.md`) packages a project folder, including uncommitted edits: `prayog project link NAME FOLDER` uploads it the first time, `prayog project update` uploads a new version, and `prayog project pull NAME DESTINATION` restores a stored version.
+
+The folder is inventoried by relative path with SHA-256 and byte size for every file, and files are labelled as lockfile, configuration, seed, data or source. Dataset files are fingerprinted but not uploaded; this avoids silently transferring large or sensitive datasets. Build caches, virtual environments, version-control metadata, result/artifact folders and likely secret files are excluded, and symbolic links are refused. The rest is written to a deterministic zip archive, divided into bounded chunks, and each chunk is uploaded as a CODE artifact unless the experiment already holds identical content (the server stores bytes under their BLAKE3 digest, so identical content is kept once). A manifest artifact records the ordered chunk IDs, digests, file inventory, archive digest and size; its artifact ID is the version ID.
+
+`pull` downloads the manifest and chunks, verifies each chunk, the combined archive and every extracted file, and verifies dataset fingerprints against a local copy. Extraction rejects traversal paths, duplicate entries, symbolic links, special files, and destinations that already exist. A folder's versions are recorded locally in `.prayog/link.json`; the server does not yet keep a "current version" pointer for a project. A folder upload is distinct from the sealed ML Flow `ModelSnapshot` row.
 
 
 ## Administrator ML Flow overview

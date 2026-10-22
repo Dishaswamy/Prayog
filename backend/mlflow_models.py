@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models import Base
@@ -18,6 +18,11 @@ class Project(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The version `prayog run` uses unless told otherwise; the newest version is the "head".
+    current_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ml_project_versions.id", use_alter=True, name="fk_ml_projects_current_version", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, onupdate=func.timezone("utc", func.now()), nullable=False)
 
@@ -69,6 +74,8 @@ class ModelRun(Base):
         Index("ix_ml_runs_model_created", "model_id", "created_at"),
         Index("ix_ml_runs_user_status", "user_id", "status"),
         Index("ix_ml_runs_worker_claim", "status", "run_type", "worker_id", "worker_claimed_at"),
+        UniqueConstraint("project_version_id", "run_number", name="uq_ml_run_version_number"),
+        CheckConstraint("(project_version_id IS NULL) = (run_number IS NULL)", name="ck_ml_run_numbered_with_version"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -78,6 +85,10 @@ class ModelRun(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     run_type: Mapped[str] = mapped_column(String(20), nullable=False, default="FIRST_TIME")
     source_snapshot_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # A GPU run: "Version A, run 1" is (project_version_id, run_number); job_id is its scheduler job.
+    project_version_id: Mapped[int | None] = mapped_column(ForeignKey("ml_project_versions.id"), nullable=True)
+    run_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id"), unique=True, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="CREATED")
     logging_state: Mapped[str] = mapped_column(String(20), nullable=False, default="COMPLETE")
     logging_warnings: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
@@ -147,6 +158,76 @@ class ModelSnapshot(Base):
     weights_artifact_id: Mapped[str | None] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=True)
     logs_artifact_id: Mapped[str | None] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+
+
+class ProjectVersion(Base):
+    """One uploaded state of a project's folder (A, B, C, ...). Its identity is the BLAKE3 digest of
+    its manifest, so uploading an unchanged folder finds the existing version instead of adding one."""
+    __tablename__ = "ml_project_versions"
+    __table_args__ = (
+        UniqueConstraint("project_id", "version_number", name="uq_ml_version_number"),
+        UniqueConstraint("project_id", "manifest_hash", name="uq_ml_version_manifest"),
+        CheckConstraint("version_number >= 1", name="ck_ml_version_number"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("ml_projects.project_id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    experiment_id: Mapped[int] = mapped_column(ForeignKey("ml_experiments.id"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    manifest_artifact_id: Mapped[str] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=False)
+    parent_version_id: Mapped[int | None] = mapped_column(ForeignKey("ml_project_versions.id"), nullable=True)
+    file_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+
+
+class RunCheckpoint(Base):
+    """A saved training state of a run: a WEIGHTS artifact at a step. A run keeps many; one may be the best."""
+    __tablename__ = "ml_run_checkpoints"
+    __table_args__ = (
+        UniqueConstraint("run_id", "step", name="uq_ml_checkpoint_run_step"),
+        CheckConstraint("step >= 0", name="ck_ml_checkpoint_step"),
+        Index("ux_ml_checkpoint_one_best", "run_id", unique=True, postgresql_where=text("is_best")),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("ml_model_runs.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    artifact_id: Mapped[str] = mapped_column(ForeignKey("ml_artifacts.id"), nullable=False)
+    step: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_best: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+
+
+class StagedFile(Base):
+    """A dataset file held temporarily so a GPU node can read it. Content-addressed by BLAKE3 and
+    private to its owner; the bytes are deleted after a retention period (deleted_at is then set)."""
+    __tablename__ = "ml_staged_files"
+    __table_args__ = (
+        UniqueConstraint("user_id", "blake3", name="uq_ml_staged_user_blake3"),
+        CheckConstraint("size_bytes >= 0", name="ck_ml_staged_size"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    blake3: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=UTC_NOW, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class RunDatasetFile(Base):
+    """One dataset file a run trained on: its fingerprint, kept for good even after the bytes are deleted."""
+    __tablename__ = "ml_run_dataset_files"
+    __table_args__ = (UniqueConstraint("run_id", "path", name="uq_ml_run_dataset_path"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("ml_model_runs.id"), nullable=False)
+    path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    blake3: Mapped[str] = mapped_column(String(64), nullable=False)
+    staged_file_id: Mapped[int | None] = mapped_column(ForeignKey("ml_staged_files.id"), nullable=True)
 
 
 class RunMetric(Base):

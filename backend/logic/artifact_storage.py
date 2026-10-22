@@ -200,3 +200,17 @@ def delete_artifact(storage_key: str) -> None:
     bucket, _, _, _ = _s3_config()
     _s3_client().delete_object(Bucket=bucket, Key=_object_key(key))
     _cache_path(key).unlink(missing_ok=True)
+
+
+def delete_content_object(storage_key: str) -> None:
+    """Remove a content-addressed object. Callers must first have established that no artifact or
+    staged file still names this key (see logic.staging): objects are shared between metadata rows."""
+    key = _validate_key(storage_key)
+    if not _is_content_key(key):
+        raise BadRequestError("Only content-addressed objects are removed this way")
+    if _backend() == "local":
+        _local_path(key).unlink(missing_ok=True)
+        return
+    bucket, _, _, _ = _s3_config()
+    _s3_client().delete_object(Bucket=bucket, Key=_object_key(key))
+    _cache_path(key).unlink(missing_ok=True)

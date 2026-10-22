@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from database import get_db
 from logic.scheduler.config import SchedulerConfig
+from logic.mlflow_release import sync_allocation_run
 from logic.scheduler.dispatch import acknowledge, allocations_for, report
 from logic.scheduler.nodes import authenticate, enrol, heartbeat
 from logic.scheduler.passes import Trigger, run_pass
@@ -66,7 +67,10 @@ def my_allocations(node: Node = Depends(current_node), db: Session = Depends(get
 # Confirm the start before any side effect; a 409 means the job was cancelled or requeued: do not start.
 @router.post("/allocations/{allocation_id}/acknowledge", response_model=AckOut)
 def acknowledge_allocation(allocation_id: int, node: Node = Depends(current_node), db: Session = Depends(get_db)):
-    return AckOut(started=acknowledge(db, node.id, allocation_id))
+    started = acknowledge(db, node.id, allocation_id)
+    if started:
+        sync_allocation_run(db, allocation_id)                  # an ML Flow run shows as RUNNING at once
+    return AckOut(started=started)
 
 
 # The run ended and the workspace is unmounted: release its units.
