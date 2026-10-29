@@ -66,6 +66,12 @@ uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runti
   - Without a key, use `heuristic`, which is also the default.
   - An unknown value stops the Runtime at startup.
   - For a single process during development, set `STEWARD_INPROCESS_REASONING=heuristic` and skip the Runtime.
+- **Web UI:** open `http://127.0.0.1:8000/steward/ui/` and sign in with a platform account. Each role sees its own screens:
+  - Students and Researchers: an overview, S1 diagnoses, proposals to approve or reject (showing the exact change and its GPU-hour cost), rebuilds, S3 chat and S4 advice.
+  - Professors: their students' diagnoses, read-only.
+  - Admins: S2 hardware warnings (freeze, drain or dismiss, through the platform's `/admin/hardware-warnings` route) and Steward health.
+  - It is plain JavaScript modules in `src/prayog_steward/api/ui/`, served by the API with no build step. All model output is rendered as text, never as HTML.
+  - A Steward link (`/steward/s/<token>`) opens the same app, signs the user in if needed, and lands in the chat.
 - **Without the Steward:** `STEWARD_ENABLED=false` runs the platform without it. If its database role is missing, the platform also starts without it and logs a warning.
 - **Development world:** `python -m scripts.seed_dev --password <pw>`.
   - It creates an admin, a professor and two approved users (alice in lab vision, bob in lab nlp).
@@ -203,6 +209,7 @@ Code comments cite these IDs.
 4. **Rebuild attempts are interim** (ledger scope). An attempt's state is derived from its job, so it cannot drift.
 5. **Sessions:** the platform issues 60-minute JWTs with no server-side sessions. A Steward link dies when the token that requested it expires.
 6. **Logs:** `run_logs` holds the agent-reported tail until the content store exists. No API serves it.
+7. **The web UI is plain JavaScript, not React** (SADD §11.1 names `web/steward` in React). The API serves it as static files, so there is no Node toolchain, build step or second deployable. Its strict CSP (`script-src 'self'`) and the render-as-text rule are unchanged.
 
 ## 11. Status and open items
 

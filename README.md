@@ -193,6 +193,8 @@ uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runti
 
 The Runtime uses the rule-based `heuristic` adapter by default, so no API key is needed. To use Claude, set `STEWARD_REASONING=claude` and `ANTHROPIC_API_KEY` in `.env`.
 
+The Steward's web UI is at http://127.0.0.1:8000/steward/ui/. Sign in with any platform account; each role sees its own screens ([steward/DESIGN.md](steward/DESIGN.md#2-setup-and-running)).
+
 Shortcuts for development:
 
 - `STEWARD_INPROCESS_REASONING=heuristic` runs the model adapter inside the API, so you can skip starting the Runtime.

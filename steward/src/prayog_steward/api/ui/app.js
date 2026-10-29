@@ -1,196 +1,172 @@
-// Steward S3 web UI. All model output is rendered with textContent, never innerHTML,
-// so nothing the model or a log says can inject markup or script (FR-STW-016).
-"use strict";
+// Steward web UI: sign-in, role-based navigation and the router. Each role sees only the
+// screens its permissions allow (SADD §8.3); the server still checks every request.
+import { api, token, h, clear, failure, toast } from "./lib.js";
+import { overview, diagnosesList, runDetail, proposalsPage, rebuildsPage, advicePage, knowledgePage } from "./owner.js";
+import { chatPage } from "./chat.js";
+import { warningsPage, warningDetail, healthPage } from "./admin.js";
 
-const API = "/steward";
 const $ = (id) => document.getElementById(id);
-const thread = $("thread");
-const statusEl = $("status");
 
-const PROVENANCE = {
-  internal: ["Your records", "badge internal"],
-  external: ["Web · not guaranteed", "badge external"],
-  literature: ["Literature", "badge literature"],
-  reasoning: ["General reasoning", "badge reasoning"],
+const OWNER = ["STUDENT", "RESEARCHER"];
+const NAV = [
+  { href: "#/", label: "Overview", roles: OWNER },
+  { href: "#/diagnoses", label: "Diagnoses", roles: OWNER, tag: "S1" },
+  { href: "#/diagnoses", label: "Student diagnoses", roles: ["PROFESSOR"], tag: "S1" },
+  { href: "#/proposals", label: "Proposals", roles: OWNER },
+  { href: "#/rebuilds", label: "Rebuilds", roles: OWNER, tag: "S3 · S4" },
+  { href: "#/chat", label: "Steward chat", roles: OWNER, tag: "S3" },
+  { href: "#/admin/warnings", label: "Hardware warnings", roles: ["ADMIN"], tag: "S2" },
+  { href: "#/admin/health", label: "Steward health", roles: ["ADMIN"] },
+  { href: "#/knowledge", label: "Reference papers", roles: [...OWNER, "PROFESSOR", "ADMIN"] },
+];
+
+// [pattern, view, roles]
+const ROUTES = [
+  [/^#\/?$/, (c) => overview(c), OWNER],
+  [/^#\/diagnoses$/, (c) => diagnosesList(c), [...OWNER, "PROFESSOR"]],
+  [/^#\/runs\/([^/]+)$/, (c, id) => runDetail(c, decodeURIComponent(id)), [...OWNER, "PROFESSOR"]],
+  [/^#\/proposals$/, (c) => proposalsPage(c), OWNER],
+  [/^#\/rebuilds$/, (c) => rebuildsPage(c), OWNER],
+  [/^#\/rebuilds\/(\d+)\/advice$/, (c, id) => advicePage(c, id), OWNER],
+  [/^#\/chat$/, (c) => chatPage(c), OWNER],
+  [/^#\/knowledge$/, (c) => knowledgePage(c), [...OWNER, "PROFESSOR", "ADMIN"]],
+  [/^#\/admin\/warnings$/, (c) => warningsPage(c), ["ADMIN"]],
+  [/^#\/admin\/warnings\/([0-9a-f-]{36})$/, (c, id) => warningDetail(c, id), ["ADMIN"]],
+  [/^#\/admin\/health$/, (c) => healthPage(c), ["ADMIN"]],
+];
+
+const HOME = { PROFESSOR: "#/diagnoses", ADMIN: "#/admin/warnings" };
+const ROLE_LABEL = { STUDENT: "Student", RESEARCHER: "Researcher", PROFESSOR: "Professor", ADMIN: "Admin" };
+
+let user = null;
+
+const ctx = {
+  get user() { return user; },
+  get role() { return user && user.role; },
+  view: $("view"),
+  go(hash) { if (location.hash === hash) route(); else location.hash = hash; },
 };
 
-// Platforms that use bearer tokens (Prayog's /auth/login): the token lives only in this
-// tab's sessionStorage and is sent as Authorization. Cookie platforms need none of this.
-const TOKEN_KEY = "steward_bearer";
-function bearer() {
-  try { return sessionStorage.getItem(TOKEN_KEY); } catch (_) { return null; }
+// ── signing in ──────────────────────────────────────────────────────────
+
+async function whoAmI() {
+  try { return await api("/auth/me"); } catch (e) { if (e.status === 401) return null; throw e; }
 }
 
-class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+function showSignIn(message) {
+  $("app").hidden = true;
+  $("signin-screen").hidden = false;
+  $("signin-status").textContent = message || "";
+  $("email").focus();
 }
 
-async function call(path, options = {}, base = API) {
-  const headers = { "Content-Type": "application/json", "X-Steward-CSRF": "1", ...(options.headers || {}) };
-  const token = bearer();
-  if (token) headers.Authorization = "Bearer " + token;
-  const response = await fetch(base + path, { credentials: "same-origin", ...options, headers });
-  let body = null;
-  try { body = await response.json(); } catch (_) { /* empty body */ }
-  if (!response.ok) {
-    const detail = (body && body.detail) || "Something went wrong.";
-    throw new HttpError(response.status, typeof detail === "string" ? detail : "Request failed.");
-  }
-  return body;
-}
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-function renderTurn(question, answer) {
-  const node = $("tpl-turn").content.firstElementChild.cloneNode(true);
-  node.querySelector(".q").textContent = question;
-  const notices = node.querySelector(".notices");
-  for (const n of answer.notices || []) notices.appendChild(el("li", "notice", n));
-
-  const claims = node.querySelector(".claims");
-  for (const c of answer.claims || []) {
-    const li = el("li", "claim");
-    const [label, cls] = PROVENANCE[c.provenance] || ["", "badge"];
-    li.appendChild(el("span", cls, label));
-    li.appendChild(el("span", "text", " " + c.text));
-    if (c.cites && c.cites.length) li.appendChild(el("span", "cites", " [" + c.cites.join(", ") + "]"));
-    claims.appendChild(li);
-  }
-
-  const steps = node.querySelector(".steps");
-  for (const s of answer.steps || []) {
-    const li = el("li", "step", s.explanation);
-    if (s.command) {
-      const box = el("div", "cmd");
-      box.appendChild(el("pre", null, s.command));
-      const copy = el("button", "ghost small", "Copy");
-      copy.type = "button";
-      copy.addEventListener("click", () => navigator.clipboard.writeText(s.command));
-      box.appendChild(copy);
-      li.appendChild(box);
-    }
-    steps.appendChild(li);
-  }
-
-  const sources = node.querySelector(".sources");
-  const entries = Object.entries(answer.sources || {});
-  if (entries.length) {
-    sources.appendChild(el("span", "muted", "Sources: "));
-    entries.forEach(([id, src], i) => {
-      if (i) sources.appendChild(document.createTextNode(" · "));
-      if (src.url && /^https?:\/\//.test(src.url)) {
-        const a = el("a", null, src.title || id);
-        a.title = id;
-        a.href = src.url; a.rel = "noopener noreferrer nofollow"; a.target = "_blank";
-        sources.appendChild(a);
-      } else {
-        sources.appendChild(el("code", null, id));
-      }
-    });
-  }
-  thread.appendChild(node);
-  node.scrollIntoView({ behavior: "smooth", block: "end" });
-}
-
-async function load() {
-  try {
-    const s = await call("/s3/session", { method: "GET" });
-    $("attempt").textContent = s.attempt_id;
-    $("expiry").textContent = "Session ends " + new Date(s.expires_at).toLocaleTimeString();
-    let pending = null;
-    for (const m of s.history) {
-      if (m.role === "user") pending = m.content.question;
-      else if (pending !== null) { renderTurn(pending, m.content); pending = null; }
-    }
-  } catch (e) {
-    $("ask").hidden = true;
-    statusEl.textContent = e.message + " Open a new Steward link from the CLI to continue.";
-  }
-}
-
-$("ask").addEventListener("submit", async (event) => {
+$("signin").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const question = $("question").value.trim();
-  if (!question) return;
-  const include = $("include").value.split(",").map((x) => x.trim()).filter(Boolean);
-  $("send").disabled = true;
-  statusEl.textContent = "Steward is reading your records…";
+  const status = $("signin-status");
+  const button = $("signin-button");
+  status.textContent = "";
+  button.disabled = true;
   try {
-    const answer = await call("/s3/messages", {
+    // Wrong password and wrong role get the same answer, by design (no account probing).
+    const body = await api("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ question, include_attempts: include }),
+      body: { email: $("email").value.trim(), password: $("password").value, role: $("role").value },
     });
-    renderTurn(question, answer);
-    $("question").value = "";
-    statusEl.textContent = answer.cached ? "Answered from this session's cache." : "";
+    token.set(body.access_token);
+    $("password").value = "";
+    await start();
   } catch (e) {
-    statusEl.textContent = e.message;
+    status.textContent = e.status === 401 ? "That email, password and role do not match an account." : e.message;
   } finally {
-    $("send").disabled = false;
+    button.disabled = false;
   }
 });
 
-$("logout").addEventListener("click", async () => {
-  try { await call("/s3/logout", { method: "POST" }); } catch (_) { /* already gone */ }
-  $("ask").hidden = true;
-  statusEl.textContent = "Session ended. Your rebuild attempt is unchanged.";
-});
+async function signOut() {
+  try { await api("/steward/s3/logout", { method: "POST" }); } catch (_) { /* no session */ }
+  try { await api("/auth/logout", { method: "POST" }); } catch (_) { /* already expired */ }
+  token.clear();
+  user = null;
+  history.replaceState(null, "", "/steward/ui/");
+  showSignIn("You are signed out.");
+}
 
-// ── opening a Steward link: /steward/s/<token> ─────────────────────────
-async function openLink(token) {
-  try {
-    await call("/s/" + encodeURIComponent(token) + "/open", { method: "POST" });
-    history.replaceState(null, "", "/steward/ui/");      // the token never stays in the URL
-    $("signin").hidden = true;
-    $("ask").hidden = false;
-    await load();
-  } catch (e) {
-    if (e.status === 401) return askToSignIn(token);
-    $("ask").hidden = true;
-    statusEl.textContent = e.message;
+// ── the shell ───────────────────────────────────────────────────────────
+
+function renderShell() {
+  $("signin-screen").hidden = true;
+  $("app").hidden = false;
+  const items = NAV.filter((n) => n.roles.includes(user.role));
+  clear($("nav"), items.map((n) => h("a", { href: n.href, class: "nav-item", "data-href": n.href },
+    h("span", null, n.label), n.tag ? h("span", { class: "nav-tag" }, n.tag) : null)));
+  clear($("who"),
+    h("span", { class: "who-email", title: user.email }, user.email),
+    h("span", { class: "role-chip" }, ROLE_LABEL[user.role] || user.role));
+}
+
+function markNav() {
+  const hash = location.hash || "#/";
+  for (const a of document.querySelectorAll(".nav-item")) {
+    const href = a.dataset.href;
+    const active = href === "#/" ? hash === "#/" || hash === "#" || hash === ""
+      : hash === href || hash.startsWith(href + "/") || (href === "#/diagnoses" && hash.startsWith("#/runs/"))
+        || (href === "#/rebuilds" && hash.startsWith("#/rebuilds/"));
+    a.classList.toggle("active", active);
+    if (active) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
 }
 
-async function askToSignIn(token) {
-  let config = {};
-  try { config = await call("/ui-config", { method: "GET" }); } catch (_) { /* defaults */ }
-  $("ask").hidden = true;
-  if (!config.login_url) {
-    statusEl.textContent = "Please sign in to Prayog in this browser, then open the link again.";
+async function route() {
+  if (!user) return;
+  let hash = location.hash || "#/";
+  if (hash === "#/" && HOME[user.role]) { location.replace(HOME[user.role]); return; }
+  markNav();
+  for (const [pattern, view, roles] of ROUTES) {
+    const match = hash.match(pattern);
+    if (!match) continue;
+    if (!roles.includes(user.role)) break;
+    try {
+      await view(ctx, ...match.slice(1));
+    } catch (e) {
+      if (e.status === 401) { token.clear(); user = null; showSignIn("Your sign-in expired. Please sign in again."); return; }
+      clear(ctx.view, failure(e, route));
+    }
+    ctx.view.focus({ preventScroll: true });
     return;
   }
-  const form = $("signin");
-  form.hidden = false;
-  form.onsubmit = async (event) => {
-    event.preventDefault();
-    statusEl.textContent = "Signing in…";
-    try {
-      const response = await fetch(config.login_url, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: $("email").value, password: $("password").value, role: $("role").value }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !body.access_token) throw new Error(body.detail || "Sign-in failed.");
-      try { sessionStorage.setItem(TOKEN_KEY, body.access_token); } catch (_) { /* private mode */ }
-      $("password").value = "";
-      statusEl.textContent = "";
-      await openLink(token);
-    } catch (err) {
-      statusEl.textContent = err.message;
-    }
-  };
+  location.replace(HOME[user.role] || "#/");
 }
 
-const linkMatch = location.pathname.match(/^\/steward\/s\/([^/]+)$/);
-if (linkMatch) {
-  openLink(decodeURIComponent(linkMatch[1]));
-} else {
-  load();
+$("signout").addEventListener("click", signOut);
+$("menu").addEventListener("click", () => document.body.classList.toggle("nav-open"));
+$("nav").addEventListener("click", () => document.body.classList.remove("nav-open"));
+window.addEventListener("hashchange", route);
+
+// ── opening a single-use Steward link: /steward/s/<token> ───────────────
+
+async function openLink(linkToken) {
+  try {
+    await api(`/steward/s/${encodeURIComponent(linkToken)}/open`, { method: "POST" });
+    history.replaceState(null, "", "/steward/ui/#/chat");   // the token never stays in the URL
+  } catch (e) {
+    history.replaceState(null, "", "/steward/ui/#/rebuilds");
+    toast(e.message, "bad");
+  }
 }
+
+async function start() {
+  user = await whoAmI();
+  const link = location.pathname.match(/^\/steward\/s\/([^/]+)$/);
+  if (!user) {
+    showSignIn(link ? "Sign in to open this Steward link. Only the owner of the failed rebuild can open it." : "");
+    return;
+  }
+  if (link) await openLink(decodeURIComponent(link[1]));
+  renderShell();
+  await route();
+}
+
+start().catch((e) => {
+  $("app").hidden = false;
+  clear(ctx.view, failure(e, () => location.reload()));
+});

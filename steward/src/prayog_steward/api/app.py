@@ -128,6 +128,10 @@ def build_router(steward: Steward) -> APIRouter:
 
     # ------------------------------------------------------------ S1: owner views
 
+    @router.get("/diagnoses")
+    def visible_diagnoses(who: Caller) -> Any:
+        return _json(steward.owner.recent_diagnoses(who))
+
     @router.get("/runs/{run_id}/diagnoses")
     def run_diagnoses(run_id: str, who: Caller) -> Any:
         return _json(steward.owner.diagnoses_for_run(who, run_id))

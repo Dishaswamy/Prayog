@@ -59,6 +59,20 @@ class DiagnosisView:
 
 
 @dataclass(frozen=True)
+class DiagnosisSummary:
+    """One row of the dashboard list; the narrative is fetched per run."""
+    diagnosis_id: str
+    run_id: str
+    project_id: str
+    owner_id: str
+    mine: bool
+    outcome: str
+    classification: str | None
+    proposal_state: str | None  # the owner's only, like the hardware finding
+    created_at: datetime
+
+
+@dataclass(frozen=True)
 class ProposalView:
     proposal_id: str
     run_id: str
@@ -144,6 +158,43 @@ class OwnerService:
                 )
             )
         return out
+
+    def recent_diagnoses(self, principal: Principal, limit: int = 100) -> list[DiagnosisSummary]:
+        """The diagnoses the caller may open, newest first: their own runs', and a supervising
+        Professor's students' (the same rule as diagnoses_for_run). A Platform Admin as such
+        sees none (NFR-AUTH-18)."""
+        me = principal.principal_id
+        with self.engine.connect() as conn:
+            projects = conn.execute(
+                select(diagnoses.c.project_id, diagnoses.c.owner_id).distinct()
+            ).all()
+            visible = [
+                p.project_id for p in projects
+                if p.owner_id == me or self.authorizer.may_read_project(me, p.project_id)
+            ]
+            if not visible:
+                return []
+            rows = conn.execute(
+                select(diagnoses, proposals.c.state.label("proposal_state"))
+                .outerjoin(proposals, proposals.c.diagnosis_id == diagnoses.c.diagnosis_id)
+                .where(diagnoses.c.project_id.in_(visible))
+                .order_by(diagnoses.c.created_at.desc())
+                .limit(limit)
+            ).all()
+        return [
+            DiagnosisSummary(
+                diagnosis_id=str(r.diagnosis_id),
+                run_id=r.run_id,
+                project_id=r.project_id,
+                owner_id=r.owner_id,
+                mine=r.owner_id == me,
+                outcome=r.outcome,
+                classification=r.classification,
+                proposal_state=r.proposal_state if r.owner_id == me else None,
+                created_at=r.created_at,
+            )
+            for r in rows
+        ]
 
     # ------------------------------------------------------------ proposals
 

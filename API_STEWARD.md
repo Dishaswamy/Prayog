@@ -81,6 +81,18 @@ One of your attempts; 404 otherwise.
 
 When a run ends `FAILED`, the Steward diagnoses it in the background (Worker → Runtime). Nothing here blocks scheduling.
 
+### GET /steward/diagnoses
+The diagnoses you may open, newest first (at most 100): your own runs', and, for a supervising professor, their students' runs'. A Platform Admin gets `[]`. Summaries only; fetch the narrative per run.
+
+```json
+[
+  { "diagnosis_id": "6f0c…", "run_id": "1", "project_id": "u4:vit", "owner_id": "4", "mine": true,
+    "outcome": "ok", "classification": "oom", "proposal_state": "PROPOSED",
+    "created_at": "2026-10-29T13:24:30.112907+00:00" }
+]
+```
+`proposal_state` is set only on your own rows, like the hardware finding.
+
 ### GET /steward/runs/{run_id}/diagnoses
 The run's owner or their supervising professor. Diagnoses are append-only, oldest first.
 
@@ -317,6 +329,9 @@ Any signed-in user. Lists the reference papers the Steward can cite: `[{source, 
 ### GET /steward/ui-config, GET /steward/healthz
 For the link page (`{"login_url": "/auth/login"}`) and for probes (`{"status": "ok"}`). No auth.
 
+### GET /steward/ui/
+The Steward web UI, for every role (see [steward/DESIGN.md](steward/DESIGN.md#2-setup-and-running)). It calls only the routes in this file, plus `/auth/*` to sign in and the admin's `/admin/hardware-warnings/*`.
+
 ---
 
 ## Endpoint summary
@@ -326,6 +341,7 @@ For the link page (`{"login_url": "/auth/login"}`) and for probes (`{"status": "
 | POST | `/rebuilds` | any | rebuild one of your snapshots |
 | GET | `/rebuilds` | any | your rebuild attempts |
 | GET | `/rebuilds/{id}` | owner | one attempt |
+| GET | `/steward/diagnoses` | any | diagnoses you may open (summaries) |
 | GET | `/steward/runs/{run_id}/diagnoses` | owner / their professor | S1 diagnoses of a run |
 | GET | `/steward/proposals` | any | your proposals (`?state=`) |
 | GET | `/steward/proposals/{id}` | owner | one proposal |
@@ -344,3 +360,4 @@ For the link page (`{"login_url": "/auth/login"}`) and for probes (`{"status": "
 | GET | `/steward/admin/health` | ADMIN | Steward health aggregates |
 | GET | `/steward/knowledge/documents` | any | reference papers |
 | GET | `/steward/ui-config`, `/steward/healthz` | none | page config, probe |
+| GET | `/steward/ui/` | none (signs in) | the web UI |
