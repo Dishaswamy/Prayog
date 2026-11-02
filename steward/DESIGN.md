@@ -66,7 +66,7 @@ uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runti
   - Without a key, use `heuristic`, which is also the default.
   - An unknown value stops the Runtime at startup.
   - For a single process during development, set `STEWARD_INPROCESS_REASONING=heuristic` and skip the Runtime.
-- **Web UI:** open `http://127.0.0.1:8000/steward/ui/` and sign in with a platform account. Each role sees its own screens:
+- **Web UI:** the Steward's screens appear inside the platform's web app at `/app/`, and also stand alone at `/steward/ui/`. Sign in with a platform account. Each role sees its own screens:
   - Students and Researchers: an overview, S1 diagnoses, proposals to approve or reject (showing the exact change and its GPU-hour cost), rebuilds, S3 chat and S4 advice.
   - Professors: their students' diagnoses, read-only.
   - Admins: S2 hardware warnings (freeze, drain or dismiss, through the platform's `/admin/hardware-warnings` route) and Steward health.

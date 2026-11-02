@@ -1,4 +1,5 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from database import SessionLocal, get_db
@@ -8,7 +9,7 @@ from logic.scheduler.config import SchedulerConfig, load_config
 from logic.scheduler.domain import JobState
 from logic.scheduler.passes import Trigger, run_pass
 from logic.scheduler.requests import edit_job, format_walltime, job_status, quota_status, submit_job
-from models import User
+from models import Job, User
 from schemas.scheduler.jobs import CancelOut, JobEdit, JobOut, JobSubmit, MemberUsage, QuotaOut, SubmissionOut
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -53,6 +54,18 @@ def submit(
         status=result.job.state,
         message=f"Request already submitted. Request ID: {job_id}. Status: {result.job.state}",
     )
+
+
+# The owner's jobs, newest first (FR-GPU-154): state, queue reason and where each is placed.
+@router.get("", response_model=list[JobOut])
+def my_jobs(
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    cfg: SchedulerConfig = Depends(get_scheduler_config),
+):
+    ids = db.scalars(select(Job.id).where(Job.user_id == current_user.id).order_by(Job.id.desc()).limit(limit)).all()
+    return [_job_out(db, current_user.id, job_id, cfg) for job_id in ids]
 
 
 # A course account's sponsorship cap: total, used, committed, left, and per member.

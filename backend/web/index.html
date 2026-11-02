@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Prayog</title>
+  <link rel="stylesheet" href="/app/steward/style.css">
+  <link rel="stylesheet" href="/app/web.css">
+  <script type="module" src="/app/main.js"></script>
+</head>
+<body>
+  <section id="signin-screen" class="signin-screen" hidden></section>
+
+  <div id="app" class="app" hidden>
+    <aside class="side">
+      <div class="side-top">
+        <a class="brand" href="#/"><span class="mark" aria-hidden="true"></span><span><strong>Prayog</strong></span></a>
+        <button id="menu" type="button" class="ghost small menu" aria-label="Menu">Menu</button>
+      </div>
+      <nav id="nav" aria-label="Prayog"></nav>
+      <div class="side-foot">
+        <div id="who" class="who"></div>
+        <button id="signout" type="button" class="ghost small">Sign out</button>
+      </div>
+    </aside>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <dialog id="confirm"></dialog>
+</body>
+</html>

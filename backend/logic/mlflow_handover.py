@@ -251,6 +251,21 @@ def cancel_handover(db: Session, handover_id: str, owner: User) -> ProjectHandov
     return handover
 
 
+def list_handovers(db: Session, user: User, status: str | None = None) -> list[ProjectHandover]:
+    """Newest first: those addressed to a Professor (FR-ML-009); otherwise the caller's own."""
+    query = db.query(ProjectHandover)
+    if user.role == "PROFESSOR":
+        professor = db.query(Professor).filter(Professor.user_id == user.id).first()
+        if professor is None:
+            return []
+        query = query.filter(ProjectHandover.target_professor_id == professor.id)
+    else:
+        query = query.filter(ProjectHandover.source_owner_id == user.id)
+    if status:
+        query = query.filter(ProjectHandover.status == status)
+    return query.order_by(ProjectHandover.created_at.desc()).limit(200).all()
+
+
 def get_handover(db: Session, handover_id: str, user: User) -> ProjectHandover:
     handover = db.query(ProjectHandover).filter(
         ProjectHandover.handover_id == handover_id

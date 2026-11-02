@@ -229,16 +229,20 @@ export function toast(text, tone = "info") {
 // Resolves true when the user confirms. body is a node (or nodes) explaining exactly what happens.
 export function confirm(title, body, confirmLabel = "Confirm", tone = "primary") {
   const dialog = document.getElementById("confirm");
-  clear(dialog,
-    h("form", { method: "dialog", class: "dialog" },
-      h("h2", null, title),
-      h("div", { class: "dialog-body" }, body),
-      h("div", { class: "dialog-actions" },
-        h("button", { class: "ghost", value: "cancel", type: "submit" }, "Cancel"),
-        h("button", { class: tone, value: "ok", type: "submit" }, confirmLabel))));
+  const form = h("form", { method: "dialog", class: "dialog" },
+    h("h2", null, title),
+    h("div", { class: "dialog-body" }, body),
+    h("div", { class: "dialog-actions" },
+      h("button", { class: "ghost", value: "cancel", type: "submit" }, "Cancel"),
+      h("button", { class: tone, value: "ok", type: "submit" }, confirmLabel)));
+  clear(dialog, form);
   dialog.returnValue = "";
   dialog.showModal();
+  // Decided by the submit itself: browsers deliver "close" on an animation frame, which
+  // never comes while the page is hidden. Only Escape relies on "cancel" and "close".
   return new Promise((resolve) => {
+    form.addEventListener("submit", (event) => resolve(event.submitter?.value === "ok"), { once: true });
+    dialog.addEventListener("cancel", () => resolve(false), { once: true });
     dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok"), { once: true });
   });
 }

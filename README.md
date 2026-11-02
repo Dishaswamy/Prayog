@@ -193,7 +193,14 @@ uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runti
 
 The Runtime uses the rule-based `heuristic` adapter by default, so no API key is needed. To use Claude, set `STEWARD_REASONING=claude` and `ANTHROPIC_API_KEY` in `.env`.
 
-The Steward's web UI is at http://127.0.0.1:8000/steward/ui/. Sign in with any platform account; each role sees its own screens ([steward/DESIGN.md](steward/DESIGN.md#2-setup-and-running)).
+The web app is at http://127.0.0.1:8000/ (it redirects to `/app/`). It needs no build step, and each role sees its own workspace:
+
+- **Students and Researchers:** the researcher dashboard (jobs, quota, projects, versions, runs with metric charts, rebuild comparison, IP handover) and GPU access requests.
+- **Professors:** the read-only workspace for the people they supervise, handover review and access requests.
+- **Admins:** the read-only pool picture with the audit log, node operations, maintenance windows, the ledger overview, access requests and Professor accounts.
+- **The Steward's screens** appear for each role when the Steward is running ([steward/DESIGN.md](steward/DESIGN.md#2-setup-and-running)).
+
+The code is in `backend/web/`, plain JavaScript modules served by the API. Uploading a version or a dataset stays in the CLI, which fingerprints the files.
 
 Shortcuts for development:
 
