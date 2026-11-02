@@ -7,6 +7,8 @@ Submitting a run does three things that must agree:
   * an ML Flow ModelRun is created, numbered within its version and linked to that job;
   * the dataset's fingerprint (path, size, BLAKE3 per file) is recorded for the run, and each file must
     already be staged for a node to read.
+A rebuild also records its RebuildAttempt (logic.rebuild), so its failure opens a Steward session (S3)
+and its success can be optimised (S4), exactly as for POST /rebuilds (FR-STW-001, FR-STW-006, FR-INT-01).
 Retrying with the same client_request_id returns the same run, never a second one.
 
 The run's status follows the job: the node agent reports through the scheduler, and a release hook
@@ -193,6 +195,9 @@ def submit_gpu_run(
             environment={"entrypoint": entrypoint, "gpus": job.gpus, "walltime_minutes": job.walltime_minutes},
         )
         db.add(run)
+        if source:                                             # committed with the run: one attempt per job
+            db.add(orm.RebuildAttempt(user_id=user.id, snapshot_hash=snapshot.snapshot_id,
+                                      project_ref=project_id, job_id=job.id))
         db.flush()
         db.add_all(RunDatasetFile(run_id=run.id, path=item.path, size_bytes=item.size_bytes, blake3=item.blake3,
                                   staged_file_id=staged[item.blake3].id) for item in dataset)
