@@ -2,7 +2,9 @@
 Seed labs and users for a GPU scheduling demo. Safe to run more than once.
 
 Run from the backend folder:
-    python -m scripts.seed_gpu_demo "DemoPassword123"
+    python -m scripts.seed_gpu_demo
+
+Every account's password is its user ID (the part of the email before @) reversed.
 
 Creates the labs (NLP, Robotics, the institute's central owner for teaching
 hardware, and a CS455 course sponsorship group), an admin, two researchers and a
@@ -14,8 +16,6 @@ Nodes are not seeded: register them as the admin (POST /admin/nodes) and start a
 simulated agent per node with the enrolment token, so the demo shows onboarding.
 """
 
-import sys
-
 from sqlalchemy import select
 
 from database import SessionLocal
@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 
 from logic.admin import create_professor
 from models import AccessRequest, Lab, Professor, SchedulingContext, User
+from scripts.seed_dev import reset_test_passwords, test_password
 
 LABS = [("NLP", False), ("Robotics", False), ("Central", True), ("CS455 course group", False)]
 USERS = [
@@ -35,7 +36,7 @@ USERS = [
 ]
 
 
-def seed(password: str) -> None:
+def seed() -> None:
     db = SessionLocal()
     try:
         labs = {}
@@ -49,12 +50,13 @@ def seed(password: str) -> None:
 
         prof = db.scalar(select(Professor).where(Professor.email == "gpuprof@iitk.ac.in"))
         if prof is None:
-            prof = create_professor(db, "GPU Demo Prof", "gpuprof@iitk.ac.in", "CSE", password, lab_id=labs["NLP"])
+            prof = create_professor(db, "GPU Demo Prof", "gpuprof@iitk.ac.in", "CSE",
+                                    test_password("gpuprof@iitk.ac.in"), lab_id=labs["NLP"])
 
         for email, role, lab, account_type, cap in USERS:
             user = db.scalar(select(User).where(User.email == email))
             if user is None:
-                user = create_user_record(db, email, password, role)
+                user = create_user_record(db, email, test_password(email), role)
             if lab is not None and db.get(SchedulingContext, user.id) is None:
                 db.add(SchedulingContext(user_id=user.id, lab_id=labs[lab], account_type=account_type,
                                          course_cap_gpu_hours=cap))
@@ -70,13 +72,11 @@ def seed(password: str) -> None:
                 ))
             print(f"{role:10s} {email:34s} id={user.id}" + (f"  lab={lab} ({account_type})" if lab else ""))
         db.commit()
+        reset_test_passwords(db, ["gpuprof@iitk.ac.in", *(user[0] for user in USERS)])
         print("Labs:", ", ".join(f"{name}={lab_id}" for name, lab_id in labs.items()))
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print('Usage: python -m scripts.seed_gpu_demo "<password for every demo user>"')
-        sys.exit(1)
-    seed(sys.argv[1])
+    seed()

@@ -73,7 +73,7 @@ uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runti
   - It is plain JavaScript modules in `src/prayog_steward/api/ui/`, served by the API with no build step. All model output is rendered as text, never as HTML.
   - A Steward link (`/steward/s/<token>`) opens the same app, signs the user in if needed, and lands in the chat.
 - **Without the Steward:** `STEWARD_ENABLED=false` runs the platform without it. If its database role is missing, the platform also starts without it and logs a warning.
-- **Development world:** `python -m scripts.seed_dev --password <pw>`.
+- **Development world:** `python -m scripts.seed_dev`. Each test account's password is its user ID reversed.
   - It creates an admin, a professor and two approved users (alice in lab vision, bob in lab nlp).
   - It registers nodes n1 and n2, and prints the command that starts each node's simulated agent.
   - To see a diagnosis, start an agent with `--exit-code 1 --log-file run.log`: every job it runs then fails and reports that log.
@@ -207,7 +207,7 @@ Code comments cite these IDs.
 2. **Projects are scoped to their owner** until a projects table exists. DEP-03 (shared projects) stays open.
 3. **Proposals change only GPU count and walltime**, because platform jobs carry no command, environment or batch size yet. The rule-based adapter's only proposal (halving the batch size) therefore never applies, and live proposals come only from Claude.
 4. **Rebuild attempts are interim** (ledger scope). An attempt's state is derived from its job, so it cannot drift.
-5. **Sessions:** the platform issues 60-minute JWTs with no server-side sessions. A Steward link dies when the token that requested it expires.
+5. **Sessions:** the platform issues 60-minute JWTs. A Steward link dies when the token that requested it expires, is logged out, or is ended by a password reset.
 6. **Logs:** `run_logs` holds the agent-reported tail until the content store exists. No API serves it.
 7. **The web UI is plain JavaScript, not React** (SADD §11.1 names `web/steward` in React). The API serves it as static files, so there is no Node toolchain, build step or second deployable. Its strict CSP (`script-src 'self'`) and the render-as-text rule are unchanged.
 

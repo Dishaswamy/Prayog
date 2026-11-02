@@ -148,6 +148,8 @@ async function openLink(linkToken) {
   try {
     await api(`/steward/s/${encodeURIComponent(linkToken)}/open`, { method: "POST" });
     history.replaceState(null, "", "/steward/ui/#/chat");   // the token never stays in the URL
+    // Mounted in Prayog, the chat belongs in the main app; this tab's sign-in carries over.
+    if (await fetch("/app/", { method: "HEAD" }).then((r) => r.ok).catch(() => false)) location.replace("/app/#/chat");
   } catch (e) {
     history.replaceState(null, "", "/steward/ui/#/rebuilds");
     toast(e.message, "bad");

@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from logic.dependencies import get_current_user
+from logic.dependencies import active_user, get_current_user
 from logic.errors import NotFoundError
 from logic.artifacts import get_verified_artifact, store_artifact
 from logic.diagnostic_links import consume_diagnostic_link, create_diagnostic_link
@@ -130,7 +130,7 @@ async def upload_artifact(
     request: Request,
     kind: Literal["CODE", "WEIGHTS", "LOG"],
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(active_user),
 ):
     experiment = _owned_experiment(db, experiment_id, user)
     return await store_artifact(db, user, experiment, kind, request)
@@ -146,7 +146,7 @@ def artifacts(experiment_id: int, db: Session = Depends(get_db), user: User = De
 
 
 @router.post("/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
-def add_project(body: ProjectCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def add_project(body: ProjectCreate, db: Session = Depends(get_db), user: User = Depends(active_user)):
     return create_project(db, user, body.name, body.description)
 
 
@@ -156,7 +156,7 @@ def projects(db: Session = Depends(get_db), user: User = Depends(get_current_use
 
 
 @router.post("/projects/{project_id}/models", response_model=ModelOut, status_code=status.HTTP_201_CREATED)
-def add_model(project_id: str, body: ModelCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def add_model(project_id: str, body: ModelCreate, db: Session = Depends(get_db), user: User = Depends(active_user)):
     return create_model(db, project_id, user, body.name, body.description)
 
 
@@ -165,7 +165,7 @@ def models(project_id: str, db: Session = Depends(get_db), user: User = Depends(
     return list_models(db, project_id, user)
 
 @router.post("/experiments", response_model=ExperimentOut, status_code=status.HTTP_201_CREATED)
-def add_experiment(body: ExperimentCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def add_experiment(body: ExperimentCreate, db: Session = Depends(get_db), user: User = Depends(active_user)):
     return create_experiment(db, user, body.project_id, body.model_id, body.name, body.description, body.tags)
 
 
@@ -175,7 +175,7 @@ def experiments(db: Session = Depends(get_db), user: User = Depends(get_current_
 
 
 @router.post("/experiments/{experiment_id}/runs", response_model=RunOut, status_code=status.HTTP_201_CREATED)
-def add_run(experiment_id: int, body: RunCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def add_run(experiment_id: int, body: RunCreate, db: Session = Depends(get_db), user: User = Depends(active_user)):
     return create_run(db, experiment_id, user, body.hyperparameters, body.environment)
 
 
@@ -228,7 +228,7 @@ def metrics(run_id: int, db: Session = Depends(get_db), user: User = Depends(get
 
 
 @router.post("/snapshots/{snapshot_id}/rebuilds", response_model=RebuildOut, status_code=status.HTTP_201_CREATED)
-def add_rebuild(snapshot_id: str, body: RebuildCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def add_rebuild(snapshot_id: str, body: RebuildCreate, db: Session = Depends(get_db), user: User = Depends(active_user)):
     return create_rebuild(db, snapshot_id, user, body.environment)
 
 

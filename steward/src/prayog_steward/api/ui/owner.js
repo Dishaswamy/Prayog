@@ -13,8 +13,8 @@ const isOwnerRole = (role) => role === "STUDENT" || role === "RESEARCHER";
 export async function overview(ctx) {
   clear(ctx.view, pageHead("Overview", "What the Steward has found in your runs, and what is waiting for you."),
     loading());
-  const [diagnoses, pending, rebuilds] = await Promise.all([
-    api("/steward/diagnoses"), api("/steward/proposals?state=PROPOSED"), api("/rebuilds"),
+  const [diagnoses, pending, rebuilds, names] = await Promise.all([
+    api("/steward/diagnoses"), api("/steward/proposals?state=PROPOSED"), api("/rebuilds"), projectNames(ctx.role),
   ]);
   const failed = rebuilds.filter((r) => r.state === "REBUILD_FAILED");
   const succeeded = rebuilds.filter((r) => r.state === "REBUILD_SUCCESS");
@@ -35,7 +35,7 @@ export async function overview(ctx) {
     h("section", { class: "panel" },
       h("div", { class: "panel-head" }, h("h2", null, "Recent diagnoses"),
         diagnoses.length ? h("a", { href: "#/diagnoses" }, "All diagnoses") : null),
-      diagnoses.length ? diagnosisTable(diagnoses.slice(0, 5), false)
+      diagnoses.length ? diagnosisTable(diagnoses.slice(0, 5), false, names)
         : empty("No failed runs diagnosed yet", "When one of your runs fails, the Steward diagnoses it in the background.")));
 }
 
@@ -53,7 +53,7 @@ export async function diagnosesList(ctx) {
     ? "Read-only diagnoses of failed runs by the students and researchers you supervise."
     : "Every failed run of yours that the Steward diagnosed, newest first.";
   clear(ctx.view, pageHead(title, sub), loading());
-  const rows = await api("/steward/diagnoses");
+  const [rows, names] = await Promise.all([api("/steward/diagnoses"), projectNames(ctx.role)]);
   const lookup = h("form", {
     class: "inline-form", onsubmit: (e) => {
       e.preventDefault();
@@ -64,13 +64,20 @@ export async function diagnosesList(ctx) {
   h("input", { id: "run-id", name: "run", inputmode: "numeric", placeholder: "e.g. 42", autocomplete: "off" }),
   h("button", { type: "submit", class: "ghost" }, "Open"));
   clear(ctx.view, pageHead(title, sub, lookup),
-    rows.length ? diagnosisTable(rows, professor)
+    rows.length ? diagnosisTable(rows, professor, names)
       : empty("No diagnoses yet", professor
         ? "None of your students' failed runs has been diagnosed."
         : "When one of your runs fails, the Steward diagnoses it in the background. Nothing here blocks scheduling."));
 }
 
-function diagnosisTable(rows, showOwner) {
+// GPU runs carry their project's ID; the platform knows its name. Without it, the ID is shown.
+async function projectNames(role) {
+  const path = role === "PROFESSOR" ? "/mlflow/professor/projects" : "/mlflow/projects";
+  const projects = await api(path).catch(() => []);
+  return new Map(projects.map((p) => [p.project_id, p.name]));
+}
+
+function diagnosisTable(rows, showOwner, names = new Map()) {
   return h("div", { class: "table-wrap" }, h("table", { class: "table" },
     h("thead", null, h("tr", null,
       h("th", null, "Run"), showOwner ? h("th", null, "Student") : null, h("th", null, "Project"),
@@ -78,7 +85,7 @@ function diagnosisTable(rows, showOwner) {
     h("tbody", null, rows.map((d) => h("tr", null,
       h("td", null, h("a", { href: `#/runs/${encodeURIComponent(d.run_id)}` }, `Run ${d.run_id}`)),
       showOwner ? h("td", null, d.mine ? "You" : `User ${d.owner_id}`) : null,
-      h("td", null, projectName(d.project_id)),
+      h("td", null, names.get(d.project_id.replace(/^u\d+:/, "")) || projectName(d.project_id)),
       h("td", null, d.outcome === "ok" ? classificationBadge(d.classification)
         : badge("No diagnosis: model " + d.outcome, "warn")),
       showOwner ? null : h("td", null, d.proposal_state ? stateBadge(d.proposal_state) : h("span", { class: "muted" }, "–")),
@@ -240,7 +247,7 @@ export async function rebuildsPage(ctx) {
         h("td", null, stateBadge(r.state)),
         h("td", null, when(r.created_at)),
         h("td", { class: "row-actions" }, rebuildAction(ctx, r)))))))
-      : empty("No rebuilds yet", "Rebuild a snapshot with the CLI (prayog run --rebuild-of A/1) or the form above."));
+      : empty("No rebuilds yet", "Rebuild a finished run with the CLI (prayog run --rebuild A/1) or the form above."));
 }
 
 const short = (hash) => (hash && hash.length > 16 ? hash.slice(0, 12) + "…" : hash || "–");

@@ -6,6 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from database import get_db
+from logic.access_check import check_active_access
 from logic.auth import ALGORITHM, SECRET_KEY
 from models import RevokedToken, User
 
@@ -61,6 +62,16 @@ def get_current_user(
     user.session_id = session_id
     user.token_exp = payload.get("exp")      # unix seconds; used by logout to know how long to remember it
     return user
+
+
+def active_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Signed in and currently authorized: approved, not expired, not revoked (FR-AUTH-38).
+    Anything that creates work or stores data uses this; a user can still read their own records."""
+    check_active_access(db, current_user)
+    return current_user
 
 
 def require_roles(*roles: str):

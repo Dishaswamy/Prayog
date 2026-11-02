@@ -221,6 +221,7 @@ The Push & Approve workflow is available through the ML Flow API:
 
 - `POST /mlflow/projects/{project_id}/handover` with `{"professor_id": 123}` creates a `HANDOVER_PENDING` request. The target must be the authenticated owner's assigned supervising Professor.
 - `GET /mlflow/handovers` lists, newest first, the requests addressed to a Professor and anyone else's own. `?status=HANDOVER_PENDING` filters by status.
+- The scheduler tick moves sealed runs into the ledger the Professor reads (`RUN_SEALED`), so that view needs no outside service.
 - `GET /mlflow/handovers/{handover_id}` returns the request to its owner, target Professor, or an administrator.
 - `POST /mlflow/handovers/{handover_id}/approve` is restricted to the target Professor and verifies every inventoried artifact's persisted bytes and SHA-256 before changing ownership.
 - `POST /mlflow/handovers/{handover_id}/reject` records a terminal rejection; `POST /mlflow/handovers/{handover_id}/cancel` lets the source owner cancel a pending request. Terminal requests cannot be approved or changed.

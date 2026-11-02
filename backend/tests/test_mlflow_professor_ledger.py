@@ -40,7 +40,9 @@ class ProfessorLedgerTests(unittest.TestCase):
         entry_query.filter.return_value.order_by.return_value.all.return_value = [entry]
         snapshot_query = MagicMock()
         snapshot_query.filter.return_value.all.return_value = [snapshot]
-        db.query.side_effect = [professor_query, student_query, run_query, entry_query, snapshot_query]
+        researcher_query = MagicMock()
+        researcher_query.filter.return_value.all.return_value = []
+        db.query.side_effect = [professor_query, student_query, researcher_query, run_query, entry_query, snapshot_query]
 
         result = list_professor_ledger(db, SimpleNamespace(id=9, role="PROFESSOR"))
 
@@ -70,7 +72,9 @@ class ProfessorLedgerTests(unittest.TestCase):
         ]
         snapshot_query = MagicMock()
         snapshot_query.filter.return_value.all.return_value = []
-        db.query.side_effect = [professor_query, student_query, run_query, entry_query, snapshot_query]
+        researcher_query = MagicMock()
+        researcher_query.filter.return_value.all.return_value = []
+        db.query.side_effect = [professor_query, student_query, researcher_query, run_query, entry_query, snapshot_query]
 
         result = list_professor_ledger(db, SimpleNamespace(id=9, role="PROFESSOR"))
 
@@ -97,7 +101,9 @@ class ProfessorLedgerTests(unittest.TestCase):
                             experiment_id=5, project_id="project-1", model_id="model-2",
                             state="RECORDED", code_sha256="a" * 64)
         ]
-        db.query.side_effect = [professor_query, student_query, run_query, entry_query, snapshot_query]
+        researcher_query = MagicMock()
+        researcher_query.filter.return_value.all.return_value = []
+        db.query.side_effect = [professor_query, student_query, researcher_query, run_query, entry_query, snapshot_query]
 
         result = list_professor_ledger(db, SimpleNamespace(id=9, role="PROFESSOR"))
 

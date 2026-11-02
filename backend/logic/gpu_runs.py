@@ -178,7 +178,8 @@ def submit_gpu_run(
 
     submission = submit_job(db, user.id, gpus=gpus, walltime=walltime, client_request_id=client_request_id,
                             project_ref=project_id, snapshot_hash=target.manifest_hash, cfg=cfg,
-                            reproduces=f"reproduces:{source.id}" if source else None)
+                            reproduces=f"reproduces:{source.id}" if source else None,
+                            commit=False)          # an agent handed a job with no run yet would treat it as a plain job
     job = submission.job
     run = db.query(ModelRun).filter(ModelRun.job_id == job.id).first()
     if run is not None:

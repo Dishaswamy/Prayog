@@ -62,9 +62,6 @@ class HandoverListTests(GpuRunCase):
         project = self.make_project(self.client)
         self.make_version(self.client, project)
         self.professor = self.db.query(orm.Professor).filter(orm.Professor.email == f"prof-{self.suffix}@example.test").one()
-        self.db.add(orm.Researcher(user_id=self.owner.id, name="Owner", email=self.owner.email, roll_number=f"r-{self.suffix}",
-                                   course="CS", branch="CSE", professor_id=self.professor.id, start_date=self.now))
-        self.db.commit()
         pushed = self.client.post(f"/mlflow/projects/{project['project_id']}/handover", json={"professor_id": self.professor.id})
         self.assertEqual(pushed.status_code, 201, pushed.text)
         self.handover = pushed.json()["handover_id"]

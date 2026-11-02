@@ -14,6 +14,7 @@ from collections.abc import Callable
 from sqlalchemy.orm import sessionmaker
 
 from logic.access_request import sweep_access_revocations
+from logic.mlflow_outbox import record_sealed_runs
 from logic.mlflow_release import reconcile_runs, register_mlflow_hooks
 from logic.staging import expire_staged_files
 from logic.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
@@ -25,7 +26,8 @@ log = logging.getLogger("prayog.scheduler")
 
 def _sweep_mlflow(session) -> None:
     """ML Flow upkeep, each part on its own so one failing never stops the others or the pass."""
-    for name, sweep in (("reconcile runs", reconcile_runs), ("expire staged data", expire_staged_files)):
+    for name, sweep in (("reconcile runs", reconcile_runs), ("expire staged data", expire_staged_files),
+                        ("record sealed runs", record_sealed_runs)):
         try:
             changed = sweep(session)
             if changed:

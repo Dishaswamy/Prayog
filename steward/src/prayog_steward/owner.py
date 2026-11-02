@@ -168,10 +168,11 @@ class OwnerService:
             projects = conn.execute(
                 select(diagnoses.c.project_id, diagnoses.c.owner_id).distinct()
             ).all()
-            visible = [
-                p.project_id for p in projects
-                if p.owner_id == me or self.authorizer.may_read_project(me, p.project_id)
-            ]
+            may_read: dict[str, bool] = {me: True}  # supervision is per person
+            for p in projects:
+                if p.owner_id not in may_read:
+                    may_read[p.owner_id] = self.authorizer.may_read_project(me, p.project_id)
+            visible = [p.project_id for p in projects if may_read[p.owner_id]]
             if not visible:
                 return []
             rows = conn.execute(

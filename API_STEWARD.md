@@ -139,7 +139,7 @@ Your corrected-job proposals. A proposal changes only fields the platform can ch
 One of your proposals; 404 otherwise.
 
 ### POST /steward/proposals/{proposal_id}/approve
-Submits the proposed job through the normal request path: same validation, quota and ranking, a new submit time and no priority advantage. Idempotent per proposal.
+Submits the proposed job through the normal request path: same validation, quota and ranking, a new submit time and no priority advantage. Idempotent per proposal. When the failed run was a GPU run, the corrected job is a new run of the same version, with its hyperparameters and dataset.
 
 ```json
 { "state": "APPROVED", "submitted_job_id": "12", "refusal": null }

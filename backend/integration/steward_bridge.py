@@ -61,6 +61,10 @@ from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 from steward_contracts import ReasoningPort
 
+from logic.gpu_runs import DatasetFile, submit_gpu_run
+from logic.project_versions import version_label
+from mlflow_models import ModelRun, ProjectVersion, RunDatasetFile
+
 import models as orm
 from database import DATABASE_URL, SessionLocal
 from logic.auth import ALGORITHM, SECRET_KEY
@@ -274,7 +278,7 @@ class JwtPrincipalResolver:
                 kind=PrincipalKind.USER,
                 lab=lab,
                 roles=frozenset(roles),
-                session_id=f"jwt:{user.id}:{exp}",
+                session_id=f"jwt:{user.id}:{exp}:{user.token_version}:{user.session_id}",
             )
 
 
@@ -315,26 +319,35 @@ class PlatformAuthorizer:
         owner = parsed[0]
         if owner == uid:
             return True
+        now = naive(self.clock.now())
         with self.sessions() as session:
-            supervisor = session.scalar(
+            supervisors = session.scalars(
                 select(orm.Professor.user_id).where(
                     orm.Professor.id.in_(
-                        select(orm.Student.professor_id).where(orm.Student.user_id == owner)
-                        .union(select(orm.Researcher.professor_id)
-                               .where(orm.Researcher.user_id == owner))
+                        select(orm.Student.professor_id).where(
+                            orm.Student.user_id == owner, orm.Student.start_date <= now,
+                            orm.Student.end_date >= now,
+                        ).union(select(orm.Researcher.professor_id).where(
+                            orm.Researcher.user_id == owner, orm.Researcher.start_date <= now,
+                        ))
                     )
                 )
-            )
-            return supervisor == uid
+            ).all()
+            return uid in supervisors
 
     def session_active(self, session_id: str) -> bool:
-        """The CLI's token is the session (no server-side sessions yet): active until it
-        expires. A link dies with the token that requested it."""
-        parts = session_id.split(":")
-        if len(parts) != 3 or parts[0] != "jwt":
+        """The token is the session. It is active until it expires, is logged out, or a
+        password reset ends it, so a link dies with the token that requested it."""
+        parts = session_id.split(":", 4)
+        if len(parts) != 5 or parts[0] != "jwt":
             return False
-        exp = _int(parts[2])
-        return exp is not None and exp > int(self.clock.now().timestamp())
+        uid, exp, version = _int(parts[1]), _int(parts[2]), _int(parts[3])
+        if uid is None or exp is None or exp <= int(self.clock.now().timestamp()):
+            return False
+        with self.sessions() as session:
+            user = session.get(orm.User, uid)
+            return (user is not None and user.token_version == version
+                    and session.get(orm.RevokedToken, parts[4]) is None)
 
 
 # ── rebuilds, ledger, allocations ───────────────────────────────────────
@@ -458,11 +471,35 @@ class PlatformAllocationHistory:
 class PlatformSubmissions:
     """An approved proposal is an ordinary submission (FR-GPU-150): same rules, a new
     submit time, no priority advantage. The proposal ID is the client_request_id, so a
-    retried approval returns the same job (FR-GPU-107)."""
+    retried approval returns the same job (FR-GPU-107). A failed GPU run is run again as
+    a new run of the same version, so the corrected job actually carries the user's code."""
 
     def __init__(self, sessions: Any = SessionLocal, trigger_pass: bool = True) -> None:
         self.sessions = sessions
         self.trigger_pass = trigger_pass
+
+    @staticmethod
+    def _gpu_run_of(session: Any, run_id: str) -> ModelRun | None:
+        """The ML Flow run behind a platform run, if it has one."""
+        rid = _int(run_id)
+        job_id = session.scalar(select(orm.Run.job_id).where(orm.Run.id == rid)) if rid is not None else None
+        if job_id is None:
+            return None
+        return session.scalars(
+            select(ModelRun).where(ModelRun.job_id == job_id, ModelRun.project_version_id.is_not(None))
+        ).first()
+
+    @staticmethod
+    def _rerun(session: Any, source: ModelRun, user: int, gpus: int, walltime: str, client_request_id: str) -> int:
+        version = session.get(ProjectVersion, source.project_version_id)
+        dataset = session.scalars(select(RunDatasetFile).where(RunDatasetFile.run_id == source.id)).all()
+        run, _ = submit_gpu_run(
+            session, session.get(orm.User, user), source.project_id, version_label(version.version_number),
+            gpus, walltime, client_request_id, hyperparameters=dict(source.hyperparameters),
+            entrypoint=source.environment.get("entrypoint"),
+            dataset=[DatasetFile(f.path, f.size_bytes, f.blake3) for f in dataset],
+        )
+        return run.job_id
 
     def submit(self, request: SubmissionRequest) -> SubmissionReceipt:
         user = _int(request.approving_user)
@@ -470,21 +507,26 @@ class PlatformSubmissions:
         if user is None or parsed is None:
             return SubmissionReceipt(accepted=False, reason="unknown user or project")
         spec = request.job_spec
+        client_request_id = f"steward:{request.idempotency_key}"[:64]
+        walltime = format_walltime(spec.walltime_minutes)
         with self.sessions() as session:
             try:
-                result = submit_job(
-                    session,
-                    user,
-                    gpus=spec.gpu_count,
-                    walltime=format_walltime(spec.walltime_minutes),
-                    client_request_id=f"steward:{request.idempotency_key}"[:64],
-                    project_ref=parsed[1],
-                    snapshot_hash=spec.image_digest or None,
-                )
+                source = self._gpu_run_of(session, request.parent_run_id)
+                if source is not None:
+                    job_id = self._rerun(session, source, user, spec.gpu_count, walltime, client_request_id)
+                else:
+                    job_id = submit_job(
+                        session,
+                        user,
+                        gpus=spec.gpu_count,
+                        walltime=walltime,
+                        client_request_id=client_request_id,
+                        project_ref=parsed[1],
+                        snapshot_hash=spec.image_digest or None,
+                    ).job.id
             except (SubmissionRejected, AppError) as exc:
                 session.rollback()
                 return SubmissionReceipt(accepted=False, reason=str(exc))
-            job_id = result.job.id
         if self.trigger_pass:
             _trigger_pass("submit")
         return SubmissionReceipt(accepted=True, job_id=str(job_id))

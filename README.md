@@ -169,10 +169,10 @@ python -m scripts.setup_steward       # Steward role, schemas and grants (skip i
 For a quick development setup with sample data:
 
 ```bash
-python -m scripts.seed_dev --password dev-password
+python -m scripts.seed_dev
 ```
 
-This creates `admin@iitk.ac.in`, `prof@iitk.ac.in`, `alice@iitk.ac.in` (student, lab *vision*) and `bob@iitk.ac.in` (researcher, lab *nlp*). Alice's and Bob's access is already approved. It also creates two nodes, `n1` and `n2`, with 4 GPUs each, and prints the command that starts each node's agent.
+This creates `admin@iitk.ac.in`, `prof@iitk.ac.in`, `prof2@iitk.ac.in`, `alice@iitk.ac.in` (student, lab *vision*) and `bob@iitk.ac.in` (researcher, lab *nlp*). Each test account's password is its user ID reversed (`alice` signs in with `ecila`). Alice's and Bob's access is already approved. It also creates nodes `n1`, `n2` and the teaching-pool node `t1`, with 4 GPUs each, and prints the command that starts each node's agent. Use it for development only: these passwords are public.
 
 Or, to create just the first admin:
 
@@ -228,7 +228,7 @@ curl http://127.0.0.1:8000/health
 
    ```bash
    curl -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" \
-        -d '{"email": "alice@iitk.ac.in", "password": "dev-password", "role": "STUDENT"}'
+        -d '{"email": "alice@iitk.ac.in", "password": "ecila", "role": "STUDENT"}'
 
    curl -X POST http://127.0.0.1:8000/jobs -H "Authorization: Bearer <token>" \
         -H "Content-Type: application/json" \
@@ -279,6 +279,8 @@ Full request and response formats are in [API.md](API.md) and [API_STEWARD.md](A
 ## Status
 
 **Working and tested.** Authentication, two-step access approval, the GPU scheduler (classes, fair-share scoring, dispatch, reaper, drain and maintenance), the simulated node agent, and the Steward contexts S1–S4 with the heuristic adapter. As of 2026-10-15, 16 end-to-end backend tests and 222 Steward tests pass on PostgreSQL. Those tests are kept outside this repository; the Experiment Ledger and scheduler-admin tests are in `backend/tests` and run in CI (`.github/workflows/mlflow-validation.yml`).
+
+**Sign-in rules:** ten failed sign-ins in a row lock an account for 15 minutes, even for the right password, and the answer never reveals it (FR-AUTH-60). Sign-ins, lockouts and logouts go to the audit log. Creating projects, uploading and queueing need approved access; reading your own records does not.
 
 **Not built yet, or interim:**
 

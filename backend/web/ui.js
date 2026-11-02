@@ -1,6 +1,6 @@
 // Pieces the platform screens share, on top of the Steward UI's client and DOM helpers.
 // As there, nothing assigns innerHTML: everything from the server is text.
-import { api, h, badge, clear, confirm, parseTime, token } from "/app/steward/lib.js";
+import { h, badge, confirm, parseTime, token } from "/app/steward/lib.js";
 
 const TONE = {
   IN_PROCESS: "info", QUEUED: "info", SCHEDULED: "info", RUNNING: "accent", COMPLETED: "good", SUCCEEDED: "good",
@@ -172,5 +172,3 @@ export function metricCharts(rows) {
     h("details", { class: "collapsible" }, h("summary", null, "Metrics as a table"),
       table(["Metric", "Step", "Value"], names.flatMap((n) => groups.get(n).map((p) => [n, String(p.step), String(p.value)])), { compact: true })));
 }
-
-export { api, clear };

@@ -15,7 +15,7 @@ export async function dashboard(ctx) {
   const head = pageHead("Dashboard", "Your GPU jobs and projects at a glance.");
   clear(ctx.view, head, loading());
   const [access, jobs, projects, quota, proposals] = await Promise.all([
-    api("/access-requests/me"), api("/jobs?limit=20"), api("/mlflow/projects"),
+    api("/access-requests/me"), api("/jobs"), api("/mlflow/projects"),
     api("/jobs/quota").catch((e) => { if (e.status === 404) return null; throw e; }),
     ctx.steward ? api("/steward/proposals?state=PROPOSED") : [],
   ]);
