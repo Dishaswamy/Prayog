@@ -69,3 +69,104 @@ def test_no_access_replies_are_explained(run, server, capsys, body, fragment):
     server.on("POST", "/mlflow/projects", 403, body)
     assert run("project", "create", "vision") == 1
     assert fragment in capsys.readouterr().err
+
+
+def test_create_accepts_name_at_maximum_length(run, server):
+    log_in_as()
+    server.on("POST", "/mlflow/projects", 201, CREATED)
+
+    name = "x" * 120
+    assert run("project", "create", name) == 0
+    assert server.body()["name"] == name
+
+
+def test_create_accepts_description_at_maximum_length(run, server):
+    log_in_as()
+    server.on("POST", "/mlflow/projects", 201, CREATED)
+
+    description = "d" * 4000
+    assert run("project", "create", "vision", "-d", description) == 0
+    assert server.body()["description"] == description
+
+
+def test_create_rejects_description_over_maximum_length(
+    run, server, capsys
+):
+    log_in_as()
+
+    description = "d" * 4001
+
+    assert run(
+        "project", "create", "vision", "-d", description
+    ) == 2
+
+    assert "Description is too long" in capsys.readouterr().err
+    assert server.seen == []
+
+
+def test_create_accepts_empty_description(run, server):
+    log_in_as()
+    server.on("POST", "/mlflow/projects", 201, CREATED)
+
+    assert run("project", "create", "vision", "-d", "") == 0
+    assert server.body()["description"] == ""
+
+
+def test_clean_deletes_staged_files(run, server, capsys):
+    log_in_as()
+
+    server.on("GET", "/mlflow/projects", body=[CREATED])
+    server.on(
+        "DELETE",
+        f"/mlflow/projects/{CREATED['project_id']}/staged-data",
+        200,
+        {
+            "deleted_files": 5,
+            "freed_bytes": 2048,
+            "kept_in_use": 0
+        }
+    )
+
+    assert run("project", "clean", "vision") == 0
+
+    out = capsys.readouterr().out
+    assert "Deleted 5 staged file(s)" in out
+    assert "2.0 KB" in out
+    assert "Kept" not in out
+
+
+def test_clean_reports_files_still_in_use(run, server, capsys):
+    log_in_as()
+
+    server.on("GET", "/mlflow/projects", body=[CREATED])
+    server.on(
+        "DELETE",
+        f"/mlflow/projects/{CREATED['project_id']}/staged-data",
+        200,
+        {
+            "deleted_files": 3,
+            "freed_bytes": 1024,
+            "kept_in_use": 2
+        }
+    )
+
+    assert run("project", "clean", "vision") == 0
+
+    out = capsys.readouterr().out
+    assert "Deleted 3 staged file(s)" in out
+    assert "Kept 2 file(s)" in out
+
+
+def test_clean_handles_server_failure(run, server, capsys):
+    log_in_as()
+
+    server.on("GET", "/mlflow/projects", body=[CREATED])
+    server.on(
+        "DELETE",
+        f"/mlflow/projects/{CREATED['project_id']}/staged-data",
+        500,
+        {"detail": "Internal server error"}
+    )
+
+    assert run("project", "clean", "vision") == 1
+    assert "Internal server error" in capsys.readouterr().err
