@@ -314,6 +314,13 @@ def test_the_dataset_is_fingerprinted_with_blake3_and_secrets_are_left_out(data)
 def test_a_single_file_is_staged_under_its_own_name(data):
     assert [f.path for f in dataset.scan(data / "a.csv")] == ["a.csv"]
 
+@pytest.mark.parametrize("filename", [".env", "credentials.json", "private.pem"])
+def test_a_secret_file_passed_directly_is_not_staged(tmp_path, filename):
+    secret = tmp_path / filename
+    secret.write_text("SECRET=do-not-upload")
+
+    with pytest.raises(CliError, match="no files"):
+        dataset.scan(secret)
 
 def test_a_symlink_in_the_dataset_is_refused(data):
     (data / "alias.csv").symlink_to(data / "a.csv")

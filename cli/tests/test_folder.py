@@ -59,7 +59,10 @@ class FakeMlflow:
                                       "size_bytes": len(request.content)}
             return httpx.Response(201, json={"id": artifact_id})
         if path.endswith("/content"):
-            return httpx.Response(200, content=self.objects[path.split("/")[-2]])
+            artifact_id = path.split("/")[-2]
+            if artifact_id not in self.objects:
+                return httpx.Response(404, json={"detail": "Artifact not found"})
+            return httpx.Response(200, content=self.objects[artifact_id])
         return httpx.Response(404, json={"detail": "Not found"})
 
 
@@ -314,3 +317,70 @@ def test_inventory_rejects_reserved_manifest_filename(tmp_path):
 
     with pytest.raises(ValueError, match="reserved file"):
         folder.inventory(root)
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"path": "../escape.txt"},
+        {"size_bytes": True},
+        {"sha256": "not-a-digest"},
+        {"role": "unknown"},
+        {"included_in_archive": "yes"},
+    ],
+)
+def test_restore_rejects_invalid_manifest_file_entries(change):
+    item = {
+        "path": "src/main.py",
+        "size_bytes": 10,
+        "sha256": "a" * 64,
+        "role": "source",
+        "included_in_archive": True,
+    }
+    item.update(change)
+
+    with pytest.raises(ValueError):
+        restore.validate_files([item])
+
+def test_pull_handles_a_missing_chunk_without_restoring_partial_files(
+    prayog, api, work, tmp_path, capsys
+):
+    prayog("project", "link", "Vision", str(work))
+
+    manifest_id = folder.read_link(work)["versions"][0]["manifest_artifact_id"]
+    manifest = json.loads(api.objects[manifest_id])
+    missing_chunk = manifest["chunks"][0]["artifact_id"]
+
+    # Keep its metadata, but simulate the artifact being unavailable.
+    del api.objects[missing_chunk]
+
+    dest = tmp_path / "restored"
+    assert prayog(
+        "project", "pull", "Vision", str(dest), "--data-dir", str(work)
+    ) == 1
+
+    assert "Artifact not found" in capsys.readouterr().err
+    assert not dest.exists()
+
+def test_pull_rejects_a_reassembled_archive_with_the_wrong_checksum(
+    prayog, api, work, tmp_path, capsys
+):
+    prayog("project", "link", "Vision", str(work))
+
+    manifest_id = folder.read_link(work)["versions"][0]["manifest_artifact_id"]
+    manifest = json.loads(api.objects[manifest_id])
+
+    # Make the archive checksum incorrect while keeping the manifest itself valid.
+    manifest["archive_sha256"] = "0" * 64
+    updated = json.dumps(manifest).encode("utf-8")
+
+    api.objects[manifest_id] = updated
+    api.meta[manifest_id]["sha256"] = hashlib.sha256(updated).hexdigest()
+    api.meta[manifest_id]["size_bytes"] = len(updated)
+
+    dest = tmp_path / "restored"
+    assert prayog(
+        "project", "pull", "Vision", str(dest), "--data-dir", str(work)
+    ) == 2
+
+    assert "reassembled archive failed its checksum" in capsys.readouterr().err
+    assert not dest.exists()

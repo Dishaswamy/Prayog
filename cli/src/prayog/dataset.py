@@ -43,6 +43,8 @@ def scan(target: Path) -> list[DataFile]:
     if target.is_symlink():
         raise CliError(f"'{target}' is a symbolic link; give the real path.", USAGE)
     if target.is_file():
+        if _is_secret(target.name, target):
+            raise CliError(f"'{target}' has no files to stage.", USAGE)
         return [DataFile(target.name, target.stat().st_size, blake3_of(target), target)]
     if not target.is_dir():
         raise CliError(f"'{target}' is not a file or folder.", USAGE)
