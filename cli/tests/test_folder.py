@@ -270,3 +270,47 @@ def test_extraction_rejects_path_traversal(tmp_path):
 def test_logged_out_link_is_just_the_login_hint(run, server, capsys):
     assert run("project", "link", "Vision", ".") == 1
     assert "You are not logged in" in capsys.readouterr().err and server.seen == []
+
+def test_link_rejects_an_empty_folder(prayog, api, tmp_path, capsys):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+
+    assert prayog("project", "link", "Vision", str(empty)) == 2
+    assert "no files" in capsys.readouterr().err.lower()
+    assert api.uploads == 0
+    assert folder.read_link(empty) is None
+
+
+@pytest.mark.parametrize("chunk_size", ["0", "33"])
+def test_link_rejects_invalid_chunk_sizes(
+    prayog, api, work, capsys, chunk_size
+):
+    assert prayog(
+        "project", "link", "Vision", str(work),
+        "--chunk-mib", chunk_size
+    ) == 2
+
+    assert "Chunk size must be between 1 and 32 MiB" in capsys.readouterr().err
+    assert api.uploads == 0
+    assert folder.read_link(work) is None
+
+
+@pytest.mark.parametrize("chunk_size", ["1", "32"])
+def test_link_accepts_chunk_size_boundaries(prayog, api, work, chunk_size):
+    assert prayog(
+        "project", "link", "Vision", str(work),
+        "--chunk-mib", chunk_size
+    ) == 0
+
+    assert folder.read_link(work) is not None
+
+
+def test_inventory_rejects_reserved_manifest_filename(tmp_path):
+    root = tmp_path / "work"
+    root.mkdir()
+
+    reserved = root / folder.MANIFEST_ENTRY
+    reserved.write_text("{}")
+
+    with pytest.raises(ValueError, match="reserved file"):
+        folder.inventory(root)
