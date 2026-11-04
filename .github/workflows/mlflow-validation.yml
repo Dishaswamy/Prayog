@@ -7,8 +7,9 @@ name: ML Flow validation
 
 jobs:
   cli:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04              # ubuntu-latest (26.04) has no Python 3.9
     strategy:
+      fail-fast: false                 # one Python version failing does not hide the other's result
       matrix:
         python-version: ["3.9", "3.12"]     # the CLI supports 3.9 and up
     steps:
