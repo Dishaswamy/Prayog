@@ -476,3 +476,525 @@ def test_extraction_rejects_corrupted_internal_manifests(
 
     with pytest.raises(ValueError):
         restore.extract_archive(archive_path, staging, [])
+
+def valid_restore_file(**overrides):
+    item = {
+        "path": "src/main.py",
+        "size_bytes": 10,
+        "sha256": "a" * 64,
+        "role": "source",
+        "included_in_archive": True,
+    }
+    return {**item, **overrides}
+
+
+def test_restore_digest_and_integer_validators():
+    assert restore._is_digest("a" * 64)
+    assert not restore._is_digest("g" * 64)
+    assert not restore._is_digest("a" * 63)
+
+    assert restore._is_int(10)
+    assert not restore._is_int(True)
+    assert not restore._is_int(10.0)
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        valid_restore_file(size_bytes=-1),
+        valid_restore_file(sha256="g" * 64),
+        valid_restore_file(role="unknown"),
+        valid_restore_file(included_in_archive=False),
+        valid_restore_file(role="data", included_in_archive=True),
+    ],
+)
+def test_restore_rejects_invalid_file_metadata(item):
+    with pytest.raises(ValueError):
+        restore.validate_files([item])
+
+
+def test_restore_rejects_duplicate_file_paths():
+    item = valid_restore_file()
+
+    with pytest.raises(ValueError, match="duplicate"):
+        restore.validate_files([item, item])
+
+
+def test_restore_rejects_reserved_manifest_path():
+    item = valid_restore_file(path=restore.MANIFEST_ENTRY)
+
+    with pytest.raises(ValueError, match="reserved"):
+        restore.validate_files([item])
+
+
+def test_restore_rejects_unsorted_file_inventory():
+    first = valid_restore_file(path="z.py")
+    second = valid_restore_file(path="a.py")
+
+    with pytest.raises(ValueError, match="not sorted"):
+        restore.validate_files([first, second])
+
+
+def test_restore_rejects_non_list_inventory():
+    with pytest.raises(ValueError, match="inventory is invalid"):
+        restore.validate_files({"path": "src/main.py"})
+
+
+def test_restore_rejects_non_dictionary_inventory_entry():
+    with pytest.raises(ValueError, match="inventory is invalid"):
+        restore.validate_files(["src/main.py"])
+
+
+def test_restore_rejects_inventory_exceeding_file_limit(monkeypatch):
+    monkeypatch.setattr(restore, "MAX_FILES", 1)
+
+    with pytest.raises(ValueError, match="inventory is invalid"):
+        restore.validate_files([
+            valid_restore_file(path="a.py"),
+            valid_restore_file(path="b.py"),
+        ])
+
+
+def test_restore_rejects_inventory_exceeding_total_size(monkeypatch):
+    monkeypatch.setattr(restore, "MAX_FOLDER_BYTES", 10)
+
+    with pytest.raises(ValueError, match="4 GiB limit"):
+        restore.validate_files([
+            valid_restore_file(size_bytes=11),
+        ])
+
+
+def test_extraction_rejects_too_many_entries(tmp_path, monkeypatch):
+    archive_path = tmp_path / "too-many.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    monkeypatch.setattr(restore, "MAX_FILES", 1)
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("one.txt", "1")
+        archive.writestr("two.txt", "2")
+        archive.writestr("three.txt", "3")
+
+    with pytest.raises(ValueError, match="too many entries"):
+        restore.extract_archive(archive_path, staging, [])
+
+
+def test_extraction_rejects_directory_with_file_type(tmp_path):
+    archive_path = tmp_path / "bad-directory.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    info = zipfile.ZipInfo("folder/")
+    info.create_system = 3
+    info.external_attr = (stat.S_IFREG | 0o600) << 16
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(info, "")
+
+    with pytest.raises(ValueError, match="directory entry has an invalid type"):
+        restore.extract_archive(archive_path, staging, [])
+
+
+def test_extraction_rejects_file_with_directory_type(tmp_path):
+    archive_path = tmp_path / "bad-file.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    info = zipfile.ZipInfo("not-a-directory")
+    info.create_system = 3
+    info.external_attr = (stat.S_IFDIR | 0o700) << 16
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(info, "")
+
+    with pytest.raises(ValueError, match="file entry has an invalid type"):
+        restore.extract_archive(archive_path, staging, [])
+
+
+def test_extraction_handles_directory_entries(tmp_path):
+    archive_path = tmp_path / "directory.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("src/", "")
+
+    # The directory is created, then extraction fails because the archive
+    # does not contain the required internal manifest.
+    with pytest.raises(ValueError, match="internal manifest is invalid"):
+        restore.extract_archive(archive_path, staging, [])
+
+    assert (staging / "src").is_dir()
+
+
+def test_extraction_rejects_oversized_internal_manifest(tmp_path, monkeypatch):
+    archive_path = tmp_path / "large-manifest.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    monkeypatch.setattr(restore, "MAX_MANIFEST_BYTES", 2)
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(restore.MANIFEST_ENTRY, b"123")
+
+    with pytest.raises(ValueError, match="internal manifest is too large"):
+        restore.extract_archive(archive_path, staging, [])
+
+
+def test_extraction_rejects_file_size_mismatch(tmp_path):
+    archive_path = tmp_path / "wrong-size.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    expected = valid_restore_file(size_bytes=10)
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("src/main.py", b"short")
+
+    with pytest.raises(ValueError, match="size does not match"):
+        restore.extract_archive(archive_path, staging, [expected])
+
+
+def test_extraction_rejects_file_checksum_mismatch(tmp_path):
+    archive_path = tmp_path / "wrong-checksum.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    expected = valid_restore_file(
+        size_bytes=5,
+        sha256="0" * 64,
+    )
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("src/main.py", b"hello")
+
+    with pytest.raises(ValueError, match="integrity verification failed"):
+        restore.extract_archive(archive_path, staging, [expected])
+
+
+def test_extraction_rejects_missing_expected_files(tmp_path):
+    archive_path = tmp_path / "missing-file.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    expected = [valid_restore_file()]
+
+    internal_manifest = {
+        "format_version": restore.FORMAT_VERSION,
+        "files": expected,
+    }
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(
+            restore.MANIFEST_ENTRY,
+            json.dumps(internal_manifest),
+        )
+
+    with pytest.raises(ValueError, match="missing files"):
+        restore.extract_archive(archive_path, staging, expected)
+
+
+def test_check_datasets_returns_when_there_are_no_data_files():
+    source_file = valid_restore_file()
+
+    restore._check_datasets([source_file], None)
+
+
+def test_check_datasets_rejects_nested_symlink(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    outside = tmp_path / "outside"
+    outside.write_text("dataset")
+
+    (data_dir / "alias.csv").symlink_to(outside)
+
+    item = valid_restore_file(
+        path="alias.csv",
+        role="data",
+        included_in_archive=False,
+    )
+
+    with pytest.raises(ValueError, match="symbolic link"):
+        restore._check_datasets([item], data_dir)
+
+
+def test_check_datasets_rejects_missing_file(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    item = valid_restore_file(
+        path="missing.csv",
+        role="data",
+        included_in_archive=False,
+    )
+
+    with pytest.raises(ValueError, match="Dataset file is missing"):
+        restore._check_datasets([item], data_dir)
+
+# --- Remaining restore.py validation and failure-path coverage ---
+
+
+class FakeDownloadResponse:
+    def __init__(self, blocks):
+        self.blocks = blocks
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def iter_bytes(self):
+        yield from self.blocks
+
+
+class FakeDownloadClient:
+    def __init__(self, blocks):
+        self.response = FakeDownloadResponse(blocks)
+        self.requested_path = None
+
+    def stream(self, path):
+        self.requested_path = path
+        return self.response
+
+
+def test_download_rejects_piece_exceeding_size_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(restore, "MAX_ARTIFACT_BYTES", 3)
+    client = FakeDownloadClient([b"ab", b"cd"])
+
+    with pytest.raises(ValueError, match="250 MiB limit"):
+        restore._download(
+            client, "piece-1", tmp_path / "piece.bin", "a" * 64, 4
+        )
+
+    assert client.requested_path == "/mlflow/artifacts/piece-1/content"
+
+
+def test_download_rejects_checksum_mismatch(tmp_path):
+    content = b"valid bytes"
+    client = FakeDownloadClient([content])
+
+    with pytest.raises(ValueError, match="checksum"):
+        restore._download(
+            client,
+            "piece-2",
+            tmp_path / "piece.bin",
+            "0" * 64,
+            len(content),
+        )
+
+
+def test_extraction_rejects_total_uncompressed_size_limit(
+    tmp_path, monkeypatch
+):
+    archive_path = tmp_path / "oversized-content.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    content = b"four"
+    monkeypatch.setattr(restore, "MAX_FOLDER_BYTES", 3)
+
+    expected = [
+        valid_restore_file(
+            size_bytes=len(content),
+            sha256=hashlib.sha256(content).hexdigest(),
+        )
+    ]
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("src/main.py", content)
+
+    with pytest.raises(ValueError, match="extraction exceeds"):
+        restore.extract_archive(archive_path, staging, expected)
+
+
+def make_valid_chunk_manifest():
+    digest = "a" * 64
+    chunk = {
+        "index": 0,
+        "size_bytes": 4,
+        "sha256": digest,
+        "artifact_id": "piece-1",
+    }
+    manifest = {
+        "chunks": [chunk],
+        "chunk_size_bytes": 4,
+        "archive_size_bytes": 4,
+    }
+    artifacts = {
+        "piece-1": {
+            "kind": "CODE",
+            "sha256": digest,
+            "size_bytes": 4,
+        }
+    }
+    return manifest, artifacts
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        "missing_chunks",
+        "invalid_chunk_limit",
+        "noncanonical_index",
+        "invalid_chunk_size",
+        "invalid_chunk_digest",
+        "short_nonfinal_chunk",
+        "invalid_artifact_metadata",
+        "archive_size_mismatch",
+    ],
+)
+def test_validated_chunks_rejects_invalid_manifests(invalid_case):
+    manifest, artifacts = make_valid_chunk_manifest()
+
+    if invalid_case == "missing_chunks":
+        manifest["chunks"] = None
+    elif invalid_case == "invalid_chunk_limit":
+        manifest["chunk_size_bytes"] = 0
+    elif invalid_case == "noncanonical_index":
+        manifest["chunks"][0]["index"] = True
+    elif invalid_case == "invalid_chunk_size":
+        manifest["chunks"][0]["size_bytes"] = 0
+    elif invalid_case == "invalid_chunk_digest":
+        manifest["chunks"][0]["sha256"] = "not-a-digest"
+    
+    elif invalid_case == "short_nonfinal_chunk":
+        manifest["chunks"][0]["size_bytes"] = 3
+        artifacts["piece-1"]["size_bytes"] = 3
+        manifest["chunks"].append({
+            "index": 1,
+            "size_bytes": 1,
+            "sha256": "b" * 64,
+            "artifact_id": "piece-2",
+        })
+        artifacts["piece-2"] = {
+            "kind": "CODE",
+            "sha256": "b" * 64,
+            "size_bytes": 1,
+        }
+        manifest["archive_size_bytes"] = 4
+    elif invalid_case == "invalid_artifact_metadata":
+        artifacts["piece-1"]["kind"] = "MODEL"
+    elif invalid_case == "archive_size_mismatch":
+        manifest["archive_size_bytes"] = 5
+
+    with pytest.raises(ValueError):
+        restore._validated_chunks(manifest, artifacts)
+
+
+def test_validated_chunks_rejects_too_many_chunks(monkeypatch):
+    monkeypatch.setattr(restore, "MAX_CHUNKS", 1)
+    manifest, artifacts = make_valid_chunk_manifest()
+    manifest["chunks"].append({
+        "index": 1,
+        "size_bytes": 1,
+        "sha256": "b" * 64,
+        "artifact_id": "piece-2",
+    })
+
+    with pytest.raises(ValueError, match="chunk manifest is invalid"):
+        restore._validated_chunks(manifest, artifacts)
+
+
+def rewrite_stored_manifest(api, manifest_id, **changes):
+    manifest = json.loads(api.objects[manifest_id])
+    manifest.update(changes)
+    raw = json.dumps(manifest).encode("utf-8")
+
+    api.objects[manifest_id] = raw
+    api.meta[manifest_id]["sha256"] = hashlib.sha256(raw).hexdigest()
+    api.meta[manifest_id]["size_bytes"] = len(raw)
+
+
+@pytest.mark.parametrize(
+    "metadata_change",
+    [
+        {"kind": "MODEL"},
+        {"size_bytes": restore.MAX_MANIFEST_BYTES + 1},
+    ],
+)
+def test_pull_rejects_invalid_manifest_artifact_metadata(
+    prayog, api, work, tmp_path, capsys, metadata_change
+):
+    prayog("project", "link", "Vision", str(work))
+    manifest_id = folder.read_link(work)["versions"][0]["manifest_artifact_id"]
+    api.meta[manifest_id].update(metadata_change)
+
+    destination = tmp_path / "restored"
+    assert prayog(
+        "project", "pull", "Vision", str(destination), "--data-dir", str(work)
+    ) == 2
+
+    assert "version was not found" in capsys.readouterr().err
+    assert not destination.exists()
+
+
+def test_pull_rejects_unsupported_manifest_format(
+    prayog, api, work, tmp_path, capsys
+):
+    prayog("project", "link", "Vision", str(work))
+    manifest_id = folder.read_link(work)["versions"][0]["manifest_artifact_id"]
+    rewrite_stored_manifest(api, manifest_id, format_version=-1)
+
+    destination = tmp_path / "restored"
+    assert prayog(
+        "project", "pull", "Vision", str(destination), "--data-dir", str(work)
+    ) == 2
+
+    assert "manifest format is not supported" in capsys.readouterr().err
+    assert not destination.exists()
+
+
+def test_pull_rejects_manifest_from_another_experiment(
+    prayog, api, work, tmp_path, capsys
+):
+    prayog("project", "link", "Vision", str(work))
+    manifest_id = folder.read_link(work)["versions"][0]["manifest_artifact_id"]
+    rewrite_stored_manifest(api, manifest_id, experiment_id=999)
+
+    destination = tmp_path / "restored"
+    assert prayog(
+        "project", "pull", "Vision", str(destination), "--data-dir", str(work)
+    ) == 2
+
+    assert "belongs to another project" in capsys.readouterr().err
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize(
+    "archive_metadata",
+    [
+        {"archive_size_bytes": 0},
+        {"archive_sha256": "invalid"},
+    ],
+)
+def test_pull_rejects_invalid_archive_metadata(
+    prayog, api, work, tmp_path, capsys, archive_metadata
+):
+    prayog("project", "link", "Vision", str(work))
+    manifest_id = folder.read_link(work)["versions"][0]["manifest_artifact_id"]
+    rewrite_stored_manifest(api, manifest_id, **archive_metadata)
+
+    destination = tmp_path / "restored"
+    assert prayog(
+        "project", "pull", "Vision", str(destination), "--data-dir", str(work)
+    ) == 2
+
+    assert "archive metadata is invalid" in capsys.readouterr().err
+    assert not destination.exists()
+
+
+def test_pull_cleans_staging_after_extraction_failure(
+    prayog, api, work, tmp_path, monkeypatch, capsys
+):
+    prayog("project", "link", "Vision", str(work))
+
+    def fail_extraction(*args, **kwargs):
+        raise ValueError("simulated extraction failure")
+
+    monkeypatch.setattr(restore, "extract_archive", fail_extraction)
+
+    destination = tmp_path / "restored"
+    assert prayog(
+        "project", "pull", "Vision", str(destination), "--data-dir", str(work)
+    ) == 2
+
+    assert "simulated extraction failure" in capsys.readouterr().err
+    assert not destination.exists()
+    assert list(tmp_path.glob(".restored.*")) == []
