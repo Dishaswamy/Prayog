@@ -3,71 +3,49 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
   <title>Steward · Prayog</title>
   <link rel="stylesheet" href="/steward/ui/style.css">
+  <script type="module" src="/steward/ui/app.js"></script>
 </head>
 <body>
-  <header class="bar">
-    <div>
-      <h1>Steward</h1>
-      <p class="sub">Rebuild diagnosis · attempt <code id="attempt">…</code></p>
-    </div>
-    <div class="meta">
-      <span id="expiry"></span>
-      <button id="logout" type="button" class="ghost">End session</button>
-    </div>
-  </header>
-
-  <main>
-    <p class="intro">
-      Ask why your rebuild failed. Answers draw only on <strong>your own</strong> records for this
-      attempt, plus the web if your administrator enabled it. Suggested commands are text for you to
-      run yourself; Steward never runs anything or changes your files.
-    </p>
-    <form id="signin" class="turn" hidden>
-      <p class="q">Sign in to Prayog to open this Steward link</p>
-      <p class="muted">Only the owner of the failed rebuild can open it.</p>
-      <label for="email">Email or user ID</label>
-      <input id="email" type="text" autocomplete="username" required>
-      <label for="role">Role</label>
-      <select id="role" required>
-        <option value="STUDENT">Student</option>
-        <option value="RESEARCHER">Researcher</option>
-        <option value="PROFESSOR">Professor</option>
-        <option value="ADMIN">Admin</option>
-      </select>
-      <label for="password">Password</label>
-      <input id="password" type="password" autocomplete="current-password" required>
-      <button type="submit">Sign in and open</button>
+  <section id="signin-screen" class="signin-screen" hidden>
+    <form id="signin" class="signin-card">
+      <div class="brand big"><span class="mark" aria-hidden="true"></span><span>Prayog <strong>Steward</strong></span></div>
+      <p class="muted">Sign in with your Prayog account.</p>
+      <label class="field"><span>Email or user ID</span>
+        <input id="email" type="text" autocomplete="username" required></label>
+      <label class="field"><span>Role</span>
+        <select id="role" required>
+          <option value="STUDENT">Student</option>
+          <option value="RESEARCHER">Researcher</option>
+          <option value="PROFESSOR">Professor</option>
+          <option value="ADMIN">Admin</option>
+        </select></label>
+      <label class="field"><span>Password</span>
+        <input id="password" type="password" autocomplete="current-password" required></label>
+      <button id="signin-button" type="submit" class="primary wide">Sign in</button>
+      <p id="signin-status" class="status" role="status"></p>
+      <p class="fineprint">The Steward reads and reasons about your runs; it never writes, runs or changes anything on its own.</p>
     </form>
-    <section id="thread" aria-live="polite"></section>
-    <p id="status" class="status" role="status"></p>
-  </main>
+  </section>
 
-  <form id="ask" class="composer">
-    <label for="question" class="visually-hidden">Your question</label>
-    <textarea id="question" rows="2" maxlength="2000"
-              placeholder="Why did this rebuild fail, and how do I fix it?" required></textarea>
-    <details>
-      <summary>Compare with an earlier attempt</summary>
-      <label for="include">Earlier attempt IDs (comma-separated, yours only)</label>
-      <input id="include" type="text" autocomplete="off">
-    </details>
-    <button type="submit" id="send">Ask Steward</button>
-  </form>
-
-  <template id="tpl-turn">
-    <article class="turn">
-      <p class="q"></p>
-      <div class="a">
-        <ul class="notices"></ul>
-        <ul class="claims"></ul>
-        <ol class="steps"></ol>
-        <p class="sources"></p>
+  <div id="app" class="app" hidden>
+    <aside class="side">
+      <div class="side-top">
+        <a class="brand" href="#/"><span class="mark" aria-hidden="true"></span><span>Prayog <strong>Steward</strong></span></a>
+        <button id="menu" type="button" class="ghost small menu" aria-label="Menu">Menu</button>
       </div>
-    </article>
-  </template>
+      <nav id="nav" aria-label="Steward"></nav>
+      <div class="side-foot">
+        <div id="who" class="who"></div>
+        <button id="signout" type="button" class="ghost small">Sign out</button>
+      </div>
+    </aside>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
 
-  <script src="/steward/ui/app.js"></script>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <dialog id="confirm"></dialog>
 </body>
 </html>

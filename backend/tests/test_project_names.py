@@ -6,7 +6,7 @@ from tests.scheduler_pg import requires_postgres
 @requires_postgres
 class ProjectNameTests(AccessApiCase):
     def _user(self, label):
-        return self.new_user(label)
+        return self.approved_user(label)[0]
 
     def _create(self, auth, name, description=None):
         return self.client.post("/mlflow/projects", headers=auth, json={"name": name, "description": description})

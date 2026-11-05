@@ -103,9 +103,11 @@ def submit_job(
     now: datetime | None = None,
     cfg: SchedulerConfig = DEFAULT_CONFIG,
     reproduces: str | None = None,
+    commit: bool = True,
 ) -> Submission:
     """Validate and queue a job. Every submission takes this path, rebuilds included; a
-    rebuild only adds its reproduces label, which no scheduling rule reads (§14.3)."""
+    rebuild only adds its reproduces label, which no scheduling rule reads (§14.3). With
+    commit=False the caller commits, so what it adds appears together with the job."""
     now = now or utc_now()                                        # server time (FR-GPU-012)
 
     # Locking the user's context row serialises their submissions, so neither the
@@ -156,7 +158,10 @@ def submit_job(
         effective_submit_at=now,
     )
     db.add(job)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return Submission(job, created=True)
 
 

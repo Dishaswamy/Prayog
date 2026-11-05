@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from logic.errors import BadRequestError, ConflictError, ForbiddenError
-from models import PasswordResetOTP, RevokedToken, User
+from models import AuditEvent, PasswordResetOTP, RevokedToken, User
 
 load_dotenv()
 
@@ -24,11 +24,28 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 OTP_EXPIRE_MINUTES = 10
 OTP_MAX_ATTEMPTS = 5          # wrong guesses before the OTP is cancelled
 OTP_RESEND_COOLDOWN_SECONDS = 60
+MAX_FAILED_LOGINS = 10        # FR-AUTH-60, max_failed_logins
+LOCKOUT_MINUTES = 15          # FR-AUTH-60, lockout_period
 
 ALLOWED_DOMAIN = "@iitk.ac.in"
 SELF_REGISTER_ROLES = {"STUDENT", "RESEARCHER"}
 
 password_hash = PasswordHash.recommended()
+
+
+def _utcnow() -> datetime:
+    # naive UTC, same as the DB columns
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def audit_auth_event(db: Session, operation: str, user_id: int | None, outcome: str, reason: str | None = None) -> None:
+    """One authentication event in the append-only audit log (FR-AUD-01). The caller commits.
+    An attempt on an unknown account has no user: what was typed is never recorded."""
+    db.add(AuditEvent(
+        at=_utcnow(), actor=str(user_id) if user_id is not None else "anonymous", actor_kind="user",
+        operation=operation, resource_ids=[f"user:{user_id}"] if user_id is not None else [],
+        outcome=outcome, reason=reason,
+    ))
 
 
 def normalize_email(email: str) -> str:
@@ -72,6 +89,7 @@ def register_user(db: Session, email: str, password: str, role: str) -> User:
         raise ForbiddenError("Only students and researchers can self-register")
 
     user = create_user_record(db, email, password, role)
+    audit_auth_event(db, "auth.register", user.id, "ok")
     try:
         db.commit()
     except IntegrityError:
@@ -99,18 +117,35 @@ def authenticate_user(
     """
     Log in with email or user ID, the password, and the role picked on the login
     screen. Returns None for any failure (unknown account, wrong password, wrong
-    role) so the caller can give one identical error for all of them.
+    role, locked out) so the caller can give one identical error for all of them.
     """
     identifier = normalize_email(identifier)        # strip + lowercase works for both forms
     column = User.email if "@" in identifier else User.user_id
-    user = db.query(User).filter(column == identifier).first()
+    user = db.query(User).filter(column == identifier).with_for_update().first()
 
     # Always verify a hash, found or not
     password_ok = password_hash.verify(password, user.password_hash if user else _DUMMY_HASH)
-    if not user or not password_ok:
+    now = _utcnow()
+    if user is None:
+        audit_auth_event(db, "auth.login", None, "denied", "failed credentials")
+        db.commit()
         return None
-    if role is not None and user.role != role.upper():
+    # FR-AUTH-60: during a lockout even the right password is refused, the same way.
+    if user.locked_until is not None and user.locked_until > now:
+        audit_auth_event(db, "auth.login", user.id, "denied", "locked out")
+        db.commit()
         return None
+    if not password_ok or (role is not None and user.role != role.upper()):
+        user.failed_logins += 1
+        audit_auth_event(db, "auth.login", user.id, "denied", "failed credentials")
+        if user.failed_logins >= MAX_FAILED_LOGINS:
+            user.failed_logins, user.locked_until = 0, now + timedelta(minutes=LOCKOUT_MINUTES)
+            audit_auth_event(db, "auth.lockout", user.id, "locked")
+        db.commit()
+        return None
+    user.failed_logins, user.locked_until = 0, None
+    audit_auth_event(db, "auth.login", user.id, "ok")
+    db.commit()
     return user
 
 
@@ -136,6 +171,7 @@ def revoke_session(db: Session, user: User) -> None:
     expires_at = datetime.fromtimestamp(int(user.token_exp), timezone.utc).replace(tzinfo=None)
     db.query(RevokedToken).filter(RevokedToken.expires_at < now).delete(synchronize_session=False)
     db.add(RevokedToken(jti=user.session_id, user_id=user.id, expires_at=expires_at))
+    audit_auth_event(db, "auth.logout", user.id, "ok")
     try:
         db.commit()
     except IntegrityError:
@@ -148,11 +184,6 @@ def revoke_session(db: Session, user: User) -> None:
 #   Step 2: email + OTP           -> password changed
 # ─────────────────────────────────────────────
 INVALID_OTP = "Invalid or expired OTP"
-
-
-def _utcnow() -> datetime:
-    # naive UTC, same as the DB columns
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _hash_otp(user_id: int, otp: str) -> str:
@@ -238,5 +269,7 @@ def verify_password_reset_otp(db: Session, email: str, otp: str) -> None:
 
     user.password_hash = record.new_password_hash
     user.token_version += 1          # logs out every existing session of this user
+    user.failed_logins, user.locked_until = 0, None   # proving the mailbox ends a lockout
+    audit_auth_event(db, "auth.password_reset", user.id, "ok")
     record.used_at = now             # OTP can't be used again
     db.commit()

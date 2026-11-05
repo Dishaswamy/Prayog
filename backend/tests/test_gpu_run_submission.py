@@ -97,11 +97,10 @@ class RunSubmissionTests(GpuRunCase):
     def test_a_user_without_gpu_access_is_refused(self):
         outsider = self.make_user("noaccess", access=False)
         client = self.client_for_other(outsider)
-        project = self.make_project(client)
-        self.make_version(client, project)
-        response = self.submit(client, project["project_id"])
+        self.assertEqual(client.post("/mlflow/projects", json={"name": "p"}).status_code, 403)
+        response = self.submit(client, self.project["project_id"])
         self.assertEqual(response.status_code, 403, response.text)
-        self.assertEqual(response.json()["code"], "AUTHORIZATION_INACTIVE")
+        self.assertEqual(response.json()["code"], "INSUFFICIENT_PERMISSION")
 
     def test_another_users_project_is_not_found(self):
         self.make_version(self.client, self.project)
