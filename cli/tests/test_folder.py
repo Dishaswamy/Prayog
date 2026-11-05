@@ -1,3 +1,4 @@
+import stat
 import hashlib
 import json
 import zipfile
@@ -395,3 +396,83 @@ def test_restore_rejects_unhashable_file_role():
 
     with pytest.raises(ValueError, match="role"):
         restore.validate_files([item])
+
+def test_extraction_rejects_symlink_entries(tmp_path):
+    archive_path = tmp_path / "symlink.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    link = zipfile.ZipInfo("evil-link")
+    link.create_system = 3
+    link.external_attr = (stat.S_IFLNK | 0o777) << 16
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(link, "outside-target")
+
+    with pytest.raises(ValueError, match="symbolic link or special file"):
+        restore.extract_archive(archive_path, staging, [])
+
+    assert not (staging / "evil-link").exists()
+
+
+def test_extraction_rejects_duplicate_paths(tmp_path):
+    archive_path = tmp_path / "duplicate.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    first_content = b"first"
+
+    expected_files = [
+        {
+            "path": "src/main.py",
+            "size_bytes": len(first_content),
+            "sha256": hashlib.sha256(first_content).hexdigest(),
+            "included_in_archive": True,
+        }
+    ]
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("src/main.py", first_content)
+        archive.writestr("src/main.py", b"second")
+
+    with pytest.raises(ValueError, match="duplicate paths"):
+        restore.extract_archive(archive_path, staging, expected_files)
+
+
+def test_extraction_rejects_unexpected_files(tmp_path):
+    archive_path = tmp_path / "unexpected.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("unexpected.txt", "not in manifest")
+
+    with pytest.raises(ValueError, match="absent from its manifest"):
+        restore.extract_archive(archive_path, staging, [])
+
+    assert not (staging / "unexpected.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "manifest_content",
+    [
+        b"{invalid-json",
+        json.dumps({"format_version": -1, "files": []}).encode(),
+        json.dumps({
+            "format_version": restore.FORMAT_VERSION,
+            "files": [{"path": "unexpected.txt"}],
+        }).encode(),
+    ],
+)
+def test_extraction_rejects_corrupted_internal_manifests(
+    tmp_path, manifest_content
+):
+    archive_path = tmp_path / "corrupted-manifest.zip"
+    staging = tmp_path / "staging"
+    staging.mkdir()
+
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(restore.MANIFEST_ENTRY, manifest_content)
+
+    with pytest.raises(ValueError):
+        restore.extract_archive(archive_path, staging, [])
