@@ -998,3 +998,129 @@ def test_pull_cleans_staging_after_extraction_failure(
     assert "simulated extraction failure" in capsys.readouterr().err
     assert not destination.exists()
     assert list(tmp_path.glob(".restored.*")) == []
+
+
+# --- folder.py edge cases and failure-path coverage ---
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "bad\\name.txt",
+        "C:drive-file.txt",
+    ],
+)
+def test_inventory_rejects_invalid_or_drive_qualified_filenames(
+    tmp_path, filename
+):
+    (tmp_path / filename).write_text("content")
+
+    with pytest.raises(ValueError, match="invalid file path|drive-qualified"):
+        folder.inventory(tmp_path)
+
+
+def test_inventory_rejects_symlinked_directory(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("private")
+
+    (root / "linked-dir").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symbolic links"):
+        folder.inventory(root)
+
+
+def test_inventory_rejects_excessively_long_relative_path(tmp_path):
+    root = tmp_path / "project"
+    current = root
+
+    # Five valid path components, but a combined relative path over 1024 chars.
+    for index in range(5):
+        current = current / (f"segment{index}_" + "x" * 220)
+    current.mkdir(parents=True)
+    (current / "file.txt").write_text("content")
+
+    with pytest.raises(ValueError, match="Path is too long"):
+        folder.inventory(root)
+
+
+def test_inventory_rejects_total_folder_size_limit(tmp_path, monkeypatch):
+    (tmp_path / "large.txt").write_bytes(b"1234")
+    monkeypatch.setattr(folder, "MAX_FOLDER_BYTES", 3)
+
+    with pytest.raises(ValueError, match="4 GiB limit"):
+        folder.inventory(tmp_path)
+
+
+def test_inventory_rejects_file_count_limit(tmp_path, monkeypatch):
+    (tmp_path / "one.txt").write_text("1")
+    (tmp_path / "two.txt").write_text("2")
+    monkeypatch.setattr(folder, "MAX_FILES", 1)
+
+    with pytest.raises(ValueError, match="more than 1 files"):
+        folder.inventory(tmp_path)
+
+
+def test_write_archive_rejects_file_changed_during_archiving(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+
+    source = root / "main.py"
+    source.write_text("original")
+
+    files = folder.inventory(root)
+
+    # Change the contents after inventory captured the original digest.
+    source.write_text("modified")
+
+    with pytest.raises(ValueError, match="changed while it was being uploaded"):
+        folder.write_archive(root, tmp_path / "archive.zip", files)
+
+
+@pytest.mark.parametrize("payload", [b"", b"too-large"])
+def test_upload_if_missing_rejects_invalid_payload_size(
+    payload, monkeypatch
+):
+    monkeypatch.setattr(folder, "MAX_ARTIFACT_BYTES", 3)
+
+    with pytest.raises(ValueError, match="upload must be between"):
+        folder._upload_if_missing(object(), 1, payload, {})
+
+
+def test_upload_folder_rejects_oversized_archive(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "main.py").write_text("print('hello')")
+
+    files = folder.inventory(root)
+    monkeypatch.setattr(folder, "MAX_FOLDER_BYTES", 1)
+
+    with pytest.raises(ValueError, match="once archived"):
+        folder.upload_folder(object(), 1, root, files)
+
+
+def test_upload_folder_rejects_folder_changed_during_upload(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "project"
+    root.mkdir()
+
+    source = root / "main.py"
+    source.write_text("original")
+    files = folder.inventory(root)
+
+    monkeypatch.setattr(folder, "_known_artifacts", lambda *args: {})
+
+    def fake_upload(client, experiment_id, payload, known):
+        source.write_text("changed during upload")
+        return "artifact-1", True, hashlib.sha256(payload).hexdigest()
+
+    monkeypatch.setattr(folder, "_upload_if_missing", fake_upload)
+
+    with pytest.raises(ValueError, match="folder changed while it was being uploaded"):
+        folder.upload_folder(object(), 1, root, files, chunk_mib=1)
