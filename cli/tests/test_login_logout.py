@@ -237,3 +237,41 @@ def test_clear_returns_false_when_credentials_file_is_missing(home):
     home.mkdir(parents=True, exist_ok=True)
 
     assert credentials.clear() is False
+
+def test_save_preserves_original_error_if_temp_cleanup_also_fails(
+    monkeypatch, home
+):
+    home.mkdir(parents=True, exist_ok=True)
+
+    original_unlink = os.unlink
+    cleanup_attempts = []
+
+    def failing_replace(source, destination):
+        raise OSError("Original replacement failure")
+
+    def failing_unlink(path):
+        if os.fspath(path).startswith(str(home / ".credentials-")):
+            cleanup_attempts.append(path)
+            raise PermissionError("Cleanup failed")
+        return original_unlink(path)
+
+    monkeypatch.setattr(credentials.os, "replace", failing_replace)
+    monkeypatch.setattr(credentials.os, "unlink", failing_unlink)
+
+    creds = credentials.Credentials(
+        api_url="https://example.com",
+        token="test-token",
+        email="test@example.com",
+        user_id="user-123",
+        role="STUDENT",
+    )
+
+    try:
+        with pytest.raises(OSError, match="Original replacement failure"):
+            credentials.save(creds)
+
+        assert len(cleanup_attempts) == 1
+    finally:
+        # Remove the intentionally retained temporary file.
+        for path in home.glob(".credentials-*"):
+            original_unlink(path)
