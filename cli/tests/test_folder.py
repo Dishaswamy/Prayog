@@ -384,3 +384,14 @@ def test_pull_rejects_a_reassembled_archive_with_the_wrong_checksum(
 
     assert "reassembled archive failed its checksum" in capsys.readouterr().err
     assert not dest.exists()
+def test_restore_rejects_unhashable_file_role():
+    item = {
+        "path": "src/main.py",
+        "size_bytes": 10,
+        "sha256": "a" * 64,
+        "role": ["source"],
+        "included_in_archive": True,
+    }
+
+    with pytest.raises(ValueError, match="role"):
+        restore.validate_files([item])

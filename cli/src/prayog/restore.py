@@ -49,7 +49,7 @@ def validate_files(value: Any) -> list[dict[str, Any]]:
             raise ValueError("Snapshot file size is invalid")
         if not _is_digest(sha256):
             raise ValueError("Snapshot file digest is invalid")
-        if role not in ROLES:
+        if not isinstance(role, str) or role not in ROLES:
             raise ValueError("Snapshot file role is invalid")
         if not isinstance(included, bool) or included == (role == "data"):
             raise ValueError("Snapshot file inclusion policy is invalid")
