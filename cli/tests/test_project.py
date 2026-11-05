@@ -1,3 +1,4 @@
+from prayog.commands.project import _ensure_experiment
 import pytest
 
 from conftest import log_in_as
@@ -150,3 +151,27 @@ def test_clean_handles_server_failure(run, server, capsys):
 
     assert run("project", "clean", "vision") == 1
     assert capsys.readouterr().err
+
+def test_link_reuses_an_existing_experiment_without_creating_another():
+    class ExistingExperimentClient:
+        def __init__(self):
+            self.get_calls = []
+            self.post_calls = []
+
+        def get(self, path):
+            self.get_calls.append(path)
+            return [
+                {"project_id": CREATED["project_id"], "name": "main", "id": 42}
+            ]
+
+        def post(self, path, json):
+            self.post_calls.append((path, json))
+            raise AssertionError("Should not create another experiment")
+
+    client = ExistingExperimentClient()
+
+    result = _ensure_experiment(client, CREATED)
+
+    assert result == 42
+    assert client.get_calls == ["/mlflow/experiments"]
+    assert client.post_calls == []

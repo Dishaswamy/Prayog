@@ -633,6 +633,35 @@ def test_scanning_a_symlink_as_the_dataset_is_refused(tmp_path):
     with pytest.raises(CliError, match="symbolic link"):
         dataset.scan(alias)
 
+def test_download_rejects_an_invalid_checkpoint_selector(run, server, tmp_path, capsys):
+    ResultsServer(server)
+
+    assert run(
+        "project", "download", "Vision", "A/1",
+        "--to", str(tmp_path / "out"),
+        "--checkpoint", "latest",
+    ) == 2
+
+    assert "--checkpoint must be best, last, all, none or a step number" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+def test_download_never_overwrites_existing_metrics(run, server, tmp_path, capsys):
+    ResultsServer(server)
+
+    target = tmp_path / "out"
+    target.mkdir()
+    metrics = target / "metrics.json"
+    metrics.write_text('{"existing": true}')
+
+    assert run(
+        "project", "download", "Vision", "A/1",
+        "--to", str(target),
+        "--checkpoint", "none",
+        "--no-log",
+    ) == 2
+
+    assert "never overwritten" in capsys.readouterr().err
+    assert metrics.read_text() == '{"existing": true}'
 
 def test_a_symlinked_directory_inside_the_dataset_is_refused(data, tmp_path):
     outside = tmp_path / "outside"
@@ -662,3 +691,22 @@ def test_scanning_refuses_more_than_the_maximum_number_of_files(
 
     with pytest.raises(CliError, match="more than 1 files"):
         dataset.scan(data)
+
+def test_pull_of_a_project_without_versions_says_how_to_start(run, server, tmp_path, capsys):
+    server.on("GET", f"{BASE}/versions", 200, [])
+
+    assert run("project", "pull", "Vision", str(tmp_path / "restored")) == 1
+
+    error = capsys.readouterr().err
+    assert "has no uploaded version yet" in error
+    assert not (tmp_path / "restored").exists()
+
+def test_current_without_a_marked_current_version_says_how_to_start(run, server, capsys):
+    server.on("GET", f"{BASE}/versions", 200, [
+        version("B", 2, head=True),
+        version("A", 1),
+    ])
+
+    assert run("project", "current", "Vision") == 1
+
+    assert "has no uploaded version yet" in capsys.readouterr().err
