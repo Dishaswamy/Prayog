@@ -622,3 +622,43 @@ def test_download_refuses_an_artifact_missing_from_the_registry(
 
     assert "server has no record of that file" in capsys.readouterr().err
     assert not target.exists()
+
+def test_scanning_a_symlink_as_the_dataset_is_refused(tmp_path):
+    actual = tmp_path / "actual.csv"
+    actual.write_text("x,y\n1,2\n")
+
+    alias = tmp_path / "alias.csv"
+    alias.symlink_to(actual)
+
+    with pytest.raises(CliError, match="symbolic link"):
+        dataset.scan(alias)
+
+
+def test_a_symlinked_directory_inside_the_dataset_is_refused(data, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "hidden.csv").write_text("secret")
+
+    (data / "linked_dir").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(CliError, match="symbolic link"):
+        dataset.scan(data)
+
+
+def test_scanning_rejects_an_unsafe_relative_path(data, monkeypatch):
+    def reject_path(_):
+        raise ValueError("unsafe test path")
+
+    monkeypatch.setattr(dataset, "safe_relative_path", reject_path)
+
+    with pytest.raises(CliError, match="unsafe test path"):
+        dataset.scan(data)
+
+
+def test_scanning_refuses_more_than_the_maximum_number_of_files(
+    data, monkeypatch
+):
+    monkeypatch.setattr(dataset, "MAX_FILES", 1)
+
+    with pytest.raises(CliError, match="more than 1 files"):
+        dataset.scan(data)
