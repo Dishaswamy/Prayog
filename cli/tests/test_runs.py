@@ -601,3 +601,24 @@ def test_download_of_a_missing_run_shows_the_servers_reason(run, server, tmp_pat
     server.on("GET", f"{BASE}/runs/A/7", 404, {"detail": "Version A has no run 7."})
     assert run("project", "download", "Vision", "A/7", "--to", str(tmp_path / "o")) == 1
     assert "no run 7" in capsys.readouterr().err
+
+
+def test_download_refuses_an_artifact_missing_from_the_registry(
+    run, server, tmp_path, capsys
+):
+    ResultsServer(server)
+
+    route = ("GET", "/mlflow/experiments/1/artifacts")
+    _, artifacts = server.routes[route]
+    server.routes[route] = (
+        200,
+        [item for item in artifacts if item["id"] != "ck2"],
+    )
+
+    target = tmp_path / "out"
+    assert run(
+        "project", "download", "Vision", "A/1", "--to", str(target)
+    ) == 1
+
+    assert "server has no record of that file" in capsys.readouterr().err
+    assert not target.exists()
