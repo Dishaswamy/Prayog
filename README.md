@@ -1,299 +1,572 @@
 # Prayog
 
-**Prayog** is a shared GPU platform for IIT Kanpur. Students and researchers sign in with their IITK accounts and get access approved by their professor and an admin. They then submit GPU jobs to a fair-share scheduler that runs them on lab-owned GPU nodes. When a run fails, an AI agent called the **Steward** diagnoses the failure and suggests fixes.
+Prayog is a GPU-computing platform for IIT Kanpur students and researchers. It allows users to request access to shared GPU resources, manage machine-learning projects, submit experiments, monitor their progress, and reproduce previous runs.
 
-> CS455 (Introduction to Software Engineering), IIT Kanpur, Group 3. This is an ongoing course project: see [Status](#status) for what works today and what is still in progress.
+Prayog provides two main ways to interact with the platform:
 
----
+- **Web Portal:** Register, request GPU access, check access status, and view projects and experiment information.
+- **Command-Line Interface (CLI):** Upload project code, manage versions, submit GPU runs, inspect results, download artifacts, and rebuild experiments.
 
-## Contents
+This guide explains how to use Prayog, from requesting GPU access to running experiments and retrieving results. It also documents the available CLI commands and explains how project data and experiment artifacts are stored.
 
-- [What it does](#what-it-does)
-- [Architecture](#architecture)
-- [Repository layout](#repository-layout)
-- [Getting started](#getting-started)
-- [Running the platform](#running-the-platform)
-- [Trying it end to end](#trying-it-end-to-end)
-- [Configuration](#configuration)
-- [API overview](#api-overview)
-- [Status](#status)
-- [Further documentation](#further-documentation)
+## What can I do with Prayog?
 
----
+- **Request GPU access:** Submit an access request for approval by your supervising Professor and an administrator.
+- **Use shared GPU resources:** Submit jobs with a requested GPU count and walltime.
+- **Manage ML projects:** Upload code as versioned snapshots and organise experiment runs.
+- **Run experiments:** Submit code with datasets and hyperparameters.
+- **Monitor results:** Track run status and retrieve logs, metrics, and checkpoints.
+- **Reproduce experiments:** Rebuild previous runs using their recorded code version, settings, and dataset fingerprints.
+- **Get AI-assisted support:** Use optional Steward features when they are enabled and configured.
 
-## What it does
+## Choose how you want to use Prayog
 
-| Area | What it does |
+| If you are... | Start here |
 |---|---|
-| **Authentication** | Self-registration for `@iitk.ac.in` students and researchers; JWT login (60-minute tokens); Argon2 password hashing. Professors are added by an admin; the first admin is created by a script. |
-| **Authorisation** | Users request access, saying whether it is for a course project or for research (`purpose`). A request needs the approval of **both** their professor and an admin before it takes effect. Admins can revoke approved access, and a student's access ends automatically after their end date. If the user still has unfinished GPU jobs, the revoke waits for them to finish. Roles: `STUDENT`, `RESEARCHER`, `PROFESSOR`, `ADMIN`. |
-| **GPU scheduling** | Jobs ask for a number of GPUs on one node and a walltime (`HH:MM`). A scheduler places them using **priority classes** (P0: your own lab's node, P1/P2: another lab's shared node, P3: teaching pool for course jobs), then a **fair-share score** inside each class (waiting time, recent usage with a 7-day half-life, lab contribution, job size). Retried submissions with the same `client_request_id` are idempotent. Course accounts have a GPU-hour quota. |
-| **Node management** | Admins register nodes; each node's agent enrols with a one-time token, then heartbeats, pulls its allocations, and reports how each run ended. Nodes can be drained, returned, decommissioned, and booked for maintenance windows. A reaper marks silent nodes down and requeues their jobs. |
-| **Steward (AI agent)** | **S1** diagnoses failed runs and may propose a corrected job (more GPUs or walltime) that the owner approves. **S2** warns admins when failures from several users point at the same GPU. **S3** gives a single-use chat link after a failed rebuild. **S4** gives optimisation advice after a successful rebuild, citing reference papers. The Steward only reads and reasons; the server validates and writes every record. |
-| **Experiment Ledger (ML Flow)** | Projects, models, experiments and runs; metrics streamed during a run; content-addressed artifacts verified on upload; a snapshot sealed automatically at the end of a run (RECORDED, or INCOMPLETE with reasons); an outbox and idempotent ledger consumer; read-only Professor and admin views; IP handover to the supervising Professor; rebuilds from a Snapshot ID (`prayog run --rebuild`). See [backend/ML_FLOW.md](backend/ML_FLOW.md). |
-| **Monitoring** | `GET /health` (API and database) and `GET /metrics` (scheduler counts in Prometheus format). |
+| A student or researcher | [Getting started](#1-getting-started) |
+| Running experiments from your terminal | [Installing and using the CLI](#2-installing-and-using-the-cli) |
+| Learning the experiment workflow | [Running an experiment](#3-running-an-experiment) |
+| A Professor | [Role-specific workflows](#6-role-specific-workflows) |
+| An administrator | [Role-specific workflows](#6-role-specific-workflows) |
+| Looking for technical details | [Further documentation](#9-further-documentation) |
 
-## Architecture
+---
 
-Prayog runs as a few separate processes that share one PostgreSQL database:
+## 1. Getting started
 
-```
-                ┌──────────────────────────┐
-  users ───────▶│  API  (FastAPI, :8000)   │◀────── node agents
-  (JWT)         │  auth · access · jobs ·  │        (one per GPU node,
-                │  admin · /steward/*      │         X-Node-Credential)
-                └────────────┬─────────────┘
-                             │
-   ┌─────────────────────────┼───────────────────────────┐
-   │                         ▼                           │
-   │  Scheduler tick    PostgreSQL 16      Steward worker│
-   │  (reaper + passes) platform tables +  (diagnoses,   │
-   │                    steward schemas    correlation,  │
-   │                    (row-level         retention)    │
-   │                     security)              │        │
-   └────────────────────────────────────────────┼────────┘
-                                                ▼
-                                  Steward Runtime (:8100)
-                                  model adapter: Claude /
-                                  heuristic / stub
-                                  (no database access)
-```
+### 1.1 Open the web portal
 
-- **API** (`backend/main.py`): all HTTP endpoints. A scheduling pass also runs in the background after each job submission.
-- **Scheduler tick** (`backend/logic/scheduler/run.py`): a safety-net pass every 10 seconds, plus the reaper for timeouts, stops and dead nodes.
-- **Steward worker** (`backend/integration/steward_worker.py`): picks up Steward tasks, calls the Runtime, validates the answer and stores the diagnosis.
-- **Steward Runtime** (`steward/src/steward_runtime`): the only part that talks to a model. It holds no database credentials, and import-linter rules forbid it from importing server code.
-- **Node agent** (`backend/node_agent/simulated.py`): runs on each GPU node. The one in this repo uses a *simulated* executor, so the whole system can be run on a laptop without GPUs.
+Open the Prayog web application using the server address provided by your administrator.
 
-The Steward is optional. If it is disabled or not set up, the platform runs without it and scheduling is unaffected.
+For a local development instance, the default addresses are:
 
-## Repository layout
+- **Web application:** `http://127.0.0.1:8000/`
+- **Interactive API documentation:** `http://127.0.0.1:8000/docs`
+- **Health check:** `http://127.0.0.1:8000/health`
 
-```
-Prayog/
-├── docker-compose.yml          PostgreSQL 16 (+ Steward Runtime image)
-├── .env.example                every setting, with comments; copy to .env
-├── API.md                      API reference: health, auth, professors, access requests
-├── API_STEWARD.md              API reference: rebuilds and /steward/*
-├── backend/
-│   ├── main.py                 FastAPI app, routers, /health
-│   ├── database.py             SQLAlchemy engine from POSTGRES_* settings
-│   ├── models.py               all platform tables
-│   ├── alembic/                platform migrations (the only way tables are created)
-│   ├── routers/                HTTP layer: auth, professors, access_requests, rebuilds,
-│   │   └── scheduler/          jobs, admin (nodes, alerts, maintenance), agent, metrics
-│   ├── schemas/                Pydantic request/response models
-│   ├── logic/                  business rules; routers stay thin
-│   │   ├── auth.py, access_request.py, admin.py, dependencies.py, errors.py, rebuild.py
-│   │   └── scheduler/          classes, scoring, eligibility, passes, claim, dispatch,
-│   │                           lifecycle, reaper, nodes, maintenance, metrics, config, run
-│   ├── integration/            steward_bridge.py (the only module that knows both
-│   │                           sides), steward_worker.py
-│   ├── node_agent/             simulated node agent
-│   ├── scripts/                create_admin, seed_dev, setup_steward
-│   └── requirements.txt
-└── steward/                    the Steward, an installable package (prayog-steward)
-    ├── DESIGN.md               design, security model and decisions
-    ├── pyproject.toml
-    ├── Dockerfile
-    ├── src/
-    │   ├── steward_contracts/  Pydantic contracts shared by server and Runtime
-    │   ├── prayog_steward/     server side: hooks, gateway, sanitiser, sessions, API, CLI
-    │   └── steward_runtime/    model adapters: Claude, heuristic, stub
-    ├── knowledge/              seed list of arXiv papers for the knowledge base
-    ├── eval/                   S1 evaluation cases
-    └── tools/evaluate.py       S1 accuracy evaluation
-```
+The root URL redirects to the web application.
 
-## Getting started
+### 1.2 Register and request GPU access
 
-### Prerequisites
+Students and researchers can get started by following these steps:
 
-- Python **3.11+** (tested on 3.12 and 3.13)
-- PostgreSQL **15+**. The easiest way is Docker, using `docker-compose.yml`.
-- Git
+1. Register using your IIT Kanpur email address, or sign in if you already have an account.
+2. Navigate to the GPU access section.
+3. Submit an access request with the required academic details, purpose, and supervising Professor information.
+4. Wait for your supervising Professor to review the request.
+5. An administrator must also approve the request before GPU access becomes active.
+6. Once approved, sign in to the portal to view your account and available platform features.
 
-### 1. Clone and install
+**Important:** Submitting an access request does not automatically grant GPU access. Both the required Professor and administrator approvals must be completed before you can submit GPU jobs.
+
+### 1.3 Check your access status
+
+You can view your GPU access request and approval status through the web portal.
+
+After installing the CLI and signing in (see [Section 2](#2-installing-and-using-the-cli)), you can also check your access status using:
 
 ```bash
-git clone https://github.com/Dishaswamy/Prayog.git
-cd Prayog
+prayog access status
+```
+---
+
+## 2. Installing and using the CLI
+
+The `prayog` CLI is the command-line client for managing projects and the machine-learning experiment lifecycle.
+
+### 2.1 Prerequisites
+
+- Python 3.9 or newer.
+- Access to a running Prayog server.
+- An account with the required platform permissions.
+
+Installing the CLI does not create an account or grant GPU access.
+
+### 2.2 Installation
+
+From a clone of this repository, create a virtual environment and install the CLI:
+
+```bash
 python -m venv .venv
-```
 
-Activate the environment and install the backend and the Steward package. The backend imports the Steward, so install both even if you plan to run with `STEWARD_ENABLED=false`.
-
-```bash
 # Linux / macOS
 source .venv/bin/activate
-# Windows (PowerShell)
+
+# Windows PowerShell
 .venv\Scripts\Activate.ps1
 
-pip install -r backend/requirements.txt -e ./steward
+# Install the CLI
+python -m pip install -e ./cli
 ```
 
-### 2. Configure
+### 2.3 Sign in
+
+Run:
 
 ```bash
-cp .env.example .env        # Windows: copy .env.example .env
+prayog login
 ```
 
-Then edit `.env`. At minimum, set:
+Follow the prompts for your institute email, role, and password.
 
-- `POSTGRES_PASSWORD`
-- `JWT_SECRET_KEY`, a long random string. For example: `python -c "import secrets; print(secrets.token_urlsafe(48))"`
-- `STEWARD_DB_PASSWORD`, which must differ from the Postgres password.
-
-`.env` is git-ignored. Never commit it.
-
-### 3. Start PostgreSQL
+You can also provide your email and role directly:
 
 ```bash
-docker compose up -d postgres
+prayog login -e you@iitk.ac.in -r student
 ```
+The role must match your account. Supported roles are `student`, `researcher`, `professor`, and `admin`.
 
-### 4. Create the tables
+By default, the CLI uses the URL configured through the `PRAYOG_API_URL` environment variable. If it is not set, the default is `http://localhost:8000`.
 
-All remaining commands run from `backend/`:
+You can override the server URL when logging in:
 
 ```bash
-cd backend
-python -m alembic upgrade head        # platform tables
-python -m scripts.setup_steward       # Steward role, schemas and grants (skip if STEWARD_ENABLED=false)
+prayog login --api-url https://YOUR-PRAYOG-SERVER
 ```
 
-`setup_steward` creates a separate, restricted database role for the Steward (`NOSUPERUSER NOBYPASSRLS`), so that row-level security on users' diagnostic data is enforced.
+The CLI stores an access token locally, not your password. The saved login is associated with the server used during login.
+**Access requirement:** CLI login requires current platform access. If your access has not yet been approved or is no longer active, check your request through the web portal. For students and researchers, the CLI reports the access status when login is refused.
 
-### 5. Create users
-
-For a quick development setup with sample data:
+Useful account commands:
 
 ```bash
-python -m scripts.seed_dev
+prayog whoami
+prayog logout
+prayog help
 ```
 
-This creates `admin@iitk.ac.in`, `prof@iitk.ac.in`, `prof2@iitk.ac.in`, `alice@iitk.ac.in` (student, lab *vision*) and `bob@iitk.ac.in` (researcher, lab *nlp*). Each test account's password is its user ID reversed (`alice` signs in with `ecila`). Alice's and Bob's access is already approved. It also creates nodes `n1`, `n2` and the teaching-pool node `t1`, with 4 GPUs each, and prints the command that starts each node's agent. Use it for development only: these passwords are public.
+- `whoami` displays the currently signed-in account.
+- `logout` ends the session and removes the locally saved token.
+- `help` displays commands available to your account.
 
-Or, to create just the first admin:
+### 2.4 Check available commands
+
+The commands available to you depend on your login state and role.
+
+Before logging in, run `prayog --help` to view the available login-related help. After logging in, use `prayog help` to see the commands available to your account.
 
 ```bash
-python -m scripts.create_admin admin@iitk.ac.in "StrongPassword123"
+prayog help
 ```
 
-## Running the platform
-
-Run each process in its own terminal, from `backend/`, with the virtual environment active:
+To view help for a particular command or command group:
 
 ```bash
-uvicorn main:app --port 8000                                     # API  → http://127.0.0.1:8000/docs
-python -m logic.gpu.scheduler.run                                    # scheduler tick
-python -m integration.steward_worker                             # Steward worker
-uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runtime
+prayog help project
 ```
 
-The Runtime uses the rule-based `heuristic` adapter by default, so no API key is needed. To use Claude, set `STEWARD_REASONING=claude` and `ANTHROPIC_API_KEY` in `.env`.
+The server independently checks permissions when commands are executed.
 
-The web app is at http://127.0.0.1:8000/ (it redirects to `/app/`). It needs no build step, and each role sees its own workspace:
+---
 
-- **Students and Researchers:** the researcher dashboard (jobs, quota, projects, versions, runs with metric charts, rebuild comparison, IP handover) and GPU access requests.
-- **Professors:** the read-only workspace for the people they supervise, handover review and access requests.
-- **Admins:** the read-only pool picture with the audit log, node operations, maintenance windows, the ledger overview, access requests and Professor accounts.
-- **The Steward's screens** appear for each role when the Steward is running ([steward/DESIGN.md](steward/DESIGN.md#2-setup-and-running)).
+## 3. Running an experiment
 
-The code is in `backend/web/`, plain JavaScript modules served by the API. Uploading a version or a dataset stays in the CLI, which fingerprints the files.
+This section walks through a typical student or researcher workflow, from uploading project code to reproducing a previous run.
 
-Shortcuts for development:
+Run the commands from your project workspace. Replace example names and paths with your own.
 
-- `STEWARD_INPROCESS_REASONING=heuristic` runs the model adapter inside the API, so you can skip starting the Runtime.
-- `STEWARD_ENABLED=false` runs the platform without the Steward. You then only need the API and the scheduler tick.
+### Step 1: Create a project
 
-Check that everything is up:
+Create a project on Prayog:
 
 ```bash
-curl http://127.0.0.1:8000/health
-# {"status":"ok","database":"ok"}
+prayog project create vision
 ```
 
-## Trying it end to end
+A project groups uploaded code versions and the experiment runs created from those versions.
 
-1. **Start a node agent.** Use the command printed by `seed_dev`, which looks like this:
+### Step 2: Upload your project folder
 
-   ```bash
-   python -m node_agent.simulated --units 4 --state-dir .agent-n1 --enrolment-token <token>
-   ```
+Upload your code folder as the first project version:
 
-   Its first heartbeat makes the node `AVAILABLE`. On later starts the stored credential is used, so the token isn't needed again.
+```bash
+prayog project link vision ./my-training-code
+```
 
-2. **Log in and submit a job:**
+The first uploaded version is labelled `A`.
 
-   ```bash
-   curl -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" \
-        -d '{"email": "alice@iitk.ac.in", "password": "ecila", "role": "STUDENT"}'
+Prayog creates a versioned snapshot of the project folder. The server maintains its own copy, so later changes to your local files do not modify an already-uploaded version.
 
-   curl -X POST http://127.0.0.1:8000/jobs -H "Authorization: Bearer <token>" \
-        -H "Content-Type: application/json" \
-        -d '{"gpus": 2, "walltime": "01:00", "client_request_id": "try-1"}'
+### Step 3: Submit an experiment
 
-   curl http://127.0.0.1:8000/jobs/<request_id> -H "Authorization: Bearer <token>"
-   ```
+Submit a run with the required GPU count, walltime, dataset, and hyperparameters:
 
-   The job moves through `IN_PROCESS` → `QUEUED` → `SCHEDULED` → `RUNNING` → finished. A simulated job runs for 30 seconds by default (`--run-seconds`).
+```bash
+prayog run vision --gpus 2 --walltime 04:00 --data ./data --hp lr=0.01
+```
 
-3. **See a Steward diagnosis.** Start an agent with `--exit-code 1 --log-file run.log`. Every job on that node then fails and reports the contents of `run.log` as its log. The Steward worker diagnoses the failure, and the owner can read it at `GET /steward/runs/{run_id}/diagnoses`.
+The command queues the run and returns without waiting for it to finish.
 
-The interactive API docs at `http://127.0.0.1:8000/docs` are the easiest way to try every endpoint.
-
-## Configuration
-
-All settings come from `.env`, and `.env.example` documents each one.
-
-| Group | Variables |
+| Option | Purpose |
 |---|---|
-| Database | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` |
-| Auth | `JWT_SECRET_KEY` |
-| Steward | `STEWARD_ENABLED`, `STEWARD_DB_USER`, `STEWARD_DB_PASSWORD`, `STEWARD_RUNTIME_URL`, `STEWARD_PUBLIC_BASE_URL`, `STEWARD_SEARCH_PROVIDER` |
-| Steward Runtime | `STEWARD_REASONING` (`claude` \| `heuristic` \| `stub`), `STEWARD_MODEL`, `ANTHROPIC_API_KEY` |
-| Scheduler | Any field of `SchedulerConfig` in `backend/logic/scheduler/config.py`, as `PRAYOG_SCHED_<FIELD>`. For example, `PRAYOG_SCHED_MAX_WALLTIME_MINUTES=180`. |
+| `--gpus N` | Number of GPUs requested on one node. Defaults to 1. |
+| `--walltime HH:MM` | Maximum execution time. Required. |
+| `--version V` | Version to run. Defaults to the current version. |
+| `--data PATH` | Dataset file or folder to supply to the run. Can be repeated. |
+| `--entrypoint FILE` | Python entrypoint. Defaults to `main.py`. |
+| `--hp KEY=VALUE` | Hyperparameter to pass to the program. Can be repeated. |
 
-The scheduler checks its configuration when it starts. An unknown variable, a non-numeric value, or a combination that breaks an invariant (for example, a heartbeat timeout shorter than three heartbeat intervals) stops startup with a message naming the problem.
+The scheduler applies the platform's access checks, quotas, and queue limits.
 
-## API overview
+Your Python program runs using the configured container environment. By default, Prayog executes `main.py`; you can specify another file using `--entrypoint`.
 
-Every protected endpoint takes `Authorization: Bearer <token>` from `/auth/login`. Node-agent endpoints take `X-Node-Credential` instead. Every error response has a `detail` field.
+During execution, the following environment variables are available to your program:
 
-| Area | Endpoints | Who |
+| Variable | Purpose |
+|---|---|
+| `PRAYOG_DATA_DIR` | Location of the supplied dataset (read-only). |
+| `PRAYOG_HYPERPARAMETERS_JSON` | Hyperparameters passed through `--hp`, available as a JSON object. |
+| `PRAYOG_OUTPUT_DIR` | Directory where your program should save checkpoints and metrics. |
+
+The program's standard output and error are captured as run logs. See the [CLI README](cli/README.md) for the expected checkpoint and metrics formats.
+
+### Step 4: Monitor the run
+
+Check the current project and run status:
+
+```bash
+prayog project status vision
+```
+
+List previous runs:
+
+```bash
+prayog project runs vision
+```
+
+Runs are numbered within their versions. For example:
+
+- `A/1`: First run using version A.
+- `A/2`: Second run using version A.
+- `B/1`: First run using version B.
+
+A run can be `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, or `CANCELLED`.
+
+### Step 5: Download results
+
+After a run completes, download its results:
+
+```bash
+prayog project download vision A/1 --to ./results
+```
+
+The downloaded results can include:
+
+- Checkpoints.
+- Run logs.
+- Recorded metrics.
+
+By default, the CLI downloads the best available checkpoint, along with logs and metrics.
+
+### Step 6: Update your project
+
+When you modify your code, upload the changes as a new version:
+
+```bash
+prayog project update
+```
+
+If the folder contents have changed, Prayog creates the next version (B, C, and so on) and makes it the current version.
+
+If nothing has changed, no new version is uploaded. If the folder matches a version uploaded earlier, that version is selected again.
+
+Only changed content needs to be uploaded.
+
+### Step 7: Rebuild a previous run
+
+To reproduce a completed run, provide its original run identifier and the same dataset:
+
+```bash
+prayog run vision --rebuild A/1 --walltime 04:00 --data ./data
+```
+
+The rebuild uses the original code version, entrypoint, and hyperparameters. The supplied dataset must match the original dataset fingerprints exactly.
+
+### Step 8: Compare the rebuild
+
+Compare the rebuild with its original run. Use the rebuild's run identifier; the following example assumes it is `A/2`:
+
+```bash
+prayog project compare vision A/2
+```
+
+The comparison checks recorded metrics and whether saved weights match byte-for-byte.
+
+**Note:** Reproducibility depends on the experiment being deterministic. Randomness or nondeterministic operations can result in different metrics or weights.
+
+---
+
+
+## 4. Complete CLI command reference
+
+This section lists the implemented CLI commands and their purposes, grouped by functionality. Commands and options available to a user depend on their role and login state. The server independently verifies permissions when a command is executed.
+
+For detailed examples, validation rules, and explanations of all options, see the [CLI README](cli/README.md).
+
+### 4.1 Account and authentication commands
+
+| Command | Purpose |
+|---|---|
+| `prayog --version` | Display the installed CLI version. |
+| `prayog login [-e EMAIL] [-r ROLE] [--api-url URL] [--password-stdin] [--allow-insecure-http]` | Sign in to a Prayog account and save the login token locally. |
+| `prayog logout` | End the current session and remove the locally saved token. |
+| `prayog whoami` | Display the currently signed-in account and server. |
+| `prayog help [COMMAND]` | List commands available to the current account or display help for a specific command. |
+
+The login command supports the roles `student`, `researcher`, `professor`, and `admin`. Options allow users to specify their email, role, server URL, or provide a password through standard input.
+
+The global `--help` and `-h` options also display command help. Available commands are restricted according to the user's login state and role.
+
+### 4.2 GPU access commands
+
+These commands are available to students and researchers.
+
+| Command | Purpose |
+|---|---|
+| `prayog access status` | Display your access requests, approval decisions, and current access state. |
+| `prayog access request` | Display instructions for submitting an access request through the web portal. |
+
+**Note:** `prayog access request` does not submit an access request. Requests must be submitted through the web portal.
+
+### 4.3 Reviewing access requests
+
+These commands are available to Professors and administrators, subject to their permissions.
+
+| Command | Purpose |
+|---|---|
+| `prayog requests list [--status PENDING\|APPROVED\|REJECTED\|REVOKED]` | List access requests, optionally filtered by status. |
+| `prayog requests show ID` | Display the details of a particular access request. |
+| `prayog requests approve ID` | Approve an access request. |
+| `prayog requests reject ID` | Reject an access request. |
+| `prayog requests revoke ID` | Revoke an approved user's access. Administrator-only. |
+
+Professors can view requests addressed to them, while administrators can view all requests.
+
+### 4.4 Project and version management
+
+Project commands are available to students, researchers, and Professors, subject to server permissions.
+
+| Command | Purpose |
+|---|---|
+| `prayog project create NAME [-d DESCRIPTION]` | Create a new project, optionally providing a description. |
+| `prayog project link NAME FOLDER` | Upload a project folder for the first time as a versioned snapshot. |
+| `prayog project update [FOLDER]` | Upload changes from a previously linked folder as a new version. |
+| `prayog project versions NAME` | List the uploaded versions of a project. |
+| `prayog project current NAME` | Display the project's current version. |
+| `prayog project checkout NAME VERSION` | Select a version to use for future runs. |
+| `prayog project pull NAME DESTINATION [--version V] [--data-dir DIR]` | Restore a stored project version into a new local folder, optionally validating its dataset files. |
+| `prayog project clean NAME` | Delete temporary staged dataset copies immediately. Copies still needed by running jobs are retained; run results and dataset fingerprints are not deleted. |
+
+### 4.5 Run submission
+
+| Command | Purpose |
+|---|---|
+| `prayog run NAME --walltime HH:MM [--gpus N] [--version V] [--data PATH]... [--entrypoint FILE] [--hp KEY=VALUE]... [--rebuild V/N]` | Submit an experiment to the GPU scheduler or rebuild a previously completed run. |
+
+The `--walltime` option is required. Other options allow users to specify the GPU count, project version, dataset paths, Python entrypoint, and hyperparameters.
+
+The `--rebuild` option reproduces an earlier run using its recorded code version and settings.
+
+### 4.6 Monitoring, results, and rebuilds
+
+| Command | Purpose |
+|---|---|
+| `prayog project runs NAME [--version V]` | List runs associated with a project, optionally filtered by version. |
+| `prayog project status NAME [--run V/N]` | Display project status or inspect a particular run. |
+| `prayog project download NAME V/N --to DIR [--checkpoint WHICH] [--no-log] [--no-metrics]` | Download a run's checkpoints, logs, and metrics, with options to select what to retrieve. |
+| `prayog run NAME --rebuild V/N` | Reproduce a previously completed run using the original run's recorded configuration and matching dataset. |
+| `prayog project compare NAME V/N [--tolerance T]` | Compare a rebuild with its original run, including metrics and saved weights. |
+
+For rebuilds, the original dataset must be supplied again and must match the recorded dataset fingerprints.
+
+For the complete command syntax, all supported options, examples, and CLI behaviour, see the **[CLI README](cli/README.md)**.
+
+
+---
+
+## 5. Data and storage
+
+Prayog separates platform records, versioned project code, experiment outputs, and training datasets.
+
+### 5.1 Where is data stored?
+
+| Component | What it stores | Purpose |
 |---|---|---|
-| Health and metrics | `GET /health`, `GET /metrics` | anyone |
-| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | anyone / logged in |
-| Professors | `GET /professors`, `POST /professors` | logged in / ADMIN |
-| Access requests | `POST /access-requests`, `GET /access-requests/me`, `GET /access-requests`, `GET /access-requests/{id}`, `POST /access-requests/{id}/decision`, `POST /access-requests/{id}/revoke` | students and researchers request; professors and admins decide; admins revoke |
-| Jobs | `POST /jobs`, `GET /jobs/quota`, `GET /jobs/{id}`, `PATCH /jobs/{id}`, `POST /jobs/{id}/cancel` | logged in |
-| GPU pool (admin) | `/admin/nodes` (register, list, drain, return, decommission, escalate, unit count), `/admin/alerts`, `/admin/maintenance` (preview, book, change, cancel) | ADMIN |
-| Node agent | `POST /agent/enrol`, `POST /agent/heartbeat`, `GET /agent/allocations`, `POST /agent/allocations/{id}/acknowledge`, `POST /agent/allocations/{id}/report` | node credential |
-| Rebuilds | `POST /rebuilds`, `GET /rebuilds`, `GET /rebuilds/{id}` | logged in |
-| Experiment Ledger | `/mlflow/*` (projects, models, experiments, runs, metrics, artifacts, snapshots, rebuilds, handover), `/mlflow/professor/*`, `/admin/mlflow/overview` | logged in / PROFESSOR / ADMIN; see [backend/ML_FLOW.md](backend/ML_FLOW.md) |
-| Steward | `/steward/runs/…/diagnoses`, `/steward/proposals`, `/steward/attempts/…/link`, `/steward/s3/*`, `/steward/attempts/…/optimize`, `/steward/admin/*` | see [API_STEWARD.md](API_STEWARD.md) |
+| **PostgreSQL database** | User accounts, access requests, project and version records, run states, metrics, dataset fingerprints, and experiment metadata. | Maintains structured platform records and experiment information. |
+| **Artifact storage** | Uploaded code snapshots, code chunks, checkpoints, logs, and other run artifacts. | Stores versioned code and experiment outputs. |
+| **Dataset staging** | Temporary copies of datasets supplied for runs. | Makes training data available to GPU nodes during execution. |
+| **Local CLI configuration** | Login token and project-link metadata. | Maintains the user's CLI session and links local folders to projects. |
 
-Full request and response formats are in [API.md](API.md) and [API_STEWARD.md](API_STEWARD.md).
+The artifact storage backend is configured by the platform administrator. Prayog supports private local storage and S3-compatible object storage.
+PostgreSQL stores the platform's structured records, while the actual code files, checkpoints, logs, and other artifacts are stored separately. Dataset files are staged temporarily for experiment execution rather than maintained as permanent project snapshots.
 
-## Status
+### 5.2 Project code and versions
 
-**Working and tested.** Authentication, two-step access approval, the GPU scheduler (classes, fair-share scoring, dispatch, reaper, drain and maintenance), the simulated node agent, and the Steward contexts S1–S4 with the heuristic adapter. As of 2026-10-15, 16 end-to-end backend tests and 222 Steward tests pass on PostgreSQL. Those tests are kept outside this repository; the Experiment Ledger and scheduler-admin tests are in `backend/tests` and run in CI (`.github/workflows/mlflow-validation.yml`).
+When you run:
 
-**Sign-in rules:** ten failed sign-ins in a row lock an account for 15 minutes, even for the right password, and the answer never reveals it (FR-AUTH-60). Sign-ins, lockouts and logouts go to the audit log. Creating projects, uploading and queueing need approved access; reading your own records does not.
+```bash
+prayog project link vision ./my-training-code
+```
 
-**Not built yet, or interim:**
+Prayog inventories the folder and uploads the eligible project content as a versioned snapshot.
 
-- **Labs** have no API yet. `seed_dev` inserts them directly. A user's scheduling context is created when their access request is approved: `COURSE_PROJECT` gives a course account in the central lab, `RESEARCH_PROJECT` a research account in the supervising professor's lab (set `lab_id` when creating the professor).
-- **Password reset emails.** The reset works, but without `SMTP_*` settings in `.env` the OTP is printed in the API terminal instead of being emailed.
-- **Real node execution.** The node agent in this repo is simulated. It does not start containers or touch real GPUs.
-- **Steward and ledger wiring.** The Experiment Ledger is in the repository, but the Steward still uses interim adapters: projects are scoped to their owner and `run_logs` holds the log tail.
-- **Not yet verified.** A live Claude call, the Docker image, and the S1 accuracy evaluation on real, hand-labelled failed runs. `steward/eval/` currently holds a synthetic seed set.
+- Each distinct project snapshot is assigned a version (A, B, C, and so on).
+- Versions are identified using the BLAKE3 digest of their project manifest.
+- Identical content chunks are reused instead of being uploaded again.
+- If an uploaded folder matches a previously stored version, Prayog selects that existing version rather than creating a duplicate.
+- When project contents change, the updated snapshot is recorded as a new version. The server maintains its own copy independently of your local folder.
 
-## Further documentation
+Common secrets and generated files are excluded from uploads, including `.env` files, private keys, virtual environments, caches, version-control metadata, and build directories. Symbolic links are refused.
 
-- [API.md](API.md): health, authentication and authorisation endpoints
-- [API_STEWARD.md](API_STEWARD.md): rebuild and Steward endpoints
-- [backend/ML_FLOW.md](backend/ML_FLOW.md): the Experiment Ledger lifecycle, artifacts, snapshots, rebuilds, the CLI and the isolated rebuild worker
-- [backend/AI_INTEGRATION.md](backend/AI_INTEGRATION.md): the ledger outbox and the contract for Steward consumers
-- [steward/DESIGN.md](steward/DESIGN.md): the Steward's design, security model, database layout, knowledge base and design decisions
+Always review your project folder before uploading it. Do not put credentials, API keys, or private data in project files.
+
+### 5.3 Dataset handling
+
+Datasets are handled separately from project code.
+
+- Dataset files are fingerprinted during project linking but are **not uploaded as part of the project snapshot**.
+- Supply the actual dataset when submitting a run using `--data`.
+- Prayog calculates BLAKE3 fingerprints for dataset files and records their paths, sizes, and fingerprints.
+- Dataset copies are staged for GPU execution.
+- By default, staged dataset files are deleted 48 hours after the last run using them ends. The platform administrator can configure this retention period.
+- A running job's dataset is not deleted while it is still in use.
+- Dataset fingerprints remain recorded after the temporary copies are deleted.
+
+For a rebuild, you must supply the original dataset again. Prayog verifies that its fingerprints match the original run.
+
+### 5.4 Run results and artifacts
+
+During execution, the experiment can produce:
+
+- **Checkpoints:** Saved model states.
+- **Metrics:** Training measurements recorded at different steps.
+- **Logs:** Standard output and error from the experiment.
+
+These results are stored as experiment artifacts and can be retrieved using:
+
+```bash
+prayog project download vision A/1 --to ./results
+```
+
+The CLI verifies each downloaded artifact against its recorded file size and SHA-256 checksum before saving it. Existing files are not overwritten.
+
+### 5.5 Local CLI files
+
+The CLI maintains local configuration and project-link information:
+
+- The login token is stored in the Prayog configuration directory (by default, `~/.prayog`).
+- A linked project folder contains `.prayog/link.json`, which records its project association and uploaded versions.
+
+The login file stores the access token, not the user's password.
+
+---
+
+## 6. Role-specific workflows
+
+Available features depend on the signed-in role and the permissions configured on the server.
+
+### 6.1 Students and researchers
+
+Students and researchers can:
+
+1. Register and sign in through the web portal.
+2. Submit a GPU access request.
+3. Wait for Professor and administrator approval.
+4. Check their access status.
+5. Create projects and upload code through the CLI.
+6. Submit and monitor GPU experiments.
+7. Download results and rebuild previous runs.
+
+### 6.2 Professors
+
+Professors can:
+
+- Review access requests assigned to them.
+- Approve or reject requests addressed to them.
+- View read-only experiment records for currently assigned students and researchers with active approved relationships.
+- Review, approve, or reject project handover requests addressed to them.
+
+Professor experiment views are read-only and scoped to eligible supervised users.
+
+### 6.3 Administrators
+
+Administrators can:
+
+- Review access requests from students and researchers.
+- Approve, reject, or revoke user access.
+- Create Professor accounts and profiles.
+- Register and manage GPU nodes, including draining, returning, and decommissioning nodes.
+- Monitor GPU pool status, inspect and acknowledge node alerts, and manage maintenance windows.
+- View the administrative ML Flow overview and aggregate experiment statistics.
+
+The exact actions available in the portal depend on the server configuration and the signed-in role.
+
+---
+
+
+## 7. Optional component: Steward
+
+Steward is Prayog's optional AI-assisted experiment support component. It is designed to analyse eligible failed rebuilds and provide diagnostic guidance.
+
+Steward is not required for core authentication, access approval, GPU scheduling, or experiment tracking. Prayog can operate without it.
+
+### 7.1 Availability and usage
+
+Users do not need to install or run Steward separately. Its features are intended to be accessed through the Prayog web application when the component is enabled and configured.
+
+**Current integration status:** The repository implements the rebuild eligibility checks and diagnostic-link mechanism, but does not yet include a configured Steward client or production downstream service integration. A diagnostic link allows authorised retrieval of a verified log; creating or using the link does not itself trigger an AI diagnosis.
+
+Only failed rebuilds with a verified log artifact are eligible for Steward diagnosis. First-time experiment failures are not eligible.
+
+### 7.2 Further documentation
+
+For component-specific information, architecture, configuration, and security boundaries, see:
+
+- [Steward README](steward/README.md)
+- [Steward Design documentation](steward/DESIGN.md)
+- [AI Integration documentation](backend/AI_INTEGRATION.md)
+
+---
+
+
+## 8. Troubleshooting
+
+| Problem | What to check |
+|---|---|
+| Cannot connect to the server | Confirm that the server is running and that the configured API URL is correct. |
+| Login is rejected | Check your email, role, and password. For CLI login, also confirm that your platform access is currently active. |
+| CLI session has expired | CLI login tokens expire after 60 minutes. Run `prayog login` again to start a new session. |
+| Access request is pending | Both the supervising Professor and an administrator must complete their required decisions. |
+| GPU job remains queued | Check the requested GPU count, walltime, available nodes, quota, and scheduler state. |
+| CLI command is unavailable | Run `prayog help` after logging in to see commands available to your role. |
+| Project upload fails | Check the folder path, permissions, and contents. Symbolic links are not supported and cause project uploads to fail. |
+| Project has no uploaded version | Create a project version using `prayog project link NAME FOLDER` before submitting a run. |
+| Dataset is unavailable | Check the supplied `--data` path. Temporary staged copies may have expired and need to be supplied again. |
+| Rebuild is rejected | Confirm that the original run completed successfully, has a verified snapshot, and that the supplied dataset matches the original fingerprints. |
+| Downloaded artifacts are not saved | Check the destination directory. The CLI verifies downloaded files and does not overwrite existing files. |
+
+For API-level details, open the interactive API documentation at `/docs` on your running server.
+
+
+---
+
+## 9. Further documentation
+
+The following documents provide additional details about Prayog's CLI, APIs, and individual components.
+
+| Document | Description |
+|---|---|
+| [CLI README](cli/README.md) | Complete CLI command reference, options, examples, and usage details. |
+| [API.md](API.md) | User registration, authentication, access requests, and role-based permissions. |
+| [API_GPU.md](API_GPU.md) | GPU job scheduling, node-agent operations, GPU-node administration, and maintenance. |
+| [API_STEWARD.md](API_STEWARD.md) | Steward API endpoints and rebuild-related integration routes. |
+| [backend/ML_FLOW.md](backend/ML_FLOW.md) | Technical details of project snapshots, datasets, artifacts, experiment runs, and rebuilds. |
+| [backend/AI_INTEGRATION.md](backend/AI_INTEGRATION.md) | Steward integration contract, eligibility rules, current implementation status, and remaining integration work. |
+| [Steward README](steward/README.md) | Steward component overview and user/developer entry point. |
+| [Steward Design](steward/DESIGN.md) | Steward architecture, database boundaries, security model, configuration, and operation. |
+
+---
+
+## Project information
+
+Prayog is developed as part of the CS455 (Introduction to Software Engineering) course at IIT Kanpur.
