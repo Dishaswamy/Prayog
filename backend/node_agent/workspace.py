@@ -133,6 +133,10 @@ def prepare(http: httpx.Client, headers: dict, allocation_id: int, load: dict, w
     for name, path in dirs.items():
         path.mkdir(mode=0o755, parents=True, exist_ok=True)
     os.chmod(dirs["output"], 0o777)                 # the run's user may be a different uid inside a container
+    # ...so close the workspace itself to everyone but the agent: otherwise any local account on
+    # the node could reach the world-writable output/ and plant or swap files before they are shipped.
+    # The container mounts output/ directly and never walks the host path, so it is unaffected.
+    os.chmod(workspace, 0o700)
     entrypoint = _safe(load["entrypoint"])
     fetch_code(http, headers, allocation_id, load, dirs["code"], dirs["scratch"])
     if not dirs["code"].joinpath(*entrypoint.parts).is_file():

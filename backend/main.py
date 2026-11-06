@@ -1,8 +1,10 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError, TimeoutError as PoolTimeoutError
 
 from database import engine
 from logic.errors import AppError
@@ -41,6 +43,17 @@ async def app_error_handler(request: Request, exc: AppError):
     if getattr(exc, "code", None):          # machine-readable code, e.g. a rejected GPU request
         content["code"] = exc.code
     return JSONResponse(status_code=exc.status_code, content=content)
+
+
+# The database is unreachable (stopped, restarting, failing over) or the pool is exhausted:
+# a temporary condition, so say so with 503 and a retry hint instead of a bare 500. The
+# driver's message names hosts and ports, so it stays in the server log.
+@app.exception_handler(OperationalError)
+@app.exception_handler(PoolTimeoutError)
+async def database_unavailable_handler(request: Request, exc: Exception):
+    logging.getLogger("prayog.api").error("database unavailable on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(status_code=503, headers={"Retry-After": "5"},
+                        content={"detail": "The service is temporarily unavailable. Please retry shortly."})
 
 
 app.include_router(auth_router)
