@@ -19,10 +19,10 @@ simulated agent per node with the enrolment token, so the demo shows onboarding.
 from sqlalchemy import select
 
 from database import SessionLocal
-from logic.auth import create_user_record
+from logic.auth.authentication import create_user_record
 from datetime import datetime, timedelta
 
-from logic.admin import create_professor
+from logic.auth.admin import create_professor
 from models import AccessRequest, Lab, Professor, SchedulingContext, User
 from scripts.seed_dev import reset_test_passwords, test_password
 

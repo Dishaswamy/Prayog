@@ -56,7 +56,7 @@ Processes (SADD §3, ADR-02), all from `backend/`:
 
 ```bash
 uvicorn main:app --port 8000                                     # API, with the Steward under /steward
-python -m logic.scheduler.run                                    # scheduler tick (reaper + passes)
+python -m logic.gpu.scheduler.run                                    # scheduler tick (reaper + passes)
 python -m integration.steward_worker                             # Steward worker: diagnoses, correlation, retention purge
 uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runtime (the model adapter)
 ```
@@ -85,11 +85,11 @@ uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runti
 | Concern | Where |
 |---|---|
 | The nine ports: runs, logs, principals, authorizer, rebuild attempts, submissions, audit, allocation history, ledger history | `integration/steward_bridge.py` |
-| Run-seal hook inside the release transaction | `logic/scheduler/lifecycle.py` (`register_release_hook`) |
+| Run-seal hook inside the release transaction | `logic/gpu/scheduler/lifecycle.py` (`register_release_hook`) |
 | Log tail from the agent's report | `ReportIn.log_tail` → `dispatch.report()` → `release(log_tail=...)` → `run_logs` |
 | API and the S3 page | `main.py` → `install_steward(app)` mounts everything under `/steward` |
 | Steward worker | `python -m integration.steward_worker` |
-| Rebuild attempts (interim, ledger scope) | `logic/rebuild.py`, `routers/rebuilds.py` |
+| Rebuild attempts (interim, ledger scope) | `logic/mlflow/rebuild.py`, `routers/mlflow/rebuilds.py` |
 
 **A run end, step by step:**
 1. The node agent reports the exit (`POST /agent/allocations/{id}/report`, optionally with `log_tail`). Node failures come instead from the reaper, and cancels from `/jobs/{id}/cancel`.

@@ -25,7 +25,7 @@ from sqlalchemy import (
 UTC_NOW = text("(now() AT TIME ZONE 'utc')")
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from logic.scheduler.domain import (
+from logic.gpu.scheduler.domain import (
     AccountType,
     AlertKind,
     DonationMode,

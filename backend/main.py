@@ -5,24 +5,24 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from database import engine
-from logic.errors import AppError
-from routers.access_requests import router as access_requests_router
-from routers.admin_mlflow import router as admin_mlflow_router
-from routers.auth import router as auth_router
-from routers.handover import router as handover_router
-from routers.mlflow import router as mlflow_router
-from routers.mlflow_runs import router as mlflow_runs_router
-from routers.mlflow_professor import router as mlflow_professor_router
-from routers.scheduler.admin import router as scheduler_admin_router
-from routers.scheduler.agent import router as agent_router
-from routers.scheduler.agent_runs import router as agent_runs_router
-from routers.scheduler.jobs import router as jobs_router
-from routers.scheduler.metrics import router as metrics_router
-from routers.professors import router as professors_router
-from routers.rebuilds import router as rebuilds_router
+from logic.common.errors import AppError
+from routers.auth.access_requests import router as access_requests_router
+from routers.mlflow.admin import router as admin_mlflow_router
+from routers.auth.accounts import router as auth_router
+from routers.mlflow.handover import router as handover_router
+from routers.mlflow.experiments import router as mlflow_router
+from routers.gpu.runs import router as mlflow_runs_router
+from routers.mlflow.professor import router as mlflow_professor_router
+from routers.gpu.admin import router as scheduler_admin_router
+from routers.gpu.agent import router as agent_router
+from routers.gpu.agent_runs import router as agent_runs_router
+from routers.gpu.jobs import router as jobs_router
+from routers.gpu.metrics import router as metrics_router
+from routers.auth.professors import router as professors_router
+from routers.mlflow.rebuilds import router as rebuilds_router
 from integration.steward_bridge import install_steward
 from integration.web import install_web
-from logic.mlflow_release import register_mlflow_hooks
+from logic.mlflow.release import register_mlflow_hooks
 
 app = FastAPI(title="Prayog API")
 

@@ -3,9 +3,7 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
-from logic import artifact_storage
-
-
+from logic.common import artifact_storage
 def _digest(path: Path) -> str:
     hasher = hashlib.sha256()
     with path.open("rb") as handle:

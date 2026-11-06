@@ -186,7 +186,7 @@ Run each process in its own terminal, from `backend/`, with the virtual environm
 
 ```bash
 uvicorn main:app --port 8000                                     # API  → http://127.0.0.1:8000/docs
-python -m logic.scheduler.run                                    # scheduler tick
+python -m logic.gpu.scheduler.run                                    # scheduler tick
 python -m integration.steward_worker                             # Steward worker
 uvicorn steward_runtime.app:app --port 8100 --env-file ../.env   # Steward Runtime
 ```

@@ -61,18 +61,18 @@ from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 from steward_contracts import ReasoningPort
 
-from logic.gpu_runs import DatasetFile, submit_gpu_run
-from logic.project_versions import version_label
+from logic.gpu.runs import DatasetFile, submit_gpu_run
+from logic.gpu.project_versions import version_label
 from mlflow_models import ModelRun, ProjectVersion, RunDatasetFile
 
 import models as orm
 from database import DATABASE_URL, SessionLocal
-from logic.auth import ALGORITHM, SECRET_KEY
-from logic.dependencies import get_current_user
-from logic.errors import AppError
-from logic.scheduler.domain import JobState, ReleaseReason, RunEndState
-from logic.scheduler.lifecycle import ReleaseResult, register_release_hook
-from logic.scheduler.requests import SubmissionRejected, format_walltime, submit_job
+from logic.auth.authentication import ALGORITHM, SECRET_KEY
+from logic.auth.dependencies import get_current_user
+from logic.common.errors import AppError
+from logic.gpu.scheduler.domain import JobState, ReleaseReason, RunEndState
+from logic.gpu.scheduler.lifecycle import ReleaseResult, register_release_hook
+from logic.gpu.scheduler.requests import SubmissionRejected, format_walltime, submit_job
 
 log = logging.getLogger("prayog.steward")
 
@@ -246,7 +246,7 @@ class PlatformLogStore:
 
 class JwtPrincipalResolver:
     """The platform's bearer token. A token is valid exactly when the platform's own
-    check (logic.dependencies.get_current_user) accepts it, so rules added there, such
+    check (logic.auth.dependencies.get_current_user) accepts it, so rules added there, such
     as revoking tokens on a password reset, cover the Steward's routes too."""
 
     def __init__(self, sessions: Any = SessionLocal) -> None:
@@ -556,8 +556,8 @@ def _trigger_pass(trigger: str) -> None:
     """Run a scheduling pass off the request thread (FR-GPU-121)."""
     def run() -> None:
         try:
-            from logic.scheduler.passes import run_pass
-            from routers.scheduler.jobs import ACTIVE_CONFIG
+            from logic.gpu.scheduler.passes import run_pass
+            from routers.gpu.jobs import ACTIVE_CONFIG
 
             run_pass(SessionLocal, trigger, cfg=ACTIVE_CONFIG)
         except Exception:

@@ -7,7 +7,7 @@ import time
 from uuid import uuid4
 
 from database import SessionLocal
-from logic.mlflow_outbox import consume_ledger_event, dispatch_once
+from logic.mlflow.outbox import consume_ledger_event, dispatch_once
 
 REQUIRED_HANDLERS = {"STEWARD_DIAGNOSIS_REQUESTED", "OPTIMIZATION_REQUESTED"}
 logging.basicConfig(level=os.getenv("PRAYOG_OUTBOX_LOG_LEVEL", "INFO"))

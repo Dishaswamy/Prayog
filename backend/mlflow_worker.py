@@ -19,10 +19,10 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
-from logic.artifact_storage import ARTIFACT_ROOT, delete_artifact, persist_artifact
-from logic.artifacts import MAX_ARTIFACT_BYTES, get_verified_artifact
-from logic.errors import BadRequestError, NotFoundError
-from logic.mlflow import finish_run, update_rebuild
+from logic.common.artifact_storage import ARTIFACT_ROOT, delete_artifact, persist_artifact
+from logic.mlflow.artifacts import MAX_ARTIFACT_BYTES, get_verified_artifact
+from logic.common.errors import BadRequestError, NotFoundError
+from logic.mlflow.experiments import finish_run, update_rebuild
 from mlflow_models import Artifact, ModelRun, ModelSnapshot, RebuildAttempt
 from models import User
 

@@ -31,11 +31,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import models as orm
-from logic.errors import AppError, BadRequestError, ConflictError, NotFoundError
-from logic.scheduler import maintenance
-from logic.scheduler import nodes as node_ops
-from logic.scheduler.claim import utc_now
-from logic.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
+from logic.common.errors import AppError, BadRequestError, ConflictError, NotFoundError
+from logic.gpu.scheduler import maintenance
+from logic.gpu.scheduler import nodes as node_ops
+from logic.gpu.scheduler.claim import utc_now
+from logic.gpu.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
 
 log = logging.getLogger("prayog.scheduler")
 _UNIT = re.compile(r"^(?P<node>.+)/gpu(?P<index>\d+)$")       # steward_bridge.unit_name()

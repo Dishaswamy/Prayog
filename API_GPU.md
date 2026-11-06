@@ -863,7 +863,7 @@ From the `backend/` folder, with the database running (`docker compose up -d`):
 ..\.venv\Scripts\alembic.exe upgrade head
 ..\.venv\Scripts\python.exe -m scripts.seed_gpu_demo "DemoPassword123"     # labs and demo users
 ..\.venv\Scripts\python.exe -m uvicorn main:app --reload                    # the API
-..\.venv\Scripts\python.exe -m logic.scheduler.run                         # second terminal: the tick (passes and timeouts)
+..\.venv\Scripts\python.exe -m logic.gpu.scheduler.run                         # second terminal: the tick (passes and timeouts)
 ```
 
 The seed creates `gpuadmin@iitk.ac.in` (ADMIN), `nlp.researcher@iitk.ac.in` and `robotics.researcher@iitk.ac.in` (research accounts) and `cs455.student@iitk.ac.in` (a course account with a 20 GPU-hour cap), all with the password you give, and the labs NLP, Robotics, Central and "CS455 course group".

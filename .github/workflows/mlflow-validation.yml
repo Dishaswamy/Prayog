@@ -59,7 +59,7 @@ jobs:
         run: |
           pip install -r backend/requirements.txt
           pip install -e ./steward
-          pip install -e ./cli          # the CLI-to-server end-to-end test (backend/tests/test_cli_end_to_end.py)
+          pip install -e ./cli          # the CLI-to-server end-to-end test (test_cases/e2e/test_cli_end_to_end.py)
       - name: Compile backend Python files
         working-directory: backend
         run: python -m compileall -q .
@@ -75,42 +75,38 @@ jobs:
         working-directory: backend
         run: alembic check
       - name: Run lifecycle unit tests
-        working-directory: backend
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
           PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
           PRAYOG_RUN_PROFESSOR_POSTGRES_TESTS: "1"
           PRAYOG_RUN_SCHEDULER_POSTGRES_TESTS: "1"
-        run: pytest -q
+        run: pytest -q test_cases
 
       - name: Build isolated worker runtime image
         run: docker build -t prayog-ml-runtime:python3.12 -f backend/worker/Dockerfile backend/worker
 
       - name: Run real Docker worker smoke tests
-        working-directory: backend
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
           PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
           PRAYOG_RUN_DOCKER_SMOKE: "1"
           PRAYOG_WORKER_IMAGE: prayog-ml-runtime:python3.12
-        run: pytest -q tests/test_mlflow_worker_docker.py
+        run: pytest -q test_cases/mlflow/test_mlflow_worker_docker.py
 
       - name: Run GPU node agent tests in the real hardened container
-        working-directory: backend
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
           PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
           PRAYOG_RUN_DOCKER_SMOKE: "1"
           PRAYOG_RUN_SCHEDULER_POSTGRES_TESTS: "1"
           PRAYOG_WORKER_IMAGE: prayog-ml-runtime:python3.12
-        run: pytest -q tests/test_node_agent_docker.py
+        run: pytest -q test_cases/gpu/test_node_agent_docker.py
 
       - name: Run authenticated API-to-worker end-to-end test
-        working-directory: backend
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
           PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
           PRAYOG_RUN_E2E: "1"
           PRAYOG_WORKER_IMAGE: prayog-ml-runtime:python3.12
           PRAYOG_WORKER_TIMEOUT_SECONDS: "15"
-        run: pytest -q tests/test_mlflow_e2e.py
+        run: pytest -q test_cases/e2e/test_mlflow_e2e.py
