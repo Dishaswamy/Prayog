@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,7 @@ from logic.mlflow_handover import (
     approve_handover,
     cancel_handover,
     get_handover,
+    list_handovers,
     push_project,
     reject_handover,
 )
@@ -24,6 +27,16 @@ def push(
     user: User = Depends(require_roles("STUDENT", "RESEARCHER")),
 ):
     return push_project(db, project_id, user, body.professor_id)
+
+
+# A Professor's handovers to review; anyone else's own requests. e.g. ?status=HANDOVER_PENDING
+@router.get("/handovers", response_model=list[HandoverOut])
+def handovers(
+    status: Literal["HANDOVER_PENDING", "HANDOVER_APPROVED", "HANDOVER_REJECTED", "HANDOVER_CANCELLED"] | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return list_handovers(db, user, status)
 
 
 @router.get("/handovers/{handover_id}", response_model=HandoverOut)

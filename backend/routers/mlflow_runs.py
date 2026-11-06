@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from database import get_db
 from logic import gpu_runs, project_versions, staging
-from logic.dependencies import get_current_user
+from logic.dependencies import active_user, get_current_user
 from logic.mlflow_release import displayed_status
 from logic.project_versions import list_versions, register_version, set_current
 from logic.scheduler.config import SchedulerConfig
@@ -29,7 +29,7 @@ def _info(db: Session, user: User, project_id: str, version_id: int):
 
 @router.post("/projects/{project_id}/versions", response_model=VersionRegisterOut, status_code=status.HTTP_201_CREATED)
 def add_version(project_id: str, body: VersionRegister, db: Session = Depends(get_db),
-                user: User = Depends(get_current_user)):
+                user: User = Depends(active_user)):
     version, created = register_version(db, user, project_id, body.manifest_artifact_id)
     return VersionRegisterOut(**VersionOut.of(_info(db, user, project_id, version.id)).model_dump(), created=created)
 
@@ -61,7 +61,7 @@ def staging_missing(body: StagingCheck, db: Session = Depends(get_db), user: Use
         "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}},
 )
 async def stage_file(blake3: str, size: int, request: Request, response: Response, db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+                     user: User = Depends(active_user)):
     """Upload one dataset file's bytes. The server recomputes the BLAKE3 digest and refuses a mismatch."""
     row, created = await staging.store_staged_file(db, user, blake3, size, request)
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
@@ -100,7 +100,7 @@ def submit_run(
     response: Response,
     background: BackgroundTasks,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(active_user),
     cfg: SchedulerConfig = Depends(get_scheduler_config),
     pass_sessions: sessionmaker = Depends(get_pass_sessions),
 ):

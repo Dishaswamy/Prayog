@@ -1,0 +1,60 @@
+/* The platform screens, on top of the Steward UI's stylesheet and its tokens. */
+.nav-heading {
+  margin: 0.9rem 0 0.2rem; padding: 0 0.65rem; font-size: 0.72rem; font-weight: 650;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+}
+.side { overflow-y: auto; }
+
+.auth-links { display: flex; justify-content: space-between; gap: 1rem; margin: 0; }
+.link {
+  background: none; border: 0; padding: 0; color: var(--accent); font-weight: 500; cursor: pointer;
+  font-size: 0.9rem;
+}
+.link:hover { text-decoration: underline; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.75rem; align-items: end; }
+.wide-field { grid-column: 1 / -1; }
+.form-foot { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.actions.end { justify-content: flex-end; }
+.card > .kv { margin-top: 0.1rem; }
+
+pre.block {
+  margin: 0; padding: 0.6rem 0.75rem; background: var(--code-bg); border-radius: 8px;
+  overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+pre.log { max-height: 26rem; overflow-y: auto; }
+
+/* GPU units: state is also named in the legend and each unit's label, never colour alone. */
+.units { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.unit {
+  display: inline-block; width: 1.1rem; height: 1.1rem; border-radius: 4px;
+  border: 1px solid var(--line-strong); background: var(--surface-2);
+}
+.unit.allocated { background: var(--accent); border-color: var(--accent); }
+.unit.maintenance { background: var(--warn); border-color: var(--warn); }
+.unit.retired { background: transparent; border-style: dashed; }
+.unit-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin: 0; font-size: 0.84rem; color: var(--muted); }
+.unit-legend > span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.unit-legend .unit { width: 0.8rem; height: 0.8rem; border-radius: 3px; }
+.unit-picker { border: 0; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.unit-picker legend { font-size: 0.86rem; color: var(--muted); font-weight: 550; margin-bottom: 0.3rem; }
+
+/* Metric charts: thin line, recessive axes, text in text colours. */
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.75rem; }
+.chart-card {
+  margin: 0; padding: 0.7rem 0.8rem; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.chart-card figcaption { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.88rem; }
+.chart-readout { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chart { display: block; width: 100%; height: auto; margin-top: 0.3rem; touch-action: pan-y; }
+.chart-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-axis { stroke: var(--line-strong); stroke-width: 1; }
+.chart-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-tick { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 760px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}

@@ -64,7 +64,7 @@ async def store_artifact(db: Session, user, experiment, kind: str, request) -> A
 
         # BLAKE3 is the immutable storage identity, shared across metadata rows
         # and namespaces. SHA-256 remains in metadata for compatibility.
-        persist_artifact(temporary_path, storage_key)
+        await anyio.to_thread.run_sync(persist_artifact, temporary_path, storage_key)   # off the event loop
         artifact = Artifact(
             id=artifact_id,
             user_id=user.id,
@@ -120,14 +120,4 @@ def get_verified_artifact(
             size += len(chunk)
     if size != artifact.size_bytes or sha256_digest.hexdigest() != artifact.sha256:
         raise BadRequestError("Artifact integrity verification failed")
-    if len(artifact.storage_key) == 64 and content_digest_for_path(path) != artifact.storage_key:
-        raise BadRequestError("Artifact content address verification failed")
     return artifact, path
-
-
-def content_digest_for_path(path: Path) -> str:
-    digest = blake3()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()

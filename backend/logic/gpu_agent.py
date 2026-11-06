@@ -59,11 +59,16 @@ def _live_run(db: Session, node_id: int, allocation_id: int, started: bool = Fal
     return allocation, run
 
 
+def _code_artifact(db: Session, artifact_id: str, experiment_id: int):
+    """A version's code, verified. Its owner comes from the experiment: an approved handover moves
+    the project's artifacts to the Professor while the run stays with the person who started it."""
+    return get_verified_artifact(db, artifact_id, db.get(Experiment, experiment_id).user_id, experiment_id, "CODE")
+
+
 def workload(db: Session, node_id: int, allocation_id: int) -> Workload:
     allocation, run = _live_run(db, node_id, allocation_id)
     version = db.get(ProjectVersion, run.project_version_id)
-    owner = db.get(User, run.user_id)
-    _, path = get_verified_artifact(db, version.manifest_artifact_id, owner.id, version.experiment_id, "CODE")
+    _, path = _code_artifact(db, version.manifest_artifact_id, version.experiment_id)
     manifest = json.loads(path.read_text(encoding="utf-8"))
     job = db.get(orm.Job, allocation.job_id)
     dataset = db.query(RunDatasetFile).filter(RunDatasetFile.run_id == run.id).order_by(RunDatasetFile.path).all()
@@ -80,7 +85,7 @@ def code_file(db: Session, node_id: int, allocation_id: int, artifact_id: str) -
     allowed = {load.manifest_artifact_id} | {chunk.get("artifact_id") for chunk in load.manifest["chunks"]}
     if artifact_id not in allowed:
         raise NotFoundError("That file is not part of this run's code.")
-    _, path = get_verified_artifact(db, artifact_id, load.run.user_id, load.run.experiment_id, "CODE")
+    _, path = _code_artifact(db, artifact_id, load.run.experiment_id)
     return path
 
 
@@ -124,7 +129,7 @@ async def store_result(db: Session, node_id: int, allocation_id: int, kind: str,
             RunCheckpoint.run_id == run.id, RunCheckpoint.step == step).first() is not None:
         raise ConflictError(f"This run already has a checkpoint at step {step}.")
     experiment = db.get(Experiment, run.experiment_id)
-    artifact = await store_artifact(db, _owner(db, run), experiment, kind, request)
+    artifact = await store_artifact(db, db.get(User, experiment.user_id), experiment, kind, request)
     if kind == "LOG":
         run.logs_artifact_id = artifact.id
         db.commit()

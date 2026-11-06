@@ -128,7 +128,8 @@ def request_stop(
     Stop a placed job. Not started yet (SCHEDULED): the claim is rolled back in this
     same transaction (FR-GPU-067). RUNNING: the allocation is marked for the agent to
     stop (SIGTERM, stop_grace, SIGKILL; FR-GPU-068); the units are released only when
-    the agent confirms (FR-GPU-069). A second request keeps the first reason.
+    the agent confirms (FR-GPU-069). A second request keeps the first reason, except that
+    a cancel replaces a stop that would requeue the job.
     """
     now = now or utc_now()
     reason = ReleaseReason(reason)
@@ -141,8 +142,10 @@ def request_stop(
             session.commit()
             return StopResult(job_id, released=True, stop_reason=reason)
         allocation = _lock_live_allocation(session, job_id)
-        if allocation.stop_requested_at is None:
-            allocation.stop_requested_at = now
+        # A platform stop would requeue the job, so a cancel replaces it; otherwise the first reason stands.
+        cancels_requeue = reason == ReleaseReason.CANCELLED and allocation.stop_reason in REQUEUE
+        if allocation.stop_requested_at is None or cancels_requeue:
+            allocation.stop_requested_at = allocation.stop_requested_at or now
             allocation.stop_reason = reason
         result = StopResult(job_id, released=False, stop_reason=ReleaseReason(allocation.stop_reason))
         session.commit()

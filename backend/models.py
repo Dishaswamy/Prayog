@@ -72,6 +72,12 @@ class User(Base):
         Integer, server_default=text("0"), default=0, nullable=False
     )
 
+    # FR-AUTH-60: consecutive failed sign-ins, and when a lockout ends
+    failed_logins: Mapped[int] = mapped_column(
+        Integer, server_default=text("0"), default=0, nullable=False
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=UTC_NOW, nullable=False
     )
