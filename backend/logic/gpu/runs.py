@@ -37,6 +37,7 @@ from mlflow_models import (
 from models import User
 
 DEFAULT_ENTRYPOINT = "main.py"
+ACTIVE_RUN_STATUSES = ("CREATED", "QUEUED", "RUNNING")
 MAX_DATASET_FILES = 20000
 MAX_HYPERPARAMETER_BYTES = 64 * 1024
 
@@ -44,6 +45,11 @@ MAX_HYPERPARAMETER_BYTES = 64 * 1024
 class DatasetNotStaged(ConflictError):
     """409 DATASET_NOT_STAGED: the files to upload first are named in the message."""
     code = "DATASET_NOT_STAGED"
+
+
+class DuplicateActiveRun(ConflictError):
+    """409 DUPLICATE_ACTIVE_RUN: the same version, entrypoint, hyperparameters and data are already queued or running."""
+    code = "DUPLICATE_ACTIVE_RUN"
 
 
 class DatasetMismatch(ConflictError):
@@ -132,6 +138,29 @@ def _require_same_dataset(db: Session, source: ModelRun, dataset: list[DatasetFi
         raise DatasetMismatch("A rebuild must use exactly the original run's data (checked by BLAKE3). " + "; ".join(parts))
 
 
+def _active_duplicate(
+    db: Session, user: User, version: ProjectVersion, run_type: str, entrypoint: str,
+    hyperparameters: dict, dataset: list[DatasetFile],
+) -> ModelRun | None:
+    """A queued or running run of the same user and version with the same entrypoint, hyperparameters and data
+    (path, size and BLAKE3 of every file). GPUs and walltime are not compared: they do not change the result."""
+    wanted = {(f.path, f.size_bytes, f.blake3) for f in dataset}
+    candidates = db.query(ModelRun).filter(
+        ModelRun.user_id == user.id, ModelRun.project_version_id == version.id,
+        ModelRun.run_type == run_type, ModelRun.status.in_(ACTIVE_RUN_STATUSES),
+    ).order_by(ModelRun.run_number).all()
+    for run in candidates:
+        if (run.environment or {}).get("entrypoint", DEFAULT_ENTRYPOINT) != entrypoint:
+            continue
+        if (run.hyperparameters or {}) != hyperparameters:
+            continue
+        recorded = {(f.path, f.size_bytes, f.blake3)
+                    for f in db.query(RunDatasetFile).filter(RunDatasetFile.run_id == run.id)}
+        if recorded == wanted:
+            return run
+    return None
+
+
 def submit_gpu_run(
     db: Session, user: User, project_id: str, version: str | None, gpus, walltime, client_request_id: str,
     hyperparameters: dict | None = None, entrypoint: str | None = None,
@@ -163,6 +192,16 @@ def submit_gpu_run(
         target = (project_versions.get_version(db, user, project_id, version) if version
                   else project_versions.current_version(db, user, project_id))
     _entrypoint_is_in_version(db, user, target, entrypoint)
+
+    # Refuse a run identical to one still queued or running. The version row is locked first so two identical
+    # commands sent at the same moment cannot both pass this check; the lock is released at commit.
+    db.query(ProjectVersion).filter(ProjectVersion.id == target.id).with_for_update().one()
+    duplicate = _active_duplicate(db, user, target, "REBUILD" if source else "FIRST_TIME",
+                                  entrypoint, hyperparameters, dataset)
+    if duplicate is not None:
+        raise DuplicateActiveRun(
+            f"{_label(db, duplicate)} has the same version, entrypoint, hyperparameters and data and is still "
+            f"{duplicate.status.lower()}. Wait for it to finish, or cancel it, before submitting the same run again.")
 
     staged: dict[str, StagedFile] = {}
     if dataset:

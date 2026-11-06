@@ -170,6 +170,8 @@ class RunsInFlightTests(AgentRunCase):
         run, allocation, agent = self.placed_run(hyperparameters={"lr": 0.5})
         agent.post(f"/agent/allocations/{allocation.id}/acknowledge")
         failed = self.db.scalars(select(orm.Run).where(orm.Run.job_id == run["job_id"])).one()
+        self.db.get(ModelRun, run["run_id"]).status = "FAILED"     # the Steward only fixes a run that has failed
+        self.db.commit()
         request = SubmissionRequest(
             project_id=f"u{self.user.id}:{self.pid}", parent_run_id=str(failed.id), approving_user=str(self.user.id),
             job_spec=JobSpec(command_args="", env_pins=(), gpu_count=2, walltime_minutes=90, image_digest=""),
