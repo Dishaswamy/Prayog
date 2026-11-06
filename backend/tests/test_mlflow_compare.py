@@ -85,5 +85,65 @@ class MetricComparatorTests(unittest.TestCase):
             MetricComparisonCreate(tolerances={"loss": "0.1"})
 
 
+    def test_exact_tolerance_boundary_passes(self):
+        result = self.compare(
+            [SimpleNamespace(name="loss", step=2, value=0.5)],
+            [SimpleNamespace(name="loss", step=2, value=0.6)],
+            {"loss": 0.1},
+        )
+        self.assertTrue(result["passed"])
+        self.assertAlmostEqual(result["metrics"][0]["absolute_difference"], 0.1)
+
+    def test_zero_tolerance_requires_exact_value_match(self):
+        result = self.compare(
+            [SimpleNamespace(name="accuracy", step=1, value=0.9)],
+            [SimpleNamespace(name="accuracy", step=1, value=0.9)],
+            {"accuracy": 0},
+        )
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["metrics"][0]["absolute_difference"], 0.0)
+
+    def test_unconfigured_metric_uses_zero_tolerance(self):
+        result = self.compare(
+            [SimpleNamespace(name="loss", step=1, value=0.5)],
+            [SimpleNamespace(name="loss", step=1, value=0.51)],
+            {},
+        )
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["metrics"][0]["tolerance"], 0.0)
+
+    def test_same_metric_at_different_steps_is_compared_separately(self):
+        result = self.compare(
+            [
+                SimpleNamespace(name="loss", step=1, value=0.5),
+                SimpleNamespace(name="loss", step=2, value=0.4),
+            ],
+            [
+                SimpleNamespace(name="loss", step=1, value=0.5),
+                SimpleNamespace(name="loss", step=2, value=0.6),
+            ],
+            {"loss": 0.1},
+        )
+        self.assertEqual(result["metrics_compared"], 2)
+        self.assertEqual([item["step"] for item in result["metrics"]], [1, 2])
+        self.assertFalse(result["passed"])
+
+    def test_invalid_non_finite_tolerances_are_rejected(self):
+        for tolerance in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(tolerance=tolerance):
+                self.db.query.side_effect = [self.rebuild_query, self.snapshot_query]
+                with self.assertRaises(BadRequestError):
+                    compare_rebuild_metrics(self.db, 12, self.user, {"loss": tolerance})
+
+    def test_blank_metric_name_is_rejected(self):
+        with self.assertRaisesRegex(BadRequestError, "must not be blank"):
+            compare_rebuild_metrics(self.db, 12, self.user, {"  ": 0.1})
+
+    def test_unrecorded_snapshot_cannot_be_compared(self):
+        self.snapshot.state = "PENDING"
+        with self.assertRaises(ConflictError):
+            compare_rebuild_metrics(self.db, 12, self.user, {})
+        self.source_query.filter.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

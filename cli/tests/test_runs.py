@@ -314,6 +314,13 @@ def test_the_dataset_is_fingerprinted_with_blake3_and_secrets_are_left_out(data)
 def test_a_single_file_is_staged_under_its_own_name(data):
     assert [f.path for f in dataset.scan(data / "a.csv")] == ["a.csv"]
 
+@pytest.mark.parametrize("filename", [".env", "credentials.json", "private.pem"])
+def test_a_secret_file_passed_directly_is_not_staged(tmp_path, filename):
+    secret = tmp_path / filename
+    secret.write_text("SECRET=do-not-upload")
+
+    with pytest.raises(CliError, match="no files"):
+        dataset.scan(secret)
 
 def test_a_symlink_in_the_dataset_is_refused(data):
     (data / "alias.csv").symlink_to(data / "a.csv")
@@ -594,3 +601,112 @@ def test_download_of_a_missing_run_shows_the_servers_reason(run, server, tmp_pat
     server.on("GET", f"{BASE}/runs/A/7", 404, {"detail": "Version A has no run 7."})
     assert run("project", "download", "Vision", "A/7", "--to", str(tmp_path / "o")) == 1
     assert "no run 7" in capsys.readouterr().err
+
+
+def test_download_refuses_an_artifact_missing_from_the_registry(
+    run, server, tmp_path, capsys
+):
+    ResultsServer(server)
+
+    route = ("GET", "/mlflow/experiments/1/artifacts")
+    _, artifacts = server.routes[route]
+    server.routes[route] = (
+        200,
+        [item for item in artifacts if item["id"] != "ck2"],
+    )
+
+    target = tmp_path / "out"
+    assert run(
+        "project", "download", "Vision", "A/1", "--to", str(target)
+    ) == 1
+
+    assert "server has no record of that file" in capsys.readouterr().err
+    assert not target.exists()
+
+def test_scanning_a_symlink_as_the_dataset_is_refused(tmp_path):
+    actual = tmp_path / "actual.csv"
+    actual.write_text("x,y\n1,2\n")
+
+    alias = tmp_path / "alias.csv"
+    alias.symlink_to(actual)
+
+    with pytest.raises(CliError, match="symbolic link"):
+        dataset.scan(alias)
+
+def test_download_rejects_an_invalid_checkpoint_selector(run, server, tmp_path, capsys):
+    ResultsServer(server)
+
+    assert run(
+        "project", "download", "Vision", "A/1",
+        "--to", str(tmp_path / "out"),
+        "--checkpoint", "latest",
+    ) == 2
+
+    assert "--checkpoint must be best, last, all, none or a step number" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+def test_download_never_overwrites_existing_metrics(run, server, tmp_path, capsys):
+    ResultsServer(server)
+
+    target = tmp_path / "out"
+    target.mkdir()
+    metrics = target / "metrics.json"
+    metrics.write_text('{"existing": true}')
+
+    assert run(
+        "project", "download", "Vision", "A/1",
+        "--to", str(target),
+        "--checkpoint", "none",
+        "--no-log",
+    ) == 2
+
+    assert "never overwritten" in capsys.readouterr().err
+    assert metrics.read_text() == '{"existing": true}'
+
+def test_a_symlinked_directory_inside_the_dataset_is_refused(data, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "hidden.csv").write_text("secret")
+
+    (data / "linked_dir").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(CliError, match="symbolic link"):
+        dataset.scan(data)
+
+
+def test_scanning_rejects_an_unsafe_relative_path(data, monkeypatch):
+    def reject_path(_):
+        raise ValueError("unsafe test path")
+
+    monkeypatch.setattr(dataset, "safe_relative_path", reject_path)
+
+    with pytest.raises(CliError, match="unsafe test path"):
+        dataset.scan(data)
+
+
+def test_scanning_refuses_more_than_the_maximum_number_of_files(
+    data, monkeypatch
+):
+    monkeypatch.setattr(dataset, "MAX_FILES", 1)
+
+    with pytest.raises(CliError, match="more than 1 files"):
+        dataset.scan(data)
+
+def test_pull_of_a_project_without_versions_says_how_to_start(run, server, tmp_path, capsys):
+    server.on("GET", f"{BASE}/versions", 200, [])
+
+    assert run("project", "pull", "Vision", str(tmp_path / "restored")) == 1
+
+    error = capsys.readouterr().err
+    assert "has no uploaded version yet" in error
+    assert not (tmp_path / "restored").exists()
+
+def test_current_without_a_marked_current_version_says_how_to_start(run, server, capsys):
+    server.on("GET", f"{BASE}/versions", 200, [
+        version("B", 2, head=True),
+        version("A", 1),
+    ])
+
+    assert run("project", "current", "Vision") == 1
+
+    assert "has no uploaded version yet" in capsys.readouterr().err

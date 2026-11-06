@@ -1,10 +1,23 @@
 import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+os.environ.setdefault("JWT_SECRET_KEY", "test-only-secret")
+os.environ.setdefault("POSTGRES_USER", "prayog")
+os.environ.setdefault("POSTGRES_PASSWORD", "test-password")
+os.environ.setdefault("POSTGRES_HOST", "localhost")
+os.environ.setdefault("POSTGRES_PORT", "5432")
+os.environ.setdefault("POSTGRES_DB", "prayog_test")
+
+from fastapi.testclient import TestClient
+
+from database import get_db
+from logic.dependencies import get_current_user
+from main import app
 from logic.artifacts import get_verified_artifact, store_artifact
 from logic.errors import BadRequestError
 
@@ -32,7 +45,7 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(artifact.sha256, hashlib.sha256(payload).hexdigest())
                 self.assertEqual(artifact.size_bytes, len(payload))
-                stored = Path(directory).resolve() / artifact.storage_key
+                stored = Path(directory) / artifact.storage_key
                 self.assertEqual(stored.read_bytes(), payload)
 
                 db.query.return_value.filter.return_value.first.return_value = artifact
@@ -46,7 +59,7 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_empty_upload_is_rejected_and_not_registered(self):
         with tempfile.TemporaryDirectory() as directory:
-            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory).resolve()):
+            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory)):
                 db = MagicMock()
                 with self.assertRaises(BadRequestError):
                     await store_artifact(
@@ -54,6 +67,92 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
                     )
                 db.add.assert_not_called()
                 db.commit.assert_not_called()
+
+
+
+class ArtifactDownloadRouteTests(unittest.TestCase):
+    def setUp(self):
+        self.db = MagicMock()
+        self.user = SimpleNamespace(id=9, role="STUDENT")
+        app.dependency_overrides[get_db] = lambda: self.db
+        app.dependency_overrides[get_current_user] = lambda: self.user
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    def test_user_cannot_download_another_users_artifact(self):
+        self.db.query.return_value.filter.return_value.first.return_value = None
+        with patch("routers.mlflow.get_verified_artifact") as verify:
+            response = self.client.get("/mlflow/artifacts/foreign-artifact/content")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "Artifact not found"})
+        verify.assert_not_called()
+
+    def test_owned_artifact_download_is_verified_and_private(self):
+        import tempfile
+
+        artifact = SimpleNamespace(
+            id="artifact-1", user_id=9, experiment_id=4, kind="CODE"
+        )
+        self.db.query.return_value.filter.return_value.first.return_value = artifact
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "verified.bin"
+            path.write_bytes(b"verified-artifact")
+            with patch("routers.mlflow.get_verified_artifact", return_value=(artifact, path)) as verify:
+                response = self.client.get("/mlflow/artifacts/artifact-1/content")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"verified-artifact")
+        self.assertEqual(response.headers["cache-control"], "private, no-store")
+        self.assertEqual(response.headers["x-content-type-options"], "nosniff")
+        verify.assert_called_once_with(self.db, "artifact-1", 9, 4, "CODE")
+
+    def test_user_cannot_upload_artifact_to_another_users_experiment(self):
+        from logic.errors import NotFoundError
+
+        # active_user checks the student's access window; give it a row with no end date.
+        self.db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(end_date=None)
+        with patch("routers.mlflow._owned_experiment", side_effect=NotFoundError("Experiment not found")) as owned, patch(
+            "routers.mlflow.store_artifact"
+        ) as store:
+            response = self.client.post(
+                "/mlflow/experiments/404/artifacts",
+                params={"kind": "CODE"},
+                content=b"private source archive",
+                headers={"Content-Type": "application/octet-stream"},
+            )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "Experiment not found"})
+        owned.assert_called_once_with(self.db, 404, self.user)
+        store.assert_not_called()
+
+    def test_user_cannot_list_artifacts_from_another_users_experiment(self):
+        from logic.errors import NotFoundError
+
+        with patch(
+            "routers.mlflow._owned_experiment",
+            side_effect=NotFoundError("Experiment not found"),
+        ) as owned:
+            response = self.client.get("/mlflow/experiments/404/artifacts")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "Experiment not found"})
+        owned.assert_called_once_with(self.db, 404, self.user)
+        self.db.query.assert_not_called()
+
+    def test_professor_with_inventory_access_cannot_download_owner_artifact_bytes(self):
+        self.user = SimpleNamespace(id=20, role="PROFESSOR")
+        self.db.query.return_value.filter.return_value.first.return_value = None
+
+        with patch("routers.mlflow.get_verified_artifact") as verify:
+            response = self.client.get("/mlflow/artifacts/student-artifact/content")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "Artifact not found"})
+        verify.assert_not_called()
 
 
 if __name__ == "__main__":

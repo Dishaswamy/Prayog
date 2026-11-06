@@ -82,5 +82,53 @@ class SharedQueueOrderingTests(unittest.TestCase):
         db.commit.assert_not_called()
 
 
+    def test_equal_queue_timestamps_use_job_id_as_tie_breaker(self):
+        now = datetime(2026, 10, 14, 12, 0, 0)
+        run = SimpleNamespace(
+            id=7, created_at=now, started_at=now, status="QUEUED",
+            run_type="FIRST_TIME", code_artifact_id="code-1",
+            worker_id=None, worker_claimed_at=None,
+        )
+        attempt = SimpleNamespace(
+            id=8, created_at=now, initiated_at=now, state="REBUILD_INITIATED",
+            worker_id=None, worker_claimed_at=None,
+        )
+        db = MagicMock()
+        db.query.side_effect = [
+            self.make_candidate_query(run),
+            self.make_candidate_query(attempt),
+            self.make_lock_query(run),
+        ]
+
+        self.assertEqual(claim_next_job(db, "worker-a"), ("FIRST_TIME", 7))
+        self.assertEqual(run.worker_id, "worker-a")
+        self.assertIsNone(attempt.worker_id)
+
+    def test_rechecks_queue_when_selected_job_is_claimed_by_another_worker(self):
+        now = datetime(2026, 10, 14, 12, 0, 0)
+        run = SimpleNamespace(
+            id=41, created_at=now, started_at=now, status="QUEUED",
+            run_type="FIRST_TIME", code_artifact_id="code-1",
+            worker_id=None, worker_claimed_at=None,
+        )
+        attempt = SimpleNamespace(
+            id=9, created_at=now, initiated_at=now, state="REBUILD_INITIATED",
+            worker_id=None, worker_claimed_at=None,
+        )
+        db = MagicMock()
+        db.query.side_effect = [
+            self.make_candidate_query(run),
+            self.make_candidate_query(attempt),
+            self.make_lock_query(None),
+            self.make_candidate_query(None),
+            self.make_candidate_query(None),
+        ]
+
+        self.assertIsNone(claim_next_job(db, "worker-a"))
+        self.assertEqual(db.query.call_count, 5)
+        self.assertEqual(db.rollback.call_count, 2)
+        db.commit.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

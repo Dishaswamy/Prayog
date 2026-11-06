@@ -60,5 +60,47 @@ class ProfessorMetadataRedactionTests(unittest.TestCase):
         self.assertNotIn("private", run.logging_warnings[0])
 
 
+    def test_redaction_covers_hyphenated_and_prefixed_credential_names(self):
+        result = _redact_sensitive_text(
+            "service-api-key=abc DB-ACCESS-TOKEN:xyz oauth_client_secret=hidden"
+        )
+        self.assertNotIn("abc", result)
+        self.assertNotIn("xyz", result)
+        self.assertNotIn("hidden", result)
+        self.assertEqual(result.count("[REDACTED]"), 3)
+
+    def test_redaction_preserves_safe_assignments_and_numeric_metadata(self):
+        metadata = {
+            "epochs": 12,
+            "learning-rate": 0.01,
+            "description": "training_mode=distributed",
+            "nested": [True, None, 3.5],
+        }
+        result = _redact_sensitive_metadata(metadata)
+        self.assertEqual(result, metadata)
+
+    def test_sensitive_key_matching_is_case_and_separator_insensitive(self):
+        result = _redact_sensitive_metadata({
+            "API-KEY": "one",
+            "refresh_token": "two",
+            "PrivateKey": "three",
+            "ordinary": {"SESSION-CREDENTIAL": "four"},
+        })
+        self.assertEqual(result["API-KEY"], "[REDACTED]")
+        self.assertEqual(result["refresh_token"], "[REDACTED]")
+        self.assertEqual(result["PrivateKey"], "[REDACTED]")
+        self.assertEqual(result["ordinary"]["SESSION-CREDENTIAL"], "[REDACTED]")
+
+    def test_redaction_handles_empty_and_non_string_values(self):
+        self.assertEqual(_redact_sensitive_text(""), "")
+        self.assertIsNone(_redact_sensitive_text(None))
+        self.assertEqual(_redact_sensitive_metadata(None), None)
+        self.assertEqual(_redact_sensitive_metadata(42), 42)
+
+    def test_url_redaction_preserves_scheme_and_host(self):
+        result = _redact_sensitive_text("connect=mysql://user:pass@db.example.test:3306/app")
+        self.assertIn("mysql://[REDACTED]@db.example.test:3306/app", result)
+        self.assertNotIn("user:pass", result)
+
 if __name__ == "__main__":
     unittest.main()

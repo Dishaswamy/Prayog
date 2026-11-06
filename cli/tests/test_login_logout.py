@@ -1,4 +1,5 @@
 import stat
+import os
 
 import pytest
 
@@ -181,3 +182,96 @@ def test_a_refused_login_keeps_the_previous_session_if_there_was_one(run, server
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     assert run("login", "-e", "dishac22@iitk.ac.in", "-r", "student") == 1
     assert credentials.load().token == "tok-123"
+
+
+def test_save_continues_if_directory_chmod_fails(monkeypatch, home):
+    directory = credentials.config_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+
+    original_chmod = os.chmod
+
+    def failing_chmod(path, mode):
+        if os.fspath(path) == os.fspath(directory):
+            raise PermissionError("Cannot change directory permissions")
+        return original_chmod(path, mode)
+
+    monkeypatch.setattr(credentials.os, "chmod", failing_chmod)
+
+    creds = credentials.Credentials(
+        api_url="https://example.com",
+        token="test-token",
+        email="test@example.com",
+        user_id="user-123",
+        role="STUDENT",
+    )
+
+    credentials.save(creds)
+
+    assert credentials.load().token == "test-token"
+
+
+def test_save_removes_temporary_file_if_replace_fails(monkeypatch, home):
+    home.mkdir(parents=True, exist_ok=True)
+
+    def failing_replace(source, destination):
+        raise OSError("Simulated replacement failure")
+
+    monkeypatch.setattr(credentials.os, "replace", failing_replace)
+
+    creds = credentials.Credentials(
+        api_url="https://example.com",
+        token="test-token",
+        email="test@example.com",
+        user_id="user-123",
+        role="STUDENT",
+    )
+
+    with pytest.raises(OSError, match="Simulated replacement failure"):
+        credentials.save(creds)
+
+    assert list(home.glob(".credentials-*")) == []
+    assert not credentials.credentials_path().exists()
+
+
+def test_clear_returns_false_when_credentials_file_is_missing(home):
+    home.mkdir(parents=True, exist_ok=True)
+
+    assert credentials.clear() is False
+
+def test_save_preserves_original_error_if_temp_cleanup_also_fails(
+    monkeypatch, home
+):
+    home.mkdir(parents=True, exist_ok=True)
+
+    original_unlink = os.unlink
+    cleanup_attempts = []
+
+    def failing_replace(source, destination):
+        raise OSError("Original replacement failure")
+
+    def failing_unlink(path):
+        if os.fspath(path).startswith(str(home / ".credentials-")):
+            cleanup_attempts.append(path)
+            raise PermissionError("Cleanup failed")
+        return original_unlink(path)
+
+    monkeypatch.setattr(credentials.os, "replace", failing_replace)
+    monkeypatch.setattr(credentials.os, "unlink", failing_unlink)
+
+    creds = credentials.Credentials(
+        api_url="https://example.com",
+        token="test-token",
+        email="test@example.com",
+        user_id="user-123",
+        role="STUDENT",
+    )
+
+    try:
+        with pytest.raises(OSError, match="Original replacement failure"):
+            credentials.save(creds)
+
+        assert len(cleanup_attempts) == 1
+    finally:
+        # Remove the intentionally retained temporary file.
+        for path in home.glob(".credentials-*"):
+            original_unlink(path)

@@ -128,5 +128,89 @@ class DiagnosticSessionAuditTests(unittest.TestCase):
         self.db.commit.assert_called_once()
 
 
+    def test_expired_link_is_denied_and_audited_before_artifact_lookup(self):
+        token = "e" * 48
+        link = SimpleNamespace(
+            id="expired-link", token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            session_hash=self.session_hash, user_id=7, rebuild_id=11, artifact_id="log-1",
+            expires_at=datetime.utcnow() - timedelta(seconds=1), consumed_at=None,
+        )
+        self.db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = link
+
+        with self.assertRaises(NotFoundError):
+            consume_diagnostic_link(self.db, token, self.user, "session-a")
+
+        self.assertEqual(self.db.add.call_args.args[0].outcome, "EXPIRED")
+        self.db.query.assert_called_once()
+        self.db.commit.assert_called_once()
+
+    def test_owner_mismatch_is_denied_and_audited(self):
+        token = "o" * 48
+        link = SimpleNamespace(
+            id="foreign-link", token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            session_hash=self.session_hash, user_id=99, rebuild_id=11, artifact_id="log-1",
+            expires_at=datetime.utcnow() + timedelta(minutes=5), consumed_at=None,
+        )
+        self.db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = link
+
+        with self.assertRaises(NotFoundError):
+            consume_diagnostic_link(self.db, token, self.user, "session-a")
+
+        self.assertEqual(self.db.add.call_args.args[0].outcome, "OWNER_MISMATCH")
+        self.db.query.assert_called_once()
+        self.db.commit.assert_called_once()
+
+    def test_malformed_token_is_audited_without_database_lookup(self):
+        for token in ("", "too-short", "x" * 101):
+            with self.subTest(token_length=len(token)):
+                self.db.reset_mock()
+                with self.assertRaises(NotFoundError):
+                    consume_diagnostic_link(self.db, token, self.user, "session-a")
+                self.assertEqual(self.db.add.call_args.args[0].outcome, "INVALID_TOKEN")
+                self.db.query.assert_not_called()
+                self.db.commit.assert_called_once()
+
+    def test_missing_log_artifact_is_denied_and_audited(self):
+        token = "m" * 48
+        link = SimpleNamespace(
+            id="missing-artifact-link", token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            session_hash=self.session_hash, user_id=7, rebuild_id=11, artifact_id="missing-log",
+            expires_at=datetime.utcnow() + timedelta(minutes=5), consumed_at=None,
+        )
+        link_query = MagicMock()
+        link_query.filter.return_value.with_for_update.return_value.first.return_value = link
+        artifact_query = MagicMock()
+        artifact_query.filter.return_value.first.return_value = None
+        self.db.query.side_effect = [link_query, artifact_query]
+
+        with self.assertRaises(NotFoundError):
+            consume_diagnostic_link(self.db, token, self.user, "session-a")
+
+        self.assertEqual(self.db.add.call_args.args[0].outcome, "ARTIFACT_MISSING")
+        self.assertEqual(self.db.query.call_count, 2)
+        self.db.commit.assert_called_once()
+
+    @patch("logic.diagnostic_links.get_verified_artifact", side_effect=OSError("integrity failure"))
+    def test_artifact_integrity_failure_is_denied_and_audited(self, verify):
+        token = "i" * 48
+        link = SimpleNamespace(
+            id="bad-artifact-link", token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            session_hash=self.session_hash, user_id=7, rebuild_id=11, artifact_id="log-1",
+            expires_at=datetime.utcnow() + timedelta(minutes=5), consumed_at=None,
+        )
+        artifact = SimpleNamespace(id="log-1", user_id=7, experiment_id=2, kind="LOG")
+        link_query = MagicMock()
+        link_query.filter.return_value.with_for_update.return_value.first.return_value = link
+        artifact_query = MagicMock()
+        artifact_query.filter.return_value.first.return_value = artifact
+        self.db.query.side_effect = [link_query, artifact_query]
+
+        with self.assertRaises(NotFoundError):
+            consume_diagnostic_link(self.db, token, self.user, "session-a")
+
+        self.assertEqual(self.db.add.call_args.args[0].outcome, "ARTIFACT_INTEGRITY_FAILED")
+        self.assertIsNone(link.consumed_at)
+        self.db.commit.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()
