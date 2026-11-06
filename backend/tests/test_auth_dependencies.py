@@ -22,9 +22,10 @@ from logic.dependencies import get_current_user, require_roles
 
 class AuthenticationDependencyTests(unittest.TestCase):
     def setUp(self):
-        self.user = SimpleNamespace(id=17, user_id="student", role="STUDENT", session_id=None)
+        self.user = SimpleNamespace(id=17, user_id="student", role="STUDENT", session_id=None, token_version=0)
         self.db = MagicMock()
         self.db.query.return_value.filter.return_value.first.return_value = self.user
+        self.db.get.return_value = None  # token is not revoked
 
     def token(self, **overrides):
         payload = {
@@ -55,7 +56,12 @@ class AuthenticationDependencyTests(unittest.TestCase):
         self.assertEqual(result.session_id, "session-123")
 
     def test_missing_jti_uses_token_digest_as_session_id(self):
-        token = self.token(jti=None)
+        payload = {
+            "sub": "17",
+            "role": "STUDENT",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        }
+        token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
         result = get_current_user(self.credentials(token), self.db)
 

@@ -2,16 +2,19 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
+
+from blake3 import blake3
 
 from logic import artifact_storage
+from logic.errors import BadRequestError
 
 
 class ArtifactStorageTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name) / "artifacts"
+        self.root = Path(self.temporary.name).resolve() / "artifacts"
         self.root.mkdir(mode=0o700)
         self.root_patch = patch.object(artifact_storage, "ARTIFACT_ROOT", self.root)
         self.root_patch.start()
@@ -157,7 +160,7 @@ class ArtifactStorageTests(unittest.TestCase):
         self.assertEqual(resolved.read_bytes(), payload)
         self.assertEqual(resolved, cached)
         client.download_file.assert_called_once_with(
-            "private-prayog-test", "ml-flow/" + key, unittest.mock.ANY
+            "private-prayog-test", "ml-flow/" + key, ANY
         )
 
     @patch("boto3.client")

@@ -427,8 +427,9 @@ def _redact_sensitive_metadata(value):
     if isinstance(value, dict):
         cleaned = {}
         for key, item in value.items():
-            normalized = str(key).lower().replace("-", "_")
-            if any(part in normalized for part in _SENSITIVE_METADATA_KEY_PARTS):
+            # Ignore case and separators so "PrivateKey", "private-key" and "private_key" all match.
+            normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
+            if any(part.replace("_", "") in normalized for part in _SENSITIVE_METADATA_KEY_PARTS):
                 cleaned[key] = "[REDACTED]"
             else:
                 cleaned[key] = _redact_sensitive_metadata(item)

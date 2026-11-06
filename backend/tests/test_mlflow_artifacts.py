@@ -35,7 +35,7 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
     async def test_upload_records_server_computed_digest_and_download_verifies_it(self):
         payload = b"private model source archive"
         with tempfile.TemporaryDirectory() as directory:
-            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory)), patch("logic.artifact_storage.ARTIFACT_ROOT", Path(directory)):
+            with patch("logic.artifacts.ARTIFACT_ROOT", Path(directory).resolve()), patch("logic.artifact_storage.ARTIFACT_ROOT", Path(directory).resolve()):
                 db = MagicMock()
                 user = SimpleNamespace(id=9)
                 experiment = SimpleNamespace(id=4, project_id="project-1", model_id="model-1")
@@ -112,6 +112,8 @@ class ArtifactDownloadRouteTests(unittest.TestCase):
     def test_user_cannot_upload_artifact_to_another_users_experiment(self):
         from logic.errors import NotFoundError
 
+        # active_user checks the student's access window; give it a row with no end date.
+        self.db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(end_date=None)
         with patch("routers.mlflow._owned_experiment", side_effect=NotFoundError("Experiment not found")) as owned, patch(
             "routers.mlflow.store_artifact"
         ) as store:

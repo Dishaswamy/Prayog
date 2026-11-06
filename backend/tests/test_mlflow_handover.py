@@ -1,12 +1,15 @@
 import unittest
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from logic.errors import ConflictError, ForbiddenError, NotFoundError
 from logic.mlflow_handover import (
+    _verify_inventory,
     approve_handover,
     cancel_handover,
+    get_handover,
     push_project,
     reject_handover,
 )
@@ -115,26 +118,26 @@ class ProjectHandoverTests(unittest.TestCase):
 
         self.db.commit.assert_not_called()
 
-    def test_handover_visibility_is_limited_to_owner_target_professor_and_admin(self):
-        with patch("logic.mlflow_handover._handover_for_decision", return_value=(self.pending, self.profile)):
-            self.assertIs(get_handover(self.db, "handover-1", self.owner), self.pending)
+    def _queries(self, handover, profile=None):
+        handover_query = MagicMock()
+        handover_query.filter.return_value.first.return_value = handover
+        professor_query = MagicMock()
+        professor_query.filter.return_value.first.return_value = profile
+        self.db.query.side_effect = [handover_query, professor_query]
 
-        self.db.reset_mock()
-        self.db.query.return_value.filter.return_value.first.return_value = self.profile
+    def test_handover_visibility_is_limited_to_owner_target_professor_and_admin(self):
+        self._queries(self.pending)
+        self.assertIs(get_handover(self.db, "handover-1", self.owner), self.pending)
+
+        self._queries(self.pending, self.profile)
         self.assertIs(get_handover(self.db, "handover-1", self.professor), self.pending)
 
-        self.db.reset_mock()
-        self.db.query.return_value.filter.return_value.first.return_value = self.pending
+        self._queries(self.pending)
         admin = SimpleNamespace(id=30, role="ADMIN")
         self.assertIs(get_handover(self.db, "handover-1", admin), self.pending)
 
     def test_unrelated_user_cannot_view_handover(self):
-        from logic.errors import ForbiddenError
-        handover_query = MagicMock()
-        handover_query.filter.return_value.first.return_value = self.pending
-        professor_query = MagicMock()
-        professor_query.filter.return_value.first.return_value = None
-        self.db.query.side_effect = [handover_query, professor_query]
+        self._queries(self.pending)
 
         with self.assertRaises(ForbiddenError):
             get_handover(self.db, "handover-1", SimpleNamespace(id=999, role="STUDENT"))

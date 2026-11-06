@@ -94,7 +94,7 @@ def retrieve_context(
     top_k: int = 5,
 ) -> list[dict]:
     # Default-deny before any database query if either scope component is absent.
-    if not user_id or not attempt_id or not isinstance(top_k, int) or top_k < 1 or top_k > 20:
+    if not user_id or not attempt_id or isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < 1 or top_k > 20:
         return []
     attempt = db.query(RebuildAttempt).filter(
         RebuildAttempt.id == attempt_id,

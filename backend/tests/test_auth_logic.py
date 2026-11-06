@@ -23,6 +23,7 @@ class AuthenticationLogicTests(unittest.TestCase):
     def setUp(self):
         self.db = MagicMock()
         self.db.query.return_value.filter.return_value.first.return_value = None
+        self.db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = None
 
     def test_email_normalization_strips_whitespace_and_lowercases(self):
         self.assertEqual(normalize_email("  NIDEESH@IITK.AC.IN "), "nideesh@iitk.ac.in")
@@ -93,8 +94,9 @@ class AuthenticationLogicTests(unittest.TestCase):
             email="student@iitk.ac.in",
             password_hash="stored-hash",
             role="STUDENT",
+            failed_logins=0,
         )
-        self.db.query.return_value.filter.return_value.first.return_value = user
+        self.db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = user
 
         with patch("logic.auth.password_hash.verify", return_value=True) as verify:
             result = authenticate_user(self.db, " STUDENT@IITK.AC.IN ", "password123")
@@ -108,8 +110,9 @@ class AuthenticationLogicTests(unittest.TestCase):
             email="student@iitk.ac.in",
             password_hash="stored-hash",
             role="STUDENT",
+            failed_logins=0,
         )
-        self.db.query.return_value.filter.return_value.first.return_value = user
+        self.db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = user
 
         with patch("logic.auth.password_hash.verify", return_value=False):
             result = authenticate_user(self.db, "student@iitk.ac.in", "wrong-password")
@@ -121,7 +124,9 @@ class AuthenticationLogicTests(unittest.TestCase):
             result = authenticate_user(self.db, "unknown@iitk.ac.in", "password123")
 
         self.assertIsNone(result)
-        verify.assert_not_called()
+        # A hash is always verified (against a dummy) so unknown accounts take as long as wrong passwords.
+        verify.assert_called_once()
+        self.assertNotEqual(verify.call_args.args[1], "stored-hash")
 
 
 if __name__ == "__main__":

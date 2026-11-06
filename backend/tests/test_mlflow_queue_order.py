@@ -85,7 +85,7 @@ class SharedQueueOrderingTests(unittest.TestCase):
     def test_equal_queue_timestamps_use_job_id_as_tie_breaker(self):
         now = datetime(2026, 10, 14, 12, 0, 0)
         run = SimpleNamespace(
-            id=7, created_at=now, queued_at=now, status="QUEUED",
+            id=7, created_at=now, started_at=now, status="QUEUED",
             run_type="FIRST_TIME", code_artifact_id="code-1",
             worker_id=None, worker_claimed_at=None,
         )
@@ -107,7 +107,7 @@ class SharedQueueOrderingTests(unittest.TestCase):
     def test_rechecks_queue_when_selected_job_is_claimed_by_another_worker(self):
         now = datetime(2026, 10, 14, 12, 0, 0)
         run = SimpleNamespace(
-            id=41, created_at=now, queued_at=now, status="QUEUED",
+            id=41, created_at=now, started_at=now, status="QUEUED",
             run_type="FIRST_TIME", code_artifact_id="code-1",
             worker_id=None, worker_claimed_at=None,
         )
