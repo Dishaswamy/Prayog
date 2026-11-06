@@ -32,10 +32,10 @@ class RunSubmissionTests(GpuRunCase):
 
     def test_runs_count_up_within_a_version_and_restart_in_the_next(self):
         self.make_version(self.client, self.project, {"main.py": b"v1\n"})
-        labels = [self.submit(self.client, self.pid).json()["label"] for _ in range(2)]
+        labels = [self.submit(self.client, self.pid, hyperparameters={"lr": n}).json()["label"] for n in (1, 2)]
         self.make_version(self.client, self.project, {"main.py": b"v2\n"})
         labels.append(self.submit(self.client, self.pid).json()["label"])
-        labels.append(self.submit(self.client, self.pid, version="a").json()["label"])   # explicit older version
+        labels.append(self.submit(self.client, self.pid, version="a", hyperparameters={"lr": 3}).json()["label"])   # explicit older version
         self.assertEqual(labels, ["A run 1", "A run 2", "B run 1", "A run 3"])
 
     def test_a_run_uses_the_current_version_unless_told_otherwise(self):
@@ -176,8 +176,8 @@ class RunDatasetTests(GpuRunCase):
     def test_two_runs_can_share_one_staged_file(self):
         self.stage(self.client, self.rows)
         entries = [self.dataset_entry("data/train.csv", self.rows)]
-        first = self.submit(self.client, self.pid, dataset=entries).json()
-        second = self.submit(self.client, self.pid, dataset=entries).json()
+        first = self.submit(self.client, self.pid, dataset=entries, hyperparameters={"lr": 1}).json()
+        second = self.submit(self.client, self.pid, dataset=entries, hyperparameters={"lr": 2}).json()
         self.assertEqual((first["run_number"], second["run_number"]), (1, 2))
         shared = self.db.query(RunDatasetFile).filter(RunDatasetFile.run_id.in_([first["run_id"], second["run_id"]]))
         self.assertEqual(len({row.staged_file_id for row in shared}), 1)
@@ -197,8 +197,8 @@ class RunReadingTests(GpuRunCase):
         self.make_version(self.client, self.project, {"main.py": b"v1\n"})
         self.submit(self.client, self.pid)
         self.make_version(self.client, self.project, {"main.py": b"v2\n"})
-        self.submit(self.client, self.pid)
-        self.submit(self.client, self.pid)
+        self.submit(self.client, self.pid, hyperparameters={"lr": 1})
+        self.submit(self.client, self.pid, hyperparameters={"lr": 2})
         everything = self.client.get(f"/mlflow/projects/{self.pid}/runs").json()
         self.assertEqual([r["label"] for r in everything], ["B run 2", "B run 1", "A run 1"])
         only_a = self.client.get(f"/mlflow/projects/{self.pid}/runs", params={"version": "A"}).json()
@@ -214,8 +214,8 @@ class RunReadingTests(GpuRunCase):
 
     def test_the_versions_list_counts_runs(self):
         self.make_version(self.client, self.project)
-        self.submit(self.client, self.pid)
-        self.submit(self.client, self.pid)
+        self.submit(self.client, self.pid, hyperparameters={"lr": 1})
+        self.submit(self.client, self.pid, hyperparameters={"lr": 2})
         self.assertEqual(self.client.get(f"/mlflow/projects/{self.pid}/versions").json()[0]["run_count"], 2)
 
     def test_status_summarises_the_project(self):
@@ -230,6 +230,65 @@ class RunReadingTests(GpuRunCase):
         self.assertEqual((shown["current_version"], shown["head_version"], shown["versions"], shown["runs"]),
                          ("A", "B", 2, 1))
         self.assertEqual(shown["latest_run"]["label"], "A run 1")
+
+
+@requires_postgres
+class DuplicateActiveRunTests(GpuRunCase):
+    """The same version, entrypoint, hyperparameters and data cannot be queued twice while one is still active."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = self.make_user("dup")
+        self.client = self.client_as(self.user)
+        self.project = self.make_project(self.client)
+        self.pid = self.project["project_id"]
+        self.make_version(self.client, self.project, {"main.py": b"v1\n", "other.py": b"x\n"})
+
+    def finish(self, run: dict, status: str = "SUCCEEDED") -> None:
+        self.db.expire_all()
+        self.db.get(ModelRun, run["run_id"]).status = status
+        self.db.commit()
+
+    def job_count(self) -> int:
+        self.db.expire_all()
+        return self.db.query(orm.Job).filter_by(user_id=self.user.id).count()
+
+    def test_an_identical_run_is_refused_while_the_first_is_active(self):
+        first = self.submit(self.client, self.pid, hyperparameters={"lr": 0.1})
+        second = self.submit(self.client, self.pid, hyperparameters={"lr": 0.1})
+        self.assertEqual(first.status_code, 201, first.text)
+        self.assertEqual(second.status_code, 409, second.text)
+        self.assertEqual(second.json()["code"], "DUPLICATE_ACTIVE_RUN")
+        self.assertIn("A run 1", second.json()["detail"])
+        self.assertEqual(self.job_count(), 1)                    # nothing was queued for the refused request
+
+    def test_gpus_and_walltime_do_not_make_a_run_different(self):
+        self.submit(self.client, self.pid, gpus=1, walltime="01:00")
+        again = self.submit(self.client, self.pid, gpus=2, walltime="04:00")
+        self.assertEqual(again.status_code, 409, again.text)
+
+    def test_a_different_hyperparameter_entrypoint_version_or_dataset_is_allowed(self):
+        self.submit(self.client, self.pid, hyperparameters={"lr": 0.1})
+        self.assertEqual(self.submit(self.client, self.pid, hyperparameters={"lr": 0.2}).status_code, 201)
+        self.assertEqual(self.submit(self.client, self.pid, hyperparameters={"lr": 0.1}, entrypoint="other.py").status_code, 201)
+        rows = b"a,b\n1,2\n"
+        self.stage(self.client, rows)
+        entry = self.dataset_entry("data/train.csv", rows)
+        self.assertEqual(self.submit(self.client, self.pid, hyperparameters={"lr": 0.1}, dataset=[entry]).status_code, 201)
+        self.make_version(self.client, self.project, {"main.py": b"v2\n"})
+        self.assertEqual(self.submit(self.client, self.pid, hyperparameters={"lr": 0.1}).status_code, 201)
+
+    def test_the_same_run_is_allowed_once_the_earlier_one_has_finished(self):
+        first = self.submit(self.client, self.pid).json()
+        self.finish(first, "FAILED")
+        again = self.submit(self.client, self.pid)
+        self.assertEqual((again.status_code, again.json()["run_number"]), (201, 2))
+
+    def test_a_retry_of_the_same_request_still_returns_the_same_run_not_a_conflict(self):
+        first = self.submit(self.client, self.pid, client_request_id="same-1")
+        again = self.submit(self.client, self.pid, client_request_id="same-1")
+        self.assertEqual((first.status_code, again.status_code), (201, 200))
+        self.assertEqual(first.json()["run_id"], again.json()["run_id"])
 
 
 if __name__ == "__main__":

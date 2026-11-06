@@ -9,7 +9,7 @@ from blake3 import blake3
 from logic.common.errors import BadRequestError
 
 ARTIFACT_ROOT = Path(
-    os.getenv("PRAYOG_ARTIFACT_ROOT", Path(__file__).resolve().parents[1] / "artifacts")
+    os.getenv("PRAYOG_ARTIFACT_ROOT", Path(__file__).resolve().parents[2] / "artifacts")
 ).resolve()
 _UUID_KEY = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")
 _CONTENT_KEY = re.compile(r"[0-9a-f]{64}\Z")

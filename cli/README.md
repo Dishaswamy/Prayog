@@ -198,7 +198,9 @@ version: `A run 1`, `A run 2`, `B run 1`, …
 
 What happens: the dataset is fingerprinted with BLAKE3 and only the files the server lacks are uploaded; the job is queued
 through the normal scheduler, so access checks, quotas and queue limits apply; the run records the dataset's fingerprint.
-Retrying after a dropped connection never submits twice. Uploaded data is deleted **two days after the run ends**, or
+Retrying after a dropped connection never submits twice. Submitting the **same run again** (same version, entrypoint,
+hyperparameters and data) while the first is still queued or running is refused with `DUPLICATE_ACTIVE_RUN`; GPUs and
+walltime do not count as a difference. Wait for it to finish, cancel it, or change a hyperparameter. Uploaded data is deleted **two days after the run ends**, or
 sooner with `prayog project clean`, and never while a job still needs it.
 
 **Your program.** It is started as `python main.py` (or `--entrypoint`) in your uploaded code directory, in a container with
