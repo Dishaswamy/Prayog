@@ -1,64 +1,90 @@
 # Prayog
 
-**Prayog is a GPU-computing platform for IIT Kanpur students and researchers.** It provides a web portal and command-line client to request GPU access, manage ML projects, submit experiments, monitor runs, and reproduce results.
+Prayog is a GPU-computing platform for IIT Kanpur students and researchers. It allows users to request access to shared GPU resources, manage machine-learning projects, submit experiments, monitor their progress, and reproduce previous runs.
 
-This README focuses on **how to get started and use Prayog**. Architecture and implementation details are kept in the linked technical documents.
+Prayog provides two main ways to interact with the platform:
+
+- **Web Portal:** Register, request GPU access, check access status, and view projects and experiment information.
+- **Command-Line Interface (CLI):** Upload project code, manage versions, submit GPU runs, inspect results, download artifacts, and rebuild experiments.
+
+This guide explains how to use Prayog, from requesting GPU access to running experiments and retrieving results. It also documents the available CLI commands and explains how project data and experiment artifacts are stored.
 
 ## What can I do with Prayog?
 
-- **Request GPU access:** submit an access request and get approval from your supervising Professor and an administrator.
-- **Use the GPU pool:** submit jobs with a requested GPU count and walltime. The scheduler allocates available resources according to platform policies.
-- **Manage ML projects:** upload code as versioned snapshots, attach datasets to runs, and track experiments.
-- **Monitor and retrieve results:** view run status, logs, metrics and checkpoints.
-- **Reproduce experiments:** rebuild a previous run using its recorded code version, settings and dataset fingerprints.
-- **Get AI-assisted help:** the optional Steward can diagnose eligible failed runs and provide guidance.
+- **Request GPU access:** Submit an access request for approval by your supervising Professor and an administrator.
+- **Use shared GPU resources:** Submit jobs with a requested GPU count and walltime.
+- **Manage ML projects:** Upload code as versioned snapshots and organise experiment runs.
+- **Run experiments:** Submit code with datasets and hyperparameters.
+- **Monitor results:** Track run status and retrieve logs, metrics, and checkpoints.
+- **Reproduce experiments:** Rebuild previous runs using their recorded code version, settings, and dataset fingerprints.
+- **Get AI-assisted support:** Use optional Steward features when they are enabled and configured.
 
 ## Choose how you want to use Prayog
 
-| If you are… | Start here |
+| If you are... | Start here |
 |---|---|
-| A student or researcher | [Web portal and first steps](#1-open-the-web-portal) |
-| Running experiments from your terminal | [Install and use the CLI](#2-use-the-command-line-client) |
-| A Professor | [Professor workflow](#professor-workflow) |
-| An administrator or developer | [Run Prayog locally](#run-prayog-locally) |
+| A student or researcher | [Getting started](#1-getting-started) |
+| Running experiments from your terminal | [Installing and using the CLI](#2-installing-and-using-the-cli) |
+| Learning the experiment workflow | [Running an experiment](#3-running-an-experiment) |
+| A Professor | [Role-specific workflows](#6-role-specific-workflows) |
+| An administrator | [Role-specific workflows](#6-role-specific-workflows) |
+| Looking for technical details | [Further documentation](#9-further-documentation) |
 
-## 1. Open the web portal
+---
 
-When the Prayog server is running, open:
+## 1. Getting started
+
+### 1.1 Open the web portal
+
+Open the Prayog web application using the server address provided by your administrator.
+
+For a local development instance, the default addresses are:
 
 - **Web application:** `http://127.0.0.1:8000/`
 - **Interactive API documentation:** `http://127.0.0.1:8000/docs`
 - **Health check:** `http://127.0.0.1:8000/health`
 
-The root URL redirects to the application at `/app/`.
+The root URL redirects to the web application.
 
-### Students and researchers
+### 1.2 Register and request GPU access
 
-1. Register using your IITK email address, or sign in if you already have an account.
-2. Open the GPU access section and submit an access request. Select the appropriate purpose and provide the requested academic and Professor details.
-3. Wait for **both** your supervising Professor and an administrator to approve the request.
-4. Once access is active, use the dashboard to view your projects, versions, runs, quota and experiment results.
-5. Use the CLI for uploading project folders, submitting runs, downloading artifacts and rebuilding experiments.
+Students and researchers can get started by following these steps:
 
-Your access request is not the same as an active GPU allocation. You must have approved access before submitting work.
+1. Register using your IIT Kanpur email address, or sign in if you already have an account.
+2. Navigate to the GPU access section.
+3. Submit an access request with the required academic details, purpose, and supervising Professor information.
+4. Wait for your supervising Professor to review the request.
+5. An administrator must also approve the request before GPU access becomes active.
+6. Once approved, sign in to the portal to view your account and available platform features.
 
-### Professor workflow
+**Important:** Submitting an access request does not automatically grant GPU access. Both the required Professor and administrator approvals must be completed before you can submit GPU jobs.
 
-Professors can review access requests addressed to them and make an approval or rejection decision. The Professor workspace also provides read-only views of the experiment records for the students and researchers they supervise, along with supported handover workflows.
+### 1.3 Check your access status
 
-### Administrator workflow
+You can view your GPU access request and approval status through the web portal.
 
-Administrators can review access requests, manage Professor accounts and GPU nodes, inspect the pool and audit information, and access administrative experiment-ledger views.
+After installing the CLI and signing in (see [Section 2](#2-installing-and-using-the-cli)), you can also check your access status using:
 
-The exact actions visible in the portal depend on the signed-in role and the server configuration.
+```bash
+prayog access status
+```
+---
 
-## 2. Use the command-line client
+## 2. Installing and using the CLI
 
-The `prayog` CLI is the recommended way to upload code and manage the ML experiment lifecycle.
+The `prayog` CLI is the command-line client for managing projects and the machine-learning experiment lifecycle.
 
-### Install
+### 2.1 Prerequisites
 
-From a clone of this repository:
+- Python 3.9 or newer.
+- Access to a running Prayog server.
+- An account with the required platform permissions.
+
+Installing the CLI does not create an account or grant GPU access.
+
+### 2.2 Installation
+
+From a clone of this repository, create a virtual environment and install the CLI:
 
 ```bash
 python -m venv .venv
@@ -67,230 +93,480 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Windows PowerShell
-.venv\\Scripts\\Activate.ps1
+.venv\Scripts\Activate.ps1
 
+# Install the CLI
 python -m pip install -e ./cli
 ```
 
-The CLI requires Python 3.9 or newer. It communicates with a running Prayog server; installing it does not create an account or grant GPU access.
+### 2.3 Sign in
 
-### Sign in
+Run:
 
 ```bash
 prayog login
 ```
 
-Follow the prompts for your IITK email, role and password. To specify them directly:
+Follow the prompts for your institute email, role, and password.
+
+You can also provide your email and role directly:
 
 ```bash
 prayog login -e you@iitk.ac.in -r student
 ```
+The role must match your account. Supported roles are `student`, `researcher`, `professor`, and `admin`.
 
-The CLI stores an access token locally, not your password. Use `prayog whoami` to check the active account and `prayog logout` to end the session.
+By default, the CLI uses the URL configured through the `PRAYOG_API_URL` environment variable. If it is not set, the default is `http://localhost:8000`.
 
-If the server is not running at `http://localhost:8000`, set its URL when logging in:
+You can override the server URL when logging in:
 
 ```bash
 prayog login --api-url https://YOUR-PRAYOG-SERVER
 ```
 
-### Typical student / researcher workflow
+The CLI stores an access token locally, not your password. The saved login is associated with the server used during login.
+**Access requirement:** CLI login requires current platform access. If your access has not yet been approved or is no longer active, check your request through the web portal. For students and researchers, the CLI reports the access status when login is refused.
 
-Run these commands from your project workspace. Replace the example project name and paths with your own.
+Useful account commands:
 
 ```bash
-# 1. Create a project on Prayog
-prayog project create vision
-
-# 2. Upload your code folder as the first version (A)
-prayog project link vision ./my-training-code
-
-# 3. Submit an experiment
-prayog run vision --gpus 2 --walltime 04:00 --data ./data --hp lr=0.01
-
-# 4. Check the run
-prayog project status vision
-
-# 5. List previous runs
-prayog project runs vision
-
-# 6. Download results from a completed run
-prayog project download vision A/1 --to ./results
-
-# 7. Rebuild a previous run (provide the same dataset)
-prayog run vision --rebuild A/1 --walltime 04:00 --data ./data
-
-# 8. Compare the rebuild with the original
-prayog project compare vision A/2
+prayog whoami
+prayog logout
+prayog help
 ```
 
-A project contains uploaded code versions and the runs created from those versions. When you change your code, upload the changes with:
+- `whoami` displays the currently signed-in account.
+- `logout` ends the session and removes the locally saved token.
+- `help` displays commands available to your account.
+
+### 2.4 Check available commands
+
+The commands available to you depend on your login state and role.
+
+Before logging in, run `prayog --help` to view the available login-related help. After logging in, use `prayog help` to see the commands available to your account.
+
+```bash
+prayog help
+```
+
+To view help for a particular command or command group:
+
+```bash
+prayog help project
+```
+
+The server independently checks permissions when commands are executed.
+
+---
+
+## 3. Running an experiment
+
+This section walks through a typical student or researcher workflow, from uploading project code to reproducing a previous run.
+
+Run the commands from your project workspace. Replace example names and paths with your own.
+
+### Step 1: Create a project
+
+Create a project on Prayog:
+
+```bash
+prayog project create vision
+```
+
+A project groups uploaded code versions and the experiment runs created from those versions.
+
+### Step 2: Upload your project folder
+
+Upload your code folder as the first project version:
+
+```bash
+prayog project link vision ./my-training-code
+```
+
+The first uploaded version is labelled `A`.
+
+Prayog creates a versioned snapshot of the project folder. The server maintains its own copy, so later changes to your local files do not modify an already-uploaded version.
+
+### Step 3: Submit an experiment
+
+Submit a run with the required GPU count, walltime, dataset, and hyperparameters:
+
+```bash
+prayog run vision --gpus 2 --walltime 04:00 --data ./data --hp lr=0.01
+```
+
+The command queues the run and returns without waiting for it to finish.
+
+| Option | Purpose |
+|---|---|
+| `--gpus N` | Number of GPUs requested on one node. Defaults to 1. |
+| `--walltime HH:MM` | Maximum execution time. Required. |
+| `--version V` | Version to run. Defaults to the current version. |
+| `--data PATH` | Dataset file or folder to supply to the run. Can be repeated. |
+| `--entrypoint FILE` | Python entrypoint. Defaults to `main.py`. |
+| `--hp KEY=VALUE` | Hyperparameter to pass to the program. Can be repeated. |
+
+The scheduler applies the platform's access checks, quotas, and queue limits.
+
+Your Python program runs using the configured container environment. By default, Prayog executes `main.py`; you can specify another file using `--entrypoint`.
+
+During execution, the following environment variables are available to your program:
+
+| Variable | Purpose |
+|---|---|
+| `PRAYOG_DATA_DIR` | Location of the supplied dataset (read-only). |
+| `PRAYOG_HYPERPARAMETERS_JSON` | Hyperparameters passed through `--hp`, available as a JSON object. |
+| `PRAYOG_OUTPUT_DIR` | Directory where your program should save checkpoints and metrics. |
+
+The program's standard output and error are captured as run logs. See the [CLI README](cli/README.md) for the expected checkpoint and metrics formats.
+
+### Step 4: Monitor the run
+
+Check the current project and run status:
+
+```bash
+prayog project status vision
+```
+
+List previous runs:
+
+```bash
+prayog project runs vision
+```
+
+Runs are numbered within their versions. For example:
+
+- `A/1`: First run using version A.
+- `A/2`: Second run using version A.
+- `B/1`: First run using version B.
+
+A run can be `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, or `CANCELLED`.
+
+### Step 5: Download results
+
+After a run completes, download its results:
+
+```bash
+prayog project download vision A/1 --to ./results
+```
+
+The downloaded results can include:
+
+- Checkpoints.
+- Run logs.
+- Recorded metrics.
+
+By default, the CLI downloads the best available checkpoint, along with logs and metrics.
+
+### Step 6: Update your project
+
+When you modify your code, upload the changes as a new version:
 
 ```bash
 prayog project update
 ```
 
-Useful commands:
+If the folder contents have changed, Prayog creates the next version (B, C, and so on) and makes it the current version.
+
+If nothing has changed, no new version is uploaded. If the folder matches a version uploaded earlier, that version is selected again.
+
+Only changed content needs to be uploaded.
+
+### Step 7: Rebuild a previous run
+
+To reproduce a completed run, provide its original run identifier and the same dataset:
+
+```bash
+prayog run vision --rebuild A/1 --walltime 04:00 --data ./data
+```
+
+The rebuild uses the original code version, entrypoint, and hyperparameters. The supplied dataset must match the original dataset fingerprints exactly.
+
+### Step 8: Compare the rebuild
+
+Compare the rebuild with its original run. Use the rebuild's run identifier; the following example assumes it is `A/2`:
+
+```bash
+prayog project compare vision A/2
+```
+
+The comparison checks recorded metrics and whether saved weights match byte-for-byte.
+
+**Note:** Reproducibility depends on the experiment being deterministic. Randomness or nondeterministic operations can result in different metrics or weights.
+
+---
+
+
+## 4. Complete CLI command reference
+
+This section lists the implemented CLI commands and their purposes, grouped by functionality. Commands and options available to a user depend on their role and login state. The server independently verifies permissions when a command is executed.
+
+For detailed examples, validation rules, and explanations of all options, see the [CLI README](cli/README.md).
+
+### 4.1 Account and authentication commands
 
 | Command | Purpose |
 |---|---|
-| `prayog help` | Show commands available to your account |
-| `prayog help project` | Show help for a command group |
-| `prayog project versions NAME` | List uploaded versions |
-| `prayog project current NAME` | Show the current version |
-| `prayog project checkout NAME VERSION` | Select a version for future runs |
-| `prayog project status NAME` | Inspect project and run status |
-| `prayog project runs NAME` | List runs |
-| `prayog project download NAME VERSION/RUN --to DIR` | Download run results |
-| `prayog project compare NAME VERSION/RUN` | Compare a rebuild with its original |
+| `prayog --version` | Display the installed CLI version. |
+| `prayog login [-e EMAIL] [-r ROLE] [--api-url URL] [--password-stdin] [--allow-insecure-http]` | Sign in to a Prayog account and save the login token locally. |
+| `prayog logout` | End the current session and remove the locally saved token. |
+| `prayog whoami` | Display the currently signed-in account and server. |
+| `prayog help [COMMAND]` | List commands available to the current account or display help for a specific command. |
 
-For the full command reference, options, data handling rules and examples, see **[CLI README](cli/README.md)**.
+The login command supports the roles `student`, `researcher`, `professor`, and `admin`. Options allow users to specify their email, role, server URL, or provide a password through standard input.
 
-### Important notes about experiment data
+The global `--help` and `-h` options also display command help. Available commands are restricted according to the user's login state and role.
 
-- `project link` and `project update` upload project code and configuration as versioned content.
-- Dataset files are fingerprinted when a project is linked; provide the actual dataset to a run with `--data`.
-- A run records its code version, hyperparameters and dataset fingerprints.
-- The CLI verifies downloaded artifacts. Do not assume a rebuild can use a dataset that has been deleted from your local machine: provide the original data again.
-- Keep credentials, API keys and private data out of project folders. The CLI excludes common secret files and build artifacts, but you should still review what you are uploading.
+### 4.2 GPU access commands
 
-## Professor workflow
+These commands are available to students and researchers.
 
-1. Sign in to the web portal with your Professor account.
-2. Open the access-request workspace to review requests assigned to you.
-3. Inspect the request details and approve or reject it.
-4. Use the experiment-ledger views to inspect eligible records from supervised users.
-5. Review and approve or reject project handover requests where applicable.
+| Command | Purpose |
+|---|---|
+| `prayog access status` | Display your access requests, approval decisions, and current access state. |
+| `prayog access request` | Display instructions for submitting an access request through the web portal. |
 
-An access request becomes active only after the required Professor and administrator decisions have both been recorded.
+**Note:** `prayog access request` does not submit an access request. Requests must be submitted through the web portal.
 
-## Run Prayog locally
+### 4.3 Reviewing access requests
 
-These instructions are for developers setting up a local instance. They are not needed by a user connecting to an already-running server.
+These commands are available to Professors and administrators, subject to their permissions.
 
-### Prerequisites
+| Command | Purpose |
+|---|---|
+| `prayog requests list [--status PENDING\|APPROVED\|REJECTED\|REVOKED]` | List access requests, optionally filtered by status. |
+| `prayog requests show ID` | Display the details of a particular access request. |
+| `prayog requests approve ID` | Approve an access request. |
+| `prayog requests reject ID` | Reject an access request. |
+| `prayog requests revoke ID` | Revoke an approved user's access. Administrator-only. |
 
-- Python 3.11 or newer (the project is tested with Python 3.12/3.13).
-- Docker and Docker Compose.
-- Git.
+Professors can view requests addressed to them, while administrators can view all requests.
 
-### 1. Clone the repository and install dependencies
+### 4.4 Project and version management
 
-```bash
-git clone https://github.com/Dishaswamy/Prayog.git
-cd Prayog
+Project commands are available to students, researchers, and Professors, subject to server permissions.
 
-python -m venv .venv
+| Command | Purpose |
+|---|---|
+| `prayog project create NAME [-d DESCRIPTION]` | Create a new project, optionally providing a description. |
+| `prayog project link NAME FOLDER` | Upload a project folder for the first time as a versioned snapshot. |
+| `prayog project update [FOLDER]` | Upload changes from a previously linked folder as a new version. |
+| `prayog project versions NAME` | List the uploaded versions of a project. |
+| `prayog project current NAME` | Display the project's current version. |
+| `prayog project checkout NAME VERSION` | Select a version to use for future runs. |
+| `prayog project pull NAME DESTINATION [--version V] [--data-dir DIR]` | Restore a stored project version into a new local folder, optionally validating its dataset files. |
+| `prayog project clean NAME` | Delete temporary staged dataset copies immediately. Copies still needed by running jobs are retained; run results and dataset fingerprints are not deleted. |
 
-# Linux / macOS
-source .venv/bin/activate
+### 4.5 Run submission
 
-# Windows PowerShell
-.venv\\Scripts\\Activate.ps1
+| Command | Purpose |
+|---|---|
+| `prayog run NAME --walltime HH:MM [--gpus N] [--version V] [--data PATH]... [--entrypoint FILE] [--hp KEY=VALUE]... [--rebuild V/N]` | Submit an experiment to the GPU scheduler or rebuild a previously completed run. |
 
-python -m pip install -r backend/requirements.txt -e ./steward
-```
+The `--walltime` option is required. Other options allow users to specify the GPU count, project version, dataset paths, Python entrypoint, and hyperparameters.
 
-Install the CLI separately if you want to try it from this checkout:
+The `--rebuild` option reproduces an earlier run using its recorded code version and settings.
 
-```bash
-python -m pip install -e ./cli
-```
+### 4.6 Monitoring, results, and rebuilds
 
-### 2. Configure the environment
+| Command | Purpose |
+|---|---|
+| `prayog project runs NAME [--version V]` | List runs associated with a project, optionally filtered by version. |
+| `prayog project status NAME [--run V/N]` | Display project status or inspect a particular run. |
+| `prayog project download NAME V/N --to DIR [--checkpoint WHICH] [--no-log] [--no-metrics]` | Download a run's checkpoints, logs, and metrics, with options to select what to retrieve. |
+| `prayog run NAME --rebuild V/N` | Reproduce a previously completed run using the original run's recorded configuration and matching dataset. |
+| `prayog project compare NAME V/N [--tolerance T]` | Compare a rebuild with its original run, including metrics and saved weights. |
 
-```bash
-# Linux / macOS
-cp .env.example .env
+For rebuilds, the original dataset must be supplied again and must match the recorded dataset fingerprints.
 
-# Windows PowerShell
-Copy-Item .env.example .env
-```
+For the complete command syntax, all supported options, examples, and CLI behaviour, see the **[CLI README](cli/README.md)**.
 
-Edit `.env`. At minimum, configure the PostgreSQL credentials, a strong `JWT_SECRET_KEY`, and a separate `STEWARD_DB_PASSWORD`. See [`.env.example`](.env.example) for the available settings. Never commit your real `.env` file.
 
-### 3. Start PostgreSQL and initialise the database
+---
 
-```bash
-docker compose up -d postgres
+## 5. Data and storage
 
-cd backend
-python -m alembic upgrade head
-python -m scripts.setup_steward
-```
+Prayog separates platform records, versioned project code, experiment outputs, and training datasets.
 
-Skip the Steward setup step only if you are intentionally running without the Steward and have configured it accordingly.
+### 5.1 Where is data stored?
 
-### 4. Create development accounts and sample nodes
+| Component | What it stores | Purpose |
+|---|---|---|
+| **PostgreSQL database** | User accounts, access requests, project and version records, run states, metrics, dataset fingerprints, and experiment metadata. | Maintains structured platform records and experiment information. |
+| **Artifact storage** | Uploaded code snapshots, code chunks, checkpoints, logs, and other run artifacts. | Stores versioned code and experiment outputs. |
+| **Dataset staging** | Temporary copies of datasets supplied for runs. | Makes training data available to GPU nodes during execution. |
+| **Local CLI configuration** | Login token and project-link metadata. | Maintains the user's CLI session and links local folders to projects. |
 
-For a disposable local development database:
+The artifact storage backend is configured by the platform administrator. Prayog supports private local storage and S3-compatible object storage.
+PostgreSQL stores the platform's structured records, while the actual code files, checkpoints, logs, and other artifacts are stored separately. Dataset files are staged temporarily for experiment execution rather than maintained as permanent project snapshots.
 
-```bash
-python -m scripts.seed_dev
-```
+### 5.2 Project code and versions
 
-This creates demo accounts and sample GPU nodes and prints the commands needed to start their simulated node agents. The demo passwords are public and must **never** be used on a shared or production deployment.
-
-To create only the first administrator instead:
+When you run:
 
 ```bash
-python -m scripts.create_admin admin@iitk.ac.in "REPLACE_WITH_A_STRONG_PASSWORD"
+prayog project link vision ./my-training-code
 ```
 
-### 5. Start the services
+Prayog inventories the folder and uploads the eligible project content as a versioned snapshot.
 
-Keep each process running in its own terminal. Run these commands from the `backend/` directory with the virtual environment active.
+- Each distinct project snapshot is assigned a version (A, B, C, and so on).
+- Versions are identified using the BLAKE3 digest of their project manifest.
+- Identical content chunks are reused instead of being uploaded again.
+- If an uploaded folder matches a previously stored version, Prayog selects that existing version rather than creating a duplicate.
+- When project contents change, the updated snapshot is recorded as a new version. The server maintains its own copy independently of your local folder.
+
+Common secrets and generated files are excluded from uploads, including `.env` files, private keys, virtual environments, caches, version-control metadata, and build directories. Symbolic links are refused.
+
+Always review your project folder before uploading it. Do not put credentials, API keys, or private data in project files.
+
+### 5.3 Dataset handling
+
+Datasets are handled separately from project code.
+
+- Dataset files are fingerprinted during project linking but are **not uploaded as part of the project snapshot**.
+- Supply the actual dataset when submitting a run using `--data`.
+- Prayog calculates BLAKE3 fingerprints for dataset files and records their paths, sizes, and fingerprints.
+- Dataset copies are staged for GPU execution.
+- By default, staged dataset files are deleted 48 hours after the last run using them ends. The platform administrator can configure this retention period.
+- A running job's dataset is not deleted while it is still in use.
+- Dataset fingerprints remain recorded after the temporary copies are deleted.
+
+For a rebuild, you must supply the original dataset again. Prayog verifies that its fingerprints match the original run.
+
+### 5.4 Run results and artifacts
+
+During execution, the experiment can produce:
+
+- **Checkpoints:** Saved model states.
+- **Metrics:** Training measurements recorded at different steps.
+- **Logs:** Standard output and error from the experiment.
+
+These results are stored as experiment artifacts and can be retrieved using:
 
 ```bash
-# Terminal 1: API and web application
-uvicorn main:app --host 127.0.0.1 --port 8000
-
-# Terminal 2: GPU scheduler
-python -m logic.gpu.scheduler.run
-
-# Terminal 3: Steward worker (optional)
-python -m integration.steward_worker
-
-# Terminal 4: Steward Runtime (optional)
-uvicorn steward_runtime.app:app --host 127.0.0.1 --port 8100 --env-file ../.env
+prayog project download vision A/1 --to ./results
 ```
 
-The default local node agent is simulated. Start the agent using the command and one-time enrolment token printed by `seed_dev`. The simulated agent lets you exercise the workflow without attaching a physical GPU to your development machine.
+The CLI verifies each downloaded artifact against its recorded file size and SHA-256 checksum before saving it. Existing files are not overwritten.
 
-Check the API:
+### 5.5 Local CLI files
 
-```bash
-curl http://127.0.0.1:8000/health
-```
+The CLI maintains local configuration and project-link information:
 
-A healthy local instance returns a response indicating that both the API and database are available.
+- The login token is stored in the Prayog configuration directory (by default, `~/.prayog`).
+- A linked project folder contains `.prayog/link.json`, which records its project association and uploaded versions.
 
-## Troubleshooting
+The login file stores the access token, not the user's password.
+
+---
+
+## 6. Role-specific workflows
+
+Available features depend on the signed-in role and the permissions configured on the server.
+
+### 6.1 Students and researchers
+
+Students and researchers can:
+
+1. Register and sign in through the web portal.
+2. Submit a GPU access request.
+3. Wait for Professor and administrator approval.
+4. Check their access status.
+5. Create projects and upload code through the CLI.
+6. Submit and monitor GPU experiments.
+7. Download results and rebuild previous runs.
+
+### 6.2 Professors
+
+Professors can:
+
+- Review access requests assigned to them.
+- Approve or reject requests addressed to them.
+- View read-only experiment records for currently assigned students and researchers with active approved relationships.
+- Review, approve, or reject project handover requests addressed to them.
+
+Professor experiment views are read-only and scoped to eligible supervised users.
+
+### 6.3 Administrators
+
+Administrators can:
+
+- Review access requests from students and researchers.
+- Approve, reject, or revoke user access.
+- Create Professor accounts and profiles.
+- Register and manage GPU nodes, including draining, returning, and decommissioning nodes.
+- Monitor GPU pool status, inspect and acknowledge node alerts, and manage maintenance windows.
+- View the administrative ML Flow overview and aggregate experiment statistics.
+
+The exact actions available in the portal depend on the server configuration and the signed-in role.
+
+---
+
+
+## 7. Optional component: Steward
+
+Steward is Prayog's optional AI-assisted experiment support component. It is designed to analyse eligible failed rebuilds and provide diagnostic guidance.
+
+Steward is not required for core authentication, access approval, GPU scheduling, or experiment tracking. Prayog can operate without it.
+
+### 7.1 Availability and usage
+
+Users do not need to install or run Steward separately. Its features are intended to be accessed through the Prayog web application when the component is enabled and configured.
+
+**Current integration status:** The repository implements the rebuild eligibility checks and diagnostic-link mechanism, but does not yet include a configured Steward client or production downstream service integration. A diagnostic link allows authorised retrieval of a verified log; creating or using the link does not itself trigger an AI diagnosis.
+
+Only failed rebuilds with a verified log artifact are eligible for Steward diagnosis. First-time experiment failures are not eligible.
+
+### 7.2 Further documentation
+
+For component-specific information, architecture, configuration, and security boundaries, see:
+
+- [Steward README](steward/README.md)
+- [Steward Design documentation](steward/DESIGN.md)
+- [AI Integration documentation](backend/AI_INTEGRATION.md)
+
+---
+
+
+## 8. Troubleshooting
 
 | Problem | What to check |
 |---|---|
-| Cannot connect to the server | Confirm the API is running and that `PRAYOG_API_URL` or `--api-url` points to the correct address. |
-| Login is rejected | Check the email, role and password. For students/researchers, confirm that access has been approved and is currently active. |
-| Access request is pending | Both the supervising Professor and an administrator must decide the request. |
-| Job remains queued | Check the requested GPU count, walltime, available nodes, quota and scheduler state. |
-| CLI command is unavailable | Run `prayog help`; available commands depend on your role and login state. |
-| Local API reports a database error | Confirm the PostgreSQL container is running and that the database settings in `.env` match it. |
+| Cannot connect to the server | Confirm that the server is running and that the configured API URL is correct. |
+| Login is rejected | Check your email, role, and password. For CLI login, also confirm that your platform access is currently active. |
+| CLI session has expired | CLI login tokens expire after 60 minutes. Run `prayog login` again to start a new session. |
+| Access request is pending | Both the supervising Professor and an administrator must complete their required decisions. |
+| GPU job remains queued | Check the requested GPU count, walltime, available nodes, quota, and scheduler state. |
+| CLI command is unavailable | Run `prayog help` after logging in to see commands available to your role. |
+| Project upload fails | Check the folder path, permissions, and contents. Symbolic links are not supported and cause project uploads to fail. |
+| Project has no uploaded version | Create a project version using `prayog project link NAME FOLDER` before submitting a run. |
+| Dataset is unavailable | Check the supplied `--data` path. Temporary staged copies may have expired and need to be supplied again. |
+| Rebuild is rejected | Confirm that the original run completed successfully, has a verified snapshot, and that the supplied dataset matches the original fingerprints. |
+| Downloaded artifacts are not saved | Check the destination directory. The CLI verifies downloaded files and does not overwrite existing files. |
 
-For endpoint-level details, open the interactive API docs at `/docs` or see [API.md](API.md) and [API_STEWARD.md](API_STEWARD.md).
+For API-level details, open the interactive API documentation at `/docs` on your running server.
 
-## Documentation
 
-| Document | What it covers |
+---
+
+## 9. Further documentation
+
+The following documents provide additional details about Prayog's CLI, APIs, and individual components.
+
+| Document | Description |
 |---|---|
-| [CLI README](cli/README.md) | Complete CLI command reference and experiment workflow |
-| [API.md](API.md) | Authentication, access requests and platform API |
-| [API_GPU.md](API_GPU.md) | GPU scheduling and node-agent API |
-| [API_STEWARD.md](API_STEWARD.md) | Steward and rebuild-related API |
-| [backend/ML_FLOW.md](backend/ML_FLOW.md) | Experiment Ledger, artifacts, snapshots, runs and rebuild worker |
-| [backend/AI_INTEGRATION.md](backend/AI_INTEGRATION.md) | Steward / ledger integration contracts |
-| [steward/README.md](steward/README.md) | Steward component entry point |
-| [steward/DESIGN.md](steward/DESIGN.md) | Steward design, security model and implementation |
+| [CLI README](cli/README.md) | Complete CLI command reference, options, examples, and usage details. |
+| [API.md](API.md) | User registration, authentication, access requests, and role-based permissions. |
+| [API_GPU.md](API_GPU.md) | GPU job scheduling, node-agent operations, GPU-node administration, and maintenance. |
+| [API_STEWARD.md](API_STEWARD.md) | Steward API endpoints and rebuild-related integration routes. |
+| [backend/ML_FLOW.md](backend/ML_FLOW.md) | Technical details of project snapshots, datasets, artifacts, experiment runs, and rebuilds. |
+| [backend/AI_INTEGRATION.md](backend/AI_INTEGRATION.md) | Steward integration contract, eligibility rules, current implementation status, and remaining integration work. |
+| [Steward README](steward/README.md) | Steward component overview and user/developer entry point. |
+| [Steward Design](steward/DESIGN.md) | Steward architecture, database boundaries, security model, configuration, and operation. |
+
+---
 
 ## Project information
 
-Prayog is an ongoing CS455 (Introduction to Software Engineering) project at IIT Kanpur. Some workflows depend on the server deployment and configured node agents; the local development setup uses sample accounts and simulated agents. Consult the linked component documentation for implementation details and current limitations.
+Prayog is developed as part of the CS455 (Introduction to Software Engineering) course at IIT Kanpur.
