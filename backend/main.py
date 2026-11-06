@@ -21,6 +21,7 @@ from routers.scheduler.metrics import router as metrics_router
 from routers.professors import router as professors_router
 from routers.rebuilds import router as rebuilds_router
 from integration.steward_bridge import install_steward
+from integration.web import install_web
 from logic.mlflow_release import register_mlflow_hooks
 
 app = FastAPI(title="Prayog API")
@@ -63,6 +64,9 @@ register_mlflow_hooks()
 # The Steward (steward/): API and UI under /steward, and the run-seal hook on
 # lifecycle.release(). If it is not configured the platform runs without it.
 STEWARD_INSTALLED = install_steward(app)
+
+# The web app (backend/web) at /app; / redirects there.
+install_web(app)
 
 
 @app.get("/health")

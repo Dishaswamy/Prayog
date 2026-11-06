@@ -85,6 +85,10 @@ class SchedulerPostgresCase(unittest.TestCase):
             status_professor="APPROVED", status_admin="APPROVED", final_status="APPROVED",
         )
         self.db.add(request)
+        record = dict(user_id=user.id, name=user.user_id, email=user.email, roll_number=f"r-{user.user_id}"[:50],
+                      course="BTech", branch="CSE", professor_id=professor.id, start_date=self.now - timedelta(days=1))
+        self.db.add(orm.Researcher(**record) if role == "RESEARCHER"
+                    else orm.Student(**record, end_date=self.now + timedelta(days=30)))
         return request
 
     def make_node(

@@ -1,6 +1,8 @@
+from datetime import datetime, timezone
+
 from logic.errors import ForbiddenError
 from mlflow_models import MLFlowLedgerEntry, ModelRun, ModelSnapshot
-from models import Professor, Student, User
+from models import Professor, Researcher, Student, User
 
 
 def list_professor_ledger(db, user: User) -> list[dict]:
@@ -11,11 +13,19 @@ def list_professor_ledger(db, user: User) -> list[dict]:
     if professor is None:
         raise ForbiddenError("Professor access is required")
 
-    students = db.query(Student).filter(Student.professor_id == professor.id).all()
-    if not students:
+    # Everyone whose active authorization names this Professor (FR-ML-004), as logic.mlflow_professor
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    students = db.query(Student).filter(
+        Student.professor_id == professor.id, Student.start_date <= now, Student.end_date >= now,
+    ).all()
+    researchers = db.query(Researcher).filter(
+        Researcher.professor_id == professor.id, Researcher.start_date <= now,
+    ).all()
+    supervised = [*students, *researchers]
+    if not supervised:
         return []
 
-    student_by_user_id = {student.user_id: student for student in students}
+    student_by_user_id = {person.user_id: person for person in supervised}
     user_ids = list(student_by_user_id)
     runs = db.query(ModelRun).filter(ModelRun.user_id.in_(user_ids)).all()
     if not runs:

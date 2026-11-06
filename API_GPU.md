@@ -14,6 +14,7 @@
 - [How a job runs](#how-a-job-runs)
 - [Jobs](#jobs)
   - [POST /jobs](#post-jobs)
+  - [GET /jobs](#get-jobs)
   - [GET /jobs/{id}](#get-jobsid)
   - [PATCH /jobs/{id}](#patch-jobsid)
   - [POST /jobs/{id}/cancel](#post-jobsidcancel)
@@ -150,6 +151,9 @@ curl -X POST http://127.0.0.1:8000/jobs \
 ```
 
 ---
+
+### GET /jobs
+Your jobs, newest first: the same objects as `GET /jobs/{id}`. `limit` is 1–500 (default 100).
 
 ### GET /jobs/{id}
 What a job is doing right now: its state, why it is waiting and until when, where it runs, and how it ended.

@@ -17,7 +17,9 @@ os.environ.setdefault("JWT_SECRET_KEY", "ci-only-secret-not-for-production")
 
 from fastapi.testclient import TestClient
 from database import SessionLocal
+from logic.admin import create_professor
 from main import app
+from models import Student, User
 from mlflow_models import Artifact, DiagnosticLink, ModelSnapshot, RebuildAttempt
 from mlflow_worker import claim_next_job, execute_first_time_run
 
@@ -34,6 +36,14 @@ class MLFlowEndToEndTests(unittest.TestCase):
             json={"email": email, "password": "Test-password-2026!", "role": "STUDENT"},
         )
         self.assertEqual(response.status_code, 201, response.text)
+        with SessionLocal() as db:                      # creating projects needs approved access
+            user = db.query(User).filter(User.email == email).one()
+            professor = create_professor(db, "E2E Prof", f"prof-{uuid4().hex}@iitk.ac.in", "CSE")
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.add(Student(user_id=user.id, name="E2E", email=email, roll_number=f"e2e-{user.id}", course="BTech",
+                           branch="CSE", professor_id=professor.id, start_date=now - timedelta(days=1),
+                           end_date=now + timedelta(days=30)))
+            db.commit()
         response = self.client.post(
             "/auth/login",
             json={"email": email, "password": "Test-password-2026!", "role": "STUDENT"},

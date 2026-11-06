@@ -70,9 +70,10 @@ class GpuRunCase(SchedulerPostgresCase):
                       "role": "source", "included_in_archive": True} for path, body in sorted(files.items())]
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
-            for path, body in sorted(files.items()):
-                archive.writestr(path, body)
-            archive.writestr("snapshot-manifest.json", json.dumps({"format_version": 1, "files": inventory}))
+            for path, body in sorted(files.items()):                      # a fixed date, as the CLI writes:
+                archive.writestr(zipfile.ZipInfo(path, (1980, 1, 1, 0, 0, 0)), body)   # same files, same bytes
+            archive.writestr(zipfile.ZipInfo("snapshot-manifest.json", (1980, 1, 1, 0, 0, 0)),
+                             json.dumps({"format_version": 1, "files": inventory}))
         archive_bytes = buffer.getvalue()
         chunk = self.upload(client, project["experiment_id"], "CODE", archive_bytes)
         manifest = {

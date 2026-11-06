@@ -96,7 +96,7 @@ async def store_staged_file(db: Session, user, digest: str, size: int, request) 
             raise BadRequestError("Fewer bytes arrived than the declared size")
         if hasher.hexdigest() != digest:
             raise BadRequestError("The bytes do not match the declared BLAKE3 digest")
-        artifact_storage.persist_artifact(temporary, digest)
+        await anyio.to_thread.run_sync(artifact_storage.persist_artifact, temporary, digest)   # off the event loop
         row = db.query(StagedFile).filter(StagedFile.user_id == user.id, StagedFile.blake3 == digest) \
             .with_for_update().first()
         created = row is None or row.deleted_at is not None

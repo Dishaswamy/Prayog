@@ -96,7 +96,7 @@ def enqueue_rebuild_terminal_event(db: Session, attempt, snapshot, execution, us
     return event
 
 
-def claim_events(db: Session, worker_id: str, limit: int = 10, lease_seconds: int = 60):
+def claim_events(db: Session, worker_id: str, limit: int = 10, lease_seconds: int = 60, event_types=None):
     if not worker_id or len(worker_id) > 80:
         raise ValueError("worker_id must contain 1–80 characters")
     if not 1 <= limit <= 100:
@@ -105,17 +105,19 @@ def claim_events(db: Session, worker_id: str, limit: int = 10, lease_seconds: in
         raise ValueError("lease_seconds must be between 10 and 3600")
 
     now = _now()
+    query = db.query(MLFlowOutboxEvent).filter(
+        MLFlowOutboxEvent.status.in_(( "PENDING", "PROCESSING")),
+        MLFlowOutboxEvent.available_at <= now,
+        or_(
+            MLFlowOutboxEvent.status == "PENDING",
+            MLFlowOutboxEvent.locked_until.is_(None),
+            MLFlowOutboxEvent.locked_until <= now,
+        ),
+    )
+    if event_types is not None:
+        query = query.filter(MLFlowOutboxEvent.event_type.in_(event_types))
     rows = (
-        db.query(MLFlowOutboxEvent)
-        .filter(
-            MLFlowOutboxEvent.status.in_(( "PENDING", "PROCESSING")),
-            MLFlowOutboxEvent.available_at <= now,
-            or_(
-                MLFlowOutboxEvent.status == "PENDING",
-                MLFlowOutboxEvent.locked_until.is_(None),
-                MLFlowOutboxEvent.locked_until <= now,
-            ),
-        )
+        query
         .order_by(MLFlowOutboxEvent.created_at, MLFlowOutboxEvent.id)
         .with_for_update(skip_locked=True)
         .limit(limit)
@@ -264,10 +266,10 @@ def _still_eligible(db: Session, event: MLFlowOutboxEvent) -> bool:
     return False
 
 
-def dispatch_once(db: Session, worker_id: str, handlers: dict, limit: int = 10, lease_seconds: int = 60):
+def dispatch_once(db: Session, worker_id: str, handlers: dict, limit: int = 10, lease_seconds: int = 60, event_types=None):
     """Deliver eligible events via injected handlers; transport and service auth stay outside the state machine."""
     outcomes = []
-    for event in claim_events(db, worker_id, limit, lease_seconds):
+    for event in claim_events(db, worker_id, limit, lease_seconds, event_types):
         event_id = event.id
         event_type = event.event_type
         event_key = event.event_key
@@ -290,3 +292,12 @@ def dispatch_once(db: Session, worker_id: str, handlers: dict, limit: int = 10, 
             changed = mark_delivery_failed(db, event_id, worker_id, f"{type(exc).__name__}: handler delivery failed")
             outcomes.append((event_id, "RETRY_SCHEDULED" if changed else "LEASE_LOST"))
     return outcomes
+
+
+def record_sealed_runs(db: Session, limit: int = 100) -> int:
+    """Move sealed runs into the ledger. This needs no outside service, so the scheduler tick does it
+    and the Professor ledger fills whether or not the Steward and optimization transports are set up.
+    Returns how many were delivered."""
+    handlers = {"RUN_SEALED": lambda key, payload: consume_ledger_event(db, key, payload)}
+    outcomes = dispatch_once(db, "scheduler-tick", handlers, limit, event_types=("RUN_SEALED",))
+    return sum(outcome == "DELIVERED" for _, outcome in outcomes)
