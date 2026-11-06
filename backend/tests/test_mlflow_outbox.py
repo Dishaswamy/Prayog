@@ -8,6 +8,8 @@ from logic.mlflow_outbox import (
     dispatch_once,
     enqueue_rebuild_terminal_event,
     mark_delivery_failed,
+    mark_delivered,
+    enqueue_run_sealed_event,
 )
 
 
@@ -186,6 +188,221 @@ class MLFlowOutboxTests(unittest.TestCase):
         self.assertIsNone(event.locked_by)
         self.assertEqual(event.last_error, "handler failed")
         self.db.commit.assert_called_once()
+
+
+class MLFlowOutboxBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.db = MagicMock()
+
+    def test_claim_events_rejects_invalid_public_arguments(self):
+        invalid = [
+            ("", 10, 60),
+            (None, 10, 60),
+            ("x" * 81, 10, 60),
+            ("worker", 0, 60),
+            ("worker", 101, 60),
+            ("worker", 10, 9),
+            ("worker", 10, 3601),
+        ]
+        for worker_id, limit, lease_seconds in invalid:
+            with self.subTest(worker_id=worker_id, limit=limit, lease_seconds=lease_seconds):
+                with self.assertRaises(ValueError):
+                    claim_events(self.db, worker_id, limit=limit, lease_seconds=lease_seconds)
+
+    def test_claim_events_accepts_documented_argument_boundaries(self):
+        query = self.db.query.return_value
+        query.filter.return_value = query
+        query.order_by.return_value = query
+        query.with_for_update.return_value = query
+        query.limit.return_value = query
+        query.all.return_value = []
+
+        self.assertEqual(claim_events(self.db, "w", limit=1, lease_seconds=10), [])
+        self.assertEqual(
+            claim_events(self.db, "w" * 80, limit=100, lease_seconds=3600),
+            [],
+        )
+        self.assertEqual(self.db.commit.call_count, 2)
+
+    def test_mark_delivered_returns_false_when_lease_is_lost(self):
+        query = self.db.query.return_value.filter.return_value
+        query.with_for_update.return_value.first.return_value = None
+
+        self.assertFalse(mark_delivered(self.db, "event-1", "another-worker"))
+        self.db.commit.assert_not_called()
+
+    def test_mark_delivery_failed_returns_false_when_lease_is_lost(self):
+        query = self.db.query.return_value.filter.return_value
+        query.with_for_update.return_value.first.return_value = None
+
+        self.assertFalse(
+            mark_delivery_failed(self.db, "event-1", "another-worker", "failure")
+        )
+        self.db.commit.assert_not_called()
+
+    @patch("logic.mlflow_outbox._now", return_value=datetime(2026, 1, 1))
+    def test_delivery_failure_sanitizes_empty_and_oversized_errors(self, now):
+        event = SimpleNamespace(
+            id="event-1",
+            status="PROCESSING",
+            attempts=1,
+            locked_by="worker-1",
+            locked_until=datetime(2026, 1, 1) + timedelta(seconds=30),
+            available_at=datetime(2025, 1, 1),
+            last_error=None,
+        )
+        query = self.db.query.return_value.filter.return_value
+        query.with_for_update.return_value.first.return_value = event
+
+        self.assertTrue(mark_delivery_failed(self.db, "event-1", "worker-1", ""))
+        self.assertEqual(event.last_error, "Delivery failed")
+
+        event.status = "PROCESSING"
+        event.attempts = 5
+        event.locked_by = "worker-1"
+        event.locked_until = datetime(2026, 1, 1) + timedelta(seconds=30)
+        self.assertTrue(
+            mark_delivery_failed(self.db, "event-1", "worker-1", "x" * 700)
+        )
+        self.assertEqual(len(event.last_error), 500)
+
+    def test_mark_delivery_failed_rejects_invalid_max_attempts(self):
+        for value in (0, -1, 21):
+            with self.subTest(max_attempts=value):
+                with self.assertRaises(ValueError):
+                    mark_delivery_failed(
+                        self.db, "event-1", "worker-1", "failure", max_attempts=value
+                    )
+
+    def test_consume_ledger_event_rejects_invalid_keys_and_payloads(self):
+        from logic.mlflow_outbox import consume_ledger_event
+
+        invalid = [
+            ("", {"state": "RECORDED"}),
+            ("x" * 161, {"state": "RECORDED"}),
+            ("valid", None),
+            ("valid", []),
+            ("valid", {"state": "RUNNING"}),
+        ]
+        for event_key, payload in invalid:
+            with self.subTest(event_key=event_key, payload=payload):
+                with self.assertRaises(ValueError):
+                    consume_ledger_event(self.db, event_key, payload)
+        self.db.add.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_consume_ledger_event_rolls_back_database_errors(self):
+        from logic.mlflow_outbox import consume_ledger_event
+
+        self.db.commit.side_effect = RuntimeError("database unavailable")
+        with self.assertRaisesRegex(RuntimeError, "database unavailable"):
+            consume_ledger_event(self.db, "run:41:sealed", {"state": "RECORDED"})
+
+        self.db.add.assert_called_once()
+        self.db.rollback.assert_called_once()
+
+    def test_enqueue_run_sealed_event_builds_expected_payload(self):
+        snapshot = SimpleNamespace(
+            snapshot_id="snapshot-41",
+            experiment_id=7,
+            project_id=8,
+            model_id=9,
+            state="RECORDED",
+            code_sha256="abc123",
+        )
+        run = SimpleNamespace(id=41)
+
+        event = enqueue_run_sealed_event(self.db, snapshot, run, user_id=12)
+
+        self.assertEqual(event.event_key, "run:41:sealed")
+        self.assertEqual(event.event_type, "RUN_SEALED")
+        self.assertEqual(event.status, "PENDING")
+        self.assertEqual(event.attempts, 0)
+        self.assertEqual(
+            event.payload,
+            {
+                "run_id": 41,
+                "snapshot_id": "snapshot-41",
+                "experiment_id": 7,
+                "project_id": 8,
+                "model_id": 9,
+                "state": "RECORDED",
+                "code_sha256": "abc123",
+            },
+        )
+        self.assertEqual(event.user_id, 12)
+        self.db.add.assert_called_once_with(event)
+
+
+    @patch("logic.mlflow_outbox._now", return_value=datetime(2026, 1, 1))
+    def test_mark_delivered_updates_terminal_fields_and_releases_lease(self, now):
+        event = SimpleNamespace(
+            id="event-delivered",
+            status="PROCESSING",
+            locked_by="worker-1",
+            locked_until=datetime(2026, 1, 1) + timedelta(seconds=30),
+            delivered_at=None,
+            last_error="previous failure",
+        )
+        query = self.db.query.return_value.filter.return_value
+        query.with_for_update.return_value.first.return_value = event
+
+        self.assertTrue(mark_delivered(self.db, "event-delivered", "worker-1"))
+
+        self.assertEqual(event.status, "DELIVERED")
+        self.assertEqual(event.delivered_at, datetime(2026, 1, 1))
+        self.assertIsNone(event.locked_by)
+        self.assertIsNone(event.locked_until)
+        self.assertIsNone(event.last_error)
+        self.db.commit.assert_called_once()
+
+    @patch("logic.mlflow_outbox._now", return_value=datetime(2026, 1, 1))
+    def test_claim_events_reclaims_expired_processing_lease(self, now):
+        event = SimpleNamespace(
+            id="event-expired",
+            status="PROCESSING",
+            attempts=2,
+            locked_by="dead-worker",
+            locked_until=datetime(2025, 12, 31),
+        )
+        query = self.db.query.return_value
+        query.filter.return_value = query
+        query.order_by.return_value = query
+        query.with_for_update.return_value = query
+        query.limit.return_value = query
+        query.all.return_value = [event]
+
+        claimed = claim_events(self.db, "replacement-worker", limit=1, lease_seconds=10)
+
+        self.assertEqual(claimed, [event])
+        self.assertEqual(event.status, "PROCESSING")
+        self.assertEqual(event.attempts, 3)
+        self.assertEqual(event.locked_by, "replacement-worker")
+        self.assertEqual(event.locked_until, datetime(2026, 1, 1) + timedelta(seconds=10))
+        self.db.commit.assert_called_once()
+
+    @patch("logic.mlflow_outbox.mark_delivery_failed", return_value=True)
+    @patch("logic.mlflow_outbox._still_eligible", return_value=True)
+    @patch("logic.mlflow_outbox.claim_events")
+    def test_dispatch_without_handler_schedules_retry(self, claim, eligible, failed):
+        event = SimpleNamespace(
+            id="event-no-handler",
+            event_type="UNREGISTERED_EVENT",
+            event_key="event:no-handler",
+            payload={"value": 1},
+        )
+        claim.return_value = [event]
+
+        result = dispatch_once(self.db, "worker-1", {})
+
+        self.assertEqual(result, [("event-no-handler", "RETRY_SCHEDULED")])
+        self.db.rollback.assert_called_once()
+        failed.assert_called_once_with(
+            self.db,
+            "event-no-handler",
+            "worker-1",
+            "RuntimeError: handler delivery failed",
+        )
 
 
 if __name__ == "__main__":

@@ -59,5 +59,66 @@ class MLFlowLedgerConsumerTests(unittest.TestCase):
         self.assertTrue(_still_eligible(db, event))
 
 
+    def test_ledger_consumer_accepts_maximum_event_key_length(self):
+        db = MagicMock()
+        event_key = "k" * 160
+
+        self.assertTrue(consume_ledger_event(db, event_key, {"state": "RECORDED"}))
+        db.add.assert_called_once()
+        self.assertEqual(db.add.call_args.args[0].event_key, event_key)
+        db.commit.assert_called_once()
+
+    def test_duplicate_integrity_error_without_matching_row_is_reraised(self):
+        from sqlalchemy.exc import IntegrityError
+
+        db = MagicMock()
+        db.commit.side_effect = IntegrityError("unique constraint", {}, Exception())
+        db.query.return_value.filter.return_value.first.return_value = None
+
+        with self.assertRaises(IntegrityError):
+            consume_ledger_event(db, "run:21:sealed", {"state": "RECORDED"})
+
+        db.rollback.assert_called_once()
+
+    def test_run_sealed_event_rejects_lifecycle_and_identity_mismatches(self):
+        base_payload = {
+            "run_id": 21,
+            "snapshot_id": "snapshot-12",
+            "state": "RECORDED",
+        }
+        cases = [
+            ("incomplete_snapshot", "INCOMPLETE", 21, True, "RECORDED", "run:21:sealed"),
+            ("snapshot_linked_to_other_run", "RECORDED", 99, True, "RECORDED", "run:21:sealed"),
+            ("missing_run", "RECORDED", 21, False, "RECORDED", "run:21:sealed"),
+            ("wrong_payload_state", "RECORDED", 21, True, "INCOMPLETE", "run:21:sealed"),
+            ("wrong_event_key", "RECORDED", 21, True, "RECORDED", "run:99:sealed"),
+        ]
+
+        for name, snapshot_state, snapshot_run_id, run_exists, payload_state, event_key in cases:
+            with self.subTest(case=name):
+                db = MagicMock()
+                snapshot = SimpleNamespace(
+                    run_id=snapshot_run_id,
+                    state=snapshot_state,
+                )
+                run = SimpleNamespace(id=21) if run_exists else None
+                snapshot_query = MagicMock()
+                snapshot_query.filter.return_value.first.return_value = snapshot
+                run_query = MagicMock()
+                run_query.filter.return_value.first.return_value = run
+                db.query.side_effect = [snapshot_query, run_query]
+                event = SimpleNamespace(
+                    event_type="RUN_SEALED",
+                    event_key=event_key,
+                    run_id=21,
+                    aggregate_id=None,
+                    user_id=8,
+                    payload={**base_payload, "state": payload_state},
+                )
+
+                self.assertFalse(_still_eligible(db, event))
+                self.assertEqual(db.query.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

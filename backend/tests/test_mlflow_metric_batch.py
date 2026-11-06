@@ -85,5 +85,52 @@ class MLFlowMetricBatchTests(unittest.TestCase):
         self.db.commit.assert_not_called()
 
 
+
+    def test_batch_accepts_exactly_500_metrics(self):
+        values = [
+            {"name": f"metric-{index}", "value": float(index), "step": 0}
+            for index in range(500)
+        ]
+
+        result = log_metrics(self.db, 3, self.user, values)
+
+        self.assertEqual(len(result), 500)
+        self.db.add_all.assert_called_once_with(result)
+        self.db.commit.assert_called_once()
+
+    def test_batch_rejects_more_than_500_metrics_before_write(self):
+        values = [
+            {"name": f"metric-{index}", "value": float(index), "step": 0}
+            for index in range(501)
+        ]
+
+        with self.assertRaisesRegex(BadRequestError, "between 1 and 500"):
+            log_metrics(self.db, 3, self.user, values)
+
+        self.db.add_all.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_batch_rejects_duplicate_names_after_whitespace_normalization(self):
+        with self.assertRaisesRegex(ConflictError, "appears more than once"):
+            log_metrics(
+                self.db,
+                3,
+                self.user,
+                [
+                    {"name": "loss", "value": 0.7, "step": 1},
+                    {"name": " loss ", "value": 0.6, "step": 1},
+                ],
+            )
+
+        self.db.add_all.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_empty_batch_is_rejected_before_write(self):
+        with self.assertRaisesRegex(BadRequestError, "between 1 and 500"):
+            log_metrics(self.db, 3, self.user, [])
+
+        self.db.add_all.assert_not_called()
+        self.db.commit.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

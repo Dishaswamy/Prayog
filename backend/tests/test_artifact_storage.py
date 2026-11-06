@@ -11,7 +11,7 @@ class ArtifactStorageTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name).resolve() / "artifacts"
+        self.root = Path(self.temporary.name) / "artifacts"
         self.root.mkdir(mode=0o700)
         self.root_patch = patch.object(artifact_storage, "ARTIFACT_ROOT", self.root)
         self.root_patch.start()
@@ -106,6 +106,82 @@ class ArtifactStorageTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "PRAYOG_S3_BUCKET is required"):
                 artifact_storage.resolve_artifact("12345678-1234-1234-1234-123456789abc")
 
+
+
+    def test_content_addressed_local_object_rejects_mismatched_bytes(self):
+        expected = b"original immutable payload"
+        key = blake3(expected).hexdigest()
+        source = self.root / "source.tmp"
+        source.write_bytes(expected)
+
+        stored = artifact_storage.persist_artifact(source, key)
+        self.assertEqual(stored.read_bytes(), expected)
+
+        source.write_bytes(b"different payload")
+        with self.assertRaisesRegex(BadRequestError, "Content-addressed artifact integrity"):
+            artifact_storage.persist_artifact(source, key)
+
+        self.assertEqual(stored.read_bytes(), expected)
+
+    def test_local_storage_rejects_symlink_escape_from_artifact_root(self):
+        key = "12345678-1234-1234-1234-123456789abc"
+        outside = Path(self.temporary.name) / "outside.bin"
+        outside.write_bytes(b"outside")
+        (self.root / key).symlink_to(outside)
+
+        with self.assertRaisesRegex(BadRequestError, "Invalid artifact storage key"):
+            artifact_storage.resolve_artifact(key)
+
+
+    @patch("boto3.client")
+    def test_s3_cache_discards_corrupt_content_addressed_copy_and_redownloads(self, make_client):
+        payload = b"authoritative remote content"
+        key = blake3(payload).hexdigest()
+        cache = self.root / ".s3-cache"
+        cache.mkdir()
+        cached = cache / key
+        cached.write_bytes(b"stale corrupted bytes")
+        client = make_client.return_value
+
+        def download(bucket, object_key, destination):
+            Path(destination).write_bytes(payload)
+
+        client.download_file.side_effect = download
+        with patch.dict(os.environ, {
+            "PRAYOG_ARTIFACT_STORAGE": "s3",
+            "PRAYOG_S3_BUCKET": "private-prayog-test",
+            "PRAYOG_S3_PREFIX": "ml-flow",
+        }, clear=False):
+            resolved = artifact_storage.resolve_artifact(key)
+
+        self.assertEqual(resolved.read_bytes(), payload)
+        self.assertEqual(resolved, cached)
+        client.download_file.assert_called_once_with(
+            "private-prayog-test", "ml-flow/" + key, unittest.mock.ANY
+        )
+
+    @patch("boto3.client")
+    def test_s3_rejects_existing_content_object_with_conflicting_digest_metadata(self, make_client):
+        payload = b"expected content"
+        key = blake3(payload).hexdigest()
+        source = self.root / "upload.tmp"
+        source.write_bytes(payload)
+        client = make_client.return_value
+        client.head_object.return_value = {
+            "ContentLength": len(payload),
+            "Metadata": {"blake3": "0" * 64},
+        }
+
+        with patch.dict(os.environ, {
+            "PRAYOG_ARTIFACT_STORAGE": "s3",
+            "PRAYOG_S3_BUCKET": "private-prayog-test",
+            "PRAYOG_S3_PREFIX": "ml-flow",
+        }, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "metadata conflicts"):
+                artifact_storage.persist_artifact(source, key)
+
+        client.download_file.assert_not_called()
+        client.upload_file.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
