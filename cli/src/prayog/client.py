@@ -35,8 +35,18 @@ def _detail(response: httpx.Response) -> tuple:
     if isinstance(detail, list):    # 422: one line per problem
         lines = []
         for item in detail:
-            where = ".".join(str(p) for p in item.get("loc", []) if p != "body")
-            lines.append(f"{where}: {item.get('msg')}" if where else str(item.get("msg")))
+            if not isinstance(item, dict):
+                lines.append("Invalid validation error from server")
+                continue
+
+            loc = item.get("loc", [])
+            if not isinstance(loc, (list, tuple)):
+                loc = []
+
+            where = ".".join(str(p) for p in loc if p != "body")
+            message = str(item.get("msg") or "Invalid input")
+
+            lines.append(f"{where}: {message}" if where else message)
         detail = "; ".join(lines)
     return (str(detail) if detail else f"HTTP {response.status_code}"), code
 
