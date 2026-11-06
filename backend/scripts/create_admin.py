@@ -8,8 +8,8 @@ Run from the backend folder:
 import sys
 
 from database import SessionLocal
-from logic.auth import create_user_record
-from logic.errors import AppError
+from logic.auth.authentication import create_user_record
+from logic.common.errors import AppError
 
 
 def create_admin(email: str, password: str):

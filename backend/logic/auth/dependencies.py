@@ -1,0 +1,91 @@
+import hashlib
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
+from database import get_db
+from logic.auth.access_check import check_active_access
+from logic.auth.authentication import ALGORITHM, SECRET_KEY
+from models import RevokedToken, User
+
+security = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
+        user_id = int(payload["sub"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+        )
+    except (jwt.InvalidTokenError, KeyError, ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+
+    # A password reset bumps token_version; tokens issued before it are dead.
+    # Tokens from before this field existed count as version 0.
+    if payload.get("ver", 0) != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired, please log in again",
+        )
+
+    session_id = payload.get("jti") or hashlib.sha256(credentials.credentials.encode("utf-8")).hexdigest()
+
+    # POST /auth/logout puts the token here; it stays dead until it would have expired.
+    if db.get(RevokedToken, session_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Logged out, please log in again",
+        )
+
+    user.session_id = session_id
+    user.token_exp = payload.get("exp")      # unix seconds; used by logout to know how long to remember it
+    return user
+
+
+def active_user(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Signed in and currently authorized: approved, not expired, not revoked (FR-AUTH-38).
+    Anything that creates work or stores data uses this; a user can still read their own records."""
+    check_active_access(db, current_user)
+    return current_user
+
+
+def require_roles(*roles: str):
+    """
+    Route guard. Usage:
+        current_user: User = Depends(require_roles("ADMIN"))
+    """
+    def checker(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires role: {', '.join(roles)}",
+            )
+        return current_user
+
+    return checker
+

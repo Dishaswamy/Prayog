@@ -364,7 +364,7 @@ pytest cli
 ```
 
 The CLI tests use a mock HTTP transport; no server is needed. The backend suite also drives this CLI against the real
-server (`backend/tests/test_cli_end_to_end.py`), which needs `pip install -e ./cli` first.
+server (`test_cases/e2e/test_cli_end_to_end.py`), which needs `pip install -e ./cli` first.
 
 ## Not yet possible
 

@@ -152,7 +152,7 @@ Project
 
 ### How the job ends reaches the run
 
-The node agent reports through the scheduler. A release hook (`logic/mlflow_release.py`, registered by the API process and by the scheduler tick) follows the job inside the release transaction: running -> RUNNING; back in the queue after a platform stop -> QUEUED with the partial attempt's metrics and checkpoints discarded; completed -> SUCCEEDED and the snapshot is sealed (with a `RUN_SEALED` outbox event); failed or past its walltime -> FAILED with a reason; cancelled -> CANCELLED. Checkpoints and metrics of a failed or cancelled run are kept. A path with no release (a queued job cancelled) is caught by a sweep on the scheduler tick; the API also shows a finished job's outcome at once. The same tick deletes expired staged data.
+The node agent reports through the scheduler. A release hook (`logic/mlflow/release.py`, registered by the API process and by the scheduler tick) follows the job inside the release transaction: running -> RUNNING; back in the queue after a platform stop -> QUEUED with the partial attempt's metrics and checkpoints discarded; completed -> SUCCEEDED and the snapshot is sealed (with a `RUN_SEALED` outbox event); failed or past its walltime -> FAILED with a reason; cancelled -> CANCELLED. Checkpoints and metrics of a failed or cancelled run are kept. A path with no release (a queued job cancelled) is caught by a sweep on the scheduler tick; the API also shows a finished job's outcome at once. The same tick deletes expired staged data.
 
 ### The node agent that executes runs
 

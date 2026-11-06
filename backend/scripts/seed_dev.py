@@ -30,12 +30,12 @@ from sqlalchemy import select
 
 import models as orm
 from database import SessionLocal
-from logic.access_request import create_access_request, decide_access_request
-from logic.admin import create_professor
-from logic.auth import create_user_record, password_hash, register_user
-from logic.scheduler.claim import utc_now
-from logic.scheduler.domain import DonationMode
-from logic.scheduler.nodes import register_node
+from logic.auth.access_request import create_access_request, decide_access_request
+from logic.auth.admin import create_professor
+from logic.auth.authentication import create_user_record, password_hash, register_user
+from logic.gpu.scheduler.claim import utc_now
+from logic.gpu.scheduler.domain import DonationMode
+from logic.gpu.scheduler.nodes import register_node
 
 NODES = (("n1", "vision", False), ("n2", "nlp", False), ("t1", "central", True))
 UNITS = 4
