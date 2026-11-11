@@ -417,8 +417,8 @@ Submits an access request.
 | 403 `Requires role: STUDENT, RESEARCHER` | caller is a professor or admin |
 | 403 `Your registered role is X, but you selected Y` | role mismatch |
 | 404 `Professor with the given email was not found` | |
-| 409 `You already have an access request (status: …)` | you already have a request that is `PENDING`, `REJECTED` or `APPROVED` |
-| 409 `This roll number is already in use` | the roll number belongs to an approved user or another open request |
+| 409 `You already have an access request (status: …)` | you already have a request that is `PENDING` or `APPROVED`. After a `REJECTED` or `REVOKED` request you can send a new one |
+| 409 `This roll number is already in use` | the roll number belongs to an approved user or another open (`PENDING` or `APPROVED`) request |
 
 ---
 
@@ -476,7 +476,7 @@ Approves or rejects a request. The professor sets `status_professor` and an admi
 
 | Professor | Admin | `final_status` |
 |---|---|---|
-| either `REJECTED` | | `REJECTED` (can still be changed) |
+| either `REJECTED` | | `REJECTED` (can still be changed until the user sends a new request; then `409 This request was replaced by a newer request from the same user.`) |
 | `APPROVED` | `APPROVED` | `APPROVED`: user added to `students`/`researchers`; request **locked** |
 | otherwise | | `PENDING` |
 
