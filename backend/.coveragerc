@@ -1,0 +1,12 @@
+# Coverage of the application code. Migrations and the D3 experiment harnesses are not application code.
+# From the repository root:  pytest test_cases --cov=backend --cov-config=backend/.coveragerc
+[run]
+branch = False
+omit =
+    */alembic/*
+    */experiments/*
+    */__pycache__/*
+concurrency = thread
+
+[report]
+skip_empty = True

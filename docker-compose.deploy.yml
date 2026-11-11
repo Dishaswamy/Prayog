@@ -1,0 +1,65 @@
+# The deployed platform on one host: PostgreSQL, a one-shot migration, the API and the tick.
+#   cp .env.example .env   (set strong secrets; see Deliverables/D3/10_Deployment_Guide.md)
+#   docker compose -f docker-compose.deploy.yml up -d --build
+# PostgreSQL is not published to the host. Put TLS in front of port 8000.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    build: {context: ., dockerfile: backend/Dockerfile}
+    image: prayog-api
+    command: ["alembic", "upgrade", "head"]
+    environment: &app_env
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set in .env}
+      STEWARD_ENABLED: ${STEWARD_ENABLED:-false}
+      # Each of the four API workers has its own pool: 4 x (15 + 5) stays under PostgreSQL's
+      # max_connections of 100 with room for the tick and an admin session.
+      PRAYOG_DB_POOL_SIZE: ${PRAYOG_DB_POOL_SIZE:-15}
+      PRAYOG_DB_MAX_OVERFLOW: ${PRAYOG_DB_MAX_OVERFLOW:-5}
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck: {disable: true}
+
+  api:
+    image: prayog-api
+    restart: unless-stopped
+    environment: *app_env
+    volumes:
+      - artifacts:/var/lib/prayog/artifacts
+    ports:
+      - "${PRAYOG_API_BIND:-127.0.0.1:8000}:8000"
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  tick:
+    image: prayog-api
+    restart: unless-stopped
+    command: ["python", "-m", "logic.scheduler.run"]
+    environment: *app_env
+    volumes:
+      - artifacts:/var/lib/prayog/artifacts
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck: {disable: true}
+
+volumes:
+  postgres_data:
+  artifacts:

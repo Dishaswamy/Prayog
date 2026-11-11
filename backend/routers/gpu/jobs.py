@@ -6,7 +6,7 @@ from logic.auth.dependencies import get_current_user
 from logic.gpu.scheduler.cancel import cancel_job
 from logic.gpu.scheduler.config import SchedulerConfig, load_config
 from logic.gpu.scheduler.domain import JobState
-from logic.gpu.scheduler.passes import Trigger, run_pass
+from logic.gpu.scheduler.passes import Trigger, trigger_pass
 from logic.gpu.scheduler.requests import JobStatus, edit_job, format_walltime, job_status, job_statuses, quota_status, submit_job
 from models import User
 from schemas.gpu.jobs import CancelOut, JobEdit, JobOut, JobSubmit, MemberUsage, QuotaOut, SubmissionOut
@@ -41,7 +41,7 @@ def submit(
     result = submit_job(db, current_user.id, **body.model_dump(), cfg=cfg)
     job_id = result.job.id
     if result.created:
-        background.add_task(run_pass, pass_sessions, Trigger.SUBMIT, cfg=cfg)        # FR-GPU-121
+        background.add_task(trigger_pass, pass_sessions, Trigger.SUBMIT, cfg=cfg)        # FR-GPU-121
         return SubmissionOut(
             request_id=job_id,
             status=JobState.IN_PROCESS,
@@ -107,7 +107,7 @@ def edit(
     pass_sessions: sessionmaker = Depends(get_pass_sessions),
 ):
     edit_job(db, current_user.id, job_id, **body.model_dump(exclude_unset=True), cfg=cfg)
-    background.add_task(run_pass, pass_sessions, Trigger.EDIT, cfg=cfg)              # FR-GPU-121
+    background.add_task(trigger_pass, pass_sessions, Trigger.EDIT, cfg=cfg)              # FR-GPU-121
     return _job_out(db, current_user.id, job_id, cfg)
 
 
@@ -122,7 +122,7 @@ def cancel(
     pass_sessions: sessionmaker = Depends(get_pass_sessions),
 ):
     result = cancel_job(db, job_id, current_user.id, cfg=cfg)
-    background.add_task(run_pass, pass_sessions, Trigger.CANCEL, cfg=cfg)            # FR-GPU-121
+    background.add_task(trigger_pass, pass_sessions, Trigger.CANCEL, cfg=cfg)            # FR-GPU-121
     return CancelOut.from_result(result)
 
 

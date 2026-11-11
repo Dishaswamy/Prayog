@@ -104,7 +104,7 @@ class RebuildSchedulingPathTests(SchedulerPostgresCase):
     def test_route_reports_reproduces(self):
         snapshot = self._recorded(run_id=7)
         client = self.client_as(self.user)
-        with patch("routers.mlflow.rebuilds.run_pass") as run_pass:
+        with patch("routers.mlflow.rebuilds.trigger_pass") as run_pass:
             response = client.post("/rebuilds", json={"snapshot_hash": snapshot, "gpus": 1, "walltime": "00:30",
                                                       "client_request_id": f"route-{self.suffix}"})
         self.assertEqual(response.status_code, 201, response.text)

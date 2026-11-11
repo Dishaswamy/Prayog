@@ -1,0 +1,172 @@
+{
+  "duplicate_transactions": {
+    "submit_answers": [
+      201,
+      200
+    ],
+    "same_request_id_returned": true,
+    "rows_for_request": 1,
+    "acknowledge_answers": [
+      200,
+      200,
+      200
+    ],
+    "runs_created": 1,
+    "report_answers": [
+      [
+        200,
+        true
+      ],
+      [
+        200,
+        false
+      ],
+      [
+        200,
+        false
+      ]
+    ],
+    "final_state": "COMPLETED",
+    "usage_rows": 1,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "database_outage_short_20s": {
+    "outage_seconds": 20,
+    "job_was_running_before": true,
+    "submit_during_outage": {
+      "status": 503,
+      "retry_after": "5",
+      "body": "{\"detail\":\"The service is temporarily unavailable. Please retry shortly.\",\"code\":\"DATABASE_UNAVAILABLE\"}"
+    },
+    "health_during_outage": 503,
+    "all_answers_during_outage": [
+      503
+    ],
+    "tick_process_survived": true,
+    "seconds_to_healthy_after_restart": 0.3,
+    "retry_with_same_request_id": 201,
+    "rows_for_that_request": 1,
+    "new_job_rows": 1,
+    "running_job_state_after": "RUNNING",
+    "node_state_after": "AVAILABLE",
+    "node_alerts_after": "0",
+    "uncharged_release_reason": "",
+    "agent_errors_during_outage": 1,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "database_outage_long_60s": {
+    "outage_seconds": 60,
+    "job_was_running_before": true,
+    "submit_during_outage": {
+      "status": 503,
+      "retry_after": "5",
+      "body": "{\"detail\":\"The service is temporarily unavailable. Please retry shortly.\",\"code\":\"DATABASE_UNAVAILABLE\"}"
+    },
+    "health_during_outage": 503,
+    "all_answers_during_outage": [
+      503
+    ],
+    "tick_process_survived": true,
+    "seconds_to_healthy_after_restart": 0.3,
+    "retry_with_same_request_id": 201,
+    "rows_for_that_request": 1,
+    "new_job_rows": 1,
+    "running_job_state_after": "RUNNING",
+    "node_state_after": "AVAILABLE",
+    "node_alerts_after": "0",
+    "uncharged_release_reason": "",
+    "agent_errors_during_outage": 5,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "api_outage_long_45s": {
+    "outage_seconds": 45,
+    "heartbeat_timeout_seconds": 30,
+    "during_outage": {
+      "node": "AVAILABLE",
+      "job": "RUNNING"
+    },
+    "seconds_to_healthy": 2.7,
+    "node_state_after": "AVAILABLE",
+    "job_state_after": "RUNNING",
+    "same_allocation_still_live": true,
+    "false_node_down_alerts": 0,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "api_crash": {
+    "states_before_kill": {
+      "7": "RUNNING",
+      "8": "SCHEDULED",
+      "9": "QUEUED"
+    },
+    "states_after_restart": {
+      "7": "RUNNING",
+      "8": "SCHEDULED",
+      "9": "QUEUED"
+    },
+    "unchanged": true,
+    "submit_while_down": [
+      "RemoteProtocolError"
+    ],
+    "seconds_down": 9.2,
+    "seconds_to_healthy": 2.7,
+    "job_count_unchanged": true,
+    "agent_still_sees_its_allocations": 2,
+    "scheduled_job_started_after_restart_seconds": 5.5,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "node_death": {
+    "seconds_until_node_down": 33.9,
+    "bound_seconds_heartbeat_timeout_plus_tick": 40,
+    "job_state_right_after_down": "QUEUED",
+    "submit_time_preserved": true,
+    "charged_usage_rows": 0,
+    "alert_raised": true,
+    "seconds_to_run_on_a_spare_node": 0.9,
+    "now_on_spare_node": true,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "dispatch_timeout": {
+    "seconds_until_allocation_released": 64.1,
+    "ack_timeout_setting_seconds": 60,
+    "job_state_after": "SCHEDULED",
+    "reason": "",
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "tick_crash": {
+    "job_placed_while_tick_down_seconds": 0.2,
+    "tick_running_again": true,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  }
+}

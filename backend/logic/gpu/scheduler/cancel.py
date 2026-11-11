@@ -7,8 +7,8 @@ Cancelling a job (GPU requirements section 7.6; FR-GPU-065 to 069, UC-GPU-09).
                    it becomes CANCELLED when the agent confirms, and only then are the
                    units released (FR-GPU-069)
 
-The owner may cancel their own job; anyone else is refused with insufficient permission,
-and the attempt is logged (FR-GPU-065). A Platform Admin may cancel any user's job, but
+The owner may cancel their own job; anyone else gets the same "not found" as for a job that
+does not exist (NFR-GPU-030), and the refused attempt goes to the audit log (FR-GPU-065, A-18). A Platform Admin may cancel any user's job, but
 only with a reason; the reason, the admin and the time go to the audit log in the same
 transaction as the cancellation (FR-GPU-065, 099; US-ADM-07).
 """
@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import models as orm
-from logic.common.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
+from logic.common.errors import BadRequestError, ConflictError, NotFoundError
 from logic.gpu.scheduler.claim import utc_now
 from logic.gpu.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
 from logic.gpu.scheduler.domain import JobState, ReleaseReason
@@ -49,7 +49,13 @@ def cancel_job(
         job = _lock_job(db, job_id)
         if job.user_id != user_id:
             audit.warning("refused: user %s tried to cancel job %s owned by user %s", user_id, job_id, job.user_id)
-            raise ForbiddenError("You do not have permission to cancel this job.")
+            db.rollback()                         # the refusal goes on record; the job stays as it was (A-18)
+            db.add(orm.AuditEvent(
+                at=now, actor=str(user_id), actor_kind="user", operation="job.cancel",
+                resource_ids=[f"job:{job_id}"], outcome="REFUSED", reason="not the job's owner",
+            ))
+            db.commit()
+            raise NotFoundError("Job not found.")   # the same answer as a missing job (NFR-GPU-030, D3-13)
         job.cancel_reason = "owner"
         result = _cancel_locked(db, job, now, cfg)
     except BaseException:

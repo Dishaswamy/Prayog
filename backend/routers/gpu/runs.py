@@ -12,7 +12,7 @@ from logic.auth.dependencies import active_user, get_current_user
 from logic.mlflow.release import displayed_status
 from logic.gpu.project_versions import list_versions, register_version, set_current
 from logic.gpu.scheduler.config import SchedulerConfig
-from logic.gpu.scheduler.passes import Trigger, run_pass
+from logic.gpu.scheduler.passes import Trigger, trigger_pass
 from logic.gpu.scheduler.requests import format_walltime
 from mlflow_models import ModelRun, RunDatasetFile, StagedFile
 from models import User
@@ -113,7 +113,7 @@ def submit_run(
         dataset=[gpu_runs.DatasetFile(f.path, f.size_bytes, f.blake3) for f in body.dataset],
     )
     if created:
-        background.add_task(run_pass, pass_sessions, Trigger.SUBMIT, cfg=cfg)          # FR-GPU-121
+        background.add_task(trigger_pass, pass_sessions, Trigger.SUBMIT, cfg=cfg)          # FR-GPU-121
     else:
         response.status_code = status.HTTP_200_OK                                       # a retry (FR-GPU-107)
     return run_out(gpu_runs._view(db, run), created)

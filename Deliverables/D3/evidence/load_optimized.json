@@ -1,0 +1,231 @@
+{
+ "label": "optimized",
+ "base": "http://127.0.0.1:8792",
+ "duration_s": 15,
+ "results": [
+  {
+   "scenario": "GET /app (static shell)",
+   "concurrency": 1,
+   "requests": 1307,
+   "seconds": 14.0,
+   "rps": 93.4,
+   "p50_ms": 10.4,
+   "p95_ms": 12.6,
+   "p99_ms": 14.2,
+   "max_ms": 223.8,
+   "mean_ms": 10.7,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 1307
+   }
+  },
+  {
+   "scenario": "GET /app (static shell)",
+   "concurrency": 16,
+   "requests": 2003,
+   "seconds": 14.18,
+   "rps": 141.2,
+   "p50_ms": 111.5,
+   "p95_ms": 131.6,
+   "p99_ms": 163.9,
+   "max_ms": 221.2,
+   "mean_ms": 113.1,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 2003
+   }
+  },
+  {
+   "scenario": "GET /app (static shell)",
+   "concurrency": 64,
+   "requests": 1454,
+   "seconds": 14.36,
+   "rps": 101.3,
+   "p50_ms": 457.6,
+   "p95_ms": 1681.5,
+   "p99_ms": 3510.6,
+   "max_ms": 4865.2,
+   "mean_ms": 624.7,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 1454
+   }
+  },
+  {
+   "scenario": "POST /auth/login",
+   "concurrency": 1,
+   "requests": 69,
+   "seconds": 14.29,
+   "rps": 4.8,
+   "p50_ms": 196.3,
+   "p95_ms": 261.8,
+   "p99_ms": 272.0,
+   "max_ms": 287.1,
+   "mean_ms": 207.1,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 69
+   }
+  },
+  {
+   "scenario": "POST /auth/login",
+   "concurrency": 8,
+   "requests": 83,
+   "seconds": 15.55,
+   "rps": 5.3,
+   "p50_ms": 1488.2,
+   "p95_ms": 1644.2,
+   "p99_ms": 1669.0,
+   "max_ms": 1673.4,
+   "mean_ms": 1432.7,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 83
+   }
+  },
+  {
+   "scenario": "POST /auth/login",
+   "concurrency": 32,
+   "requests": 107,
+   "seconds": 20.13,
+   "rps": 5.3,
+   "p50_ms": 5829.6,
+   "p95_ms": 6382.3,
+   "p99_ms": 6544.7,
+   "max_ms": 6742.1,
+   "mean_ms": 5188.0,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 107
+   }
+  },
+  {
+   "scenario": "GET /jobs/{id}",
+   "concurrency": 1,
+   "requests": 536,
+   "seconds": 14.02,
+   "rps": 38.2,
+   "p50_ms": 24.7,
+   "p95_ms": 28.7,
+   "p99_ms": 62.6,
+   "max_ms": 67.4,
+   "mean_ms": 26.1,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 536
+   }
+  },
+  {
+   "scenario": "GET /jobs/{id}",
+   "concurrency": 16,
+   "requests": 873,
+   "seconds": 14.09,
+   "rps": 62.0,
+   "p50_ms": 254.3,
+   "p95_ms": 320.2,
+   "p99_ms": 360.9,
+   "max_ms": 389.4,
+   "mean_ms": 257.7,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 873
+   }
+  },
+  {
+   "scenario": "GET /jobs/{id}",
+   "concurrency": 64,
+   "requests": 894,
+   "seconds": 14.75,
+   "rps": 60.6,
+   "p50_ms": 1019.0,
+   "p95_ms": 1358.6,
+   "p99_ms": 1965.0,
+   "max_ms": 2171.2,
+   "mean_ms": 1033.5,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 894
+   }
+  },
+  {
+   "scenario": "GET /jobs?limit=100",
+   "concurrency": 1,
+   "requests": 368,
+   "seconds": 14.14,
+   "rps": 26.0,
+   "p50_ms": 37.2,
+   "p95_ms": 44.6,
+   "p99_ms": 50.3,
+   "max_ms": 147.5,
+   "mean_ms": 38.4,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 368
+   }
+  },
+  {
+   "scenario": "GET /jobs?limit=100",
+   "concurrency": 8,
+   "requests": 490,
+   "seconds": 14.1,
+   "rps": 34.7,
+   "p50_ms": 222.7,
+   "p95_ms": 325.4,
+   "p99_ms": 416.4,
+   "max_ms": 491.4,
+   "mean_ms": 229.7,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 490
+   }
+  },
+  {
+   "scenario": "GET /jobs?limit=100",
+   "concurrency": 32,
+   "requests": 499,
+   "seconds": 14.55,
+   "rps": 34.3,
+   "p50_ms": 929.0,
+   "p95_ms": 1153.7,
+   "p99_ms": 1307.3,
+   "max_ms": 1521.9,
+   "mean_ms": 922.0,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 499
+   }
+  },
+  {
+   "scenario": "POST /jobs + cancel",
+   "concurrency": 1,
+   "requests": 62,
+   "seconds": 14.05,
+   "rps": 4.4,
+   "p50_ms": 246.8,
+   "p95_ms": 302.7,
+   "p99_ms": 350.0,
+   "max_ms": 404.0,
+   "mean_ms": 226.5,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 62
+   }
+  },
+  {
+   "scenario": "POST /jobs + cancel",
+   "concurrency": 8,
+   "requests": 61,
+   "seconds": 15.84,
+   "rps": 3.9,
+   "p50_ms": 1769.2,
+   "p95_ms": 3556.4,
+   "p99_ms": 4591.0,
+   "max_ms": 7050.2,
+   "mean_ms": 1953.3,
+   "error_rate": 0.0,
+   "codes": {
+    "200": 61
+   }
+  }
+ ]
+}

@@ -80,7 +80,7 @@ jobs:
           PRAYOG_ARTIFACT_ROOT: ${{ runner.temp }}/prayog-artifacts
           PRAYOG_RUN_PROFESSOR_POSTGRES_TESTS: "1"
           PRAYOG_RUN_SCHEDULER_POSTGRES_TESTS: "1"
-        run: pytest -q test_cases
+        run: pytest -q test_cases --cov=backend --cov-config=backend/.coveragerc --cov-fail-under=80   # course minimum (section 11)
 
       - name: Build isolated worker runtime image
         run: docker build -t prayog-ml-runtime:python3.12 -f backend/worker/Dockerfile backend/worker

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, get_db
 from logic.auth.dependencies import get_current_user
 from logic.mlflow.rebuild import AttemptStatus, get_attempt, list_attempts, start_rebuild
-from logic.gpu.scheduler.passes import Trigger, run_pass
+from logic.gpu.scheduler.passes import Trigger, trigger_pass
 from models import User
 from routers.gpu.jobs import get_scheduler_config
 from schemas.mlflow.rebuild import RebuildOut, RebuildStart
@@ -37,7 +37,7 @@ def start(
     cfg = get_scheduler_config()
     attempt, created = start_rebuild(db, current_user.id, cfg=cfg, **body.model_dump())
     if created:
-        background.add_task(run_pass, SessionLocal, Trigger.SUBMIT, cfg=cfg)
+        background.add_task(trigger_pass, SessionLocal, Trigger.SUBMIT, cfg=cfg)
     else:
         response.status_code = status.HTTP_200_OK          # a retry returns the same attempt
     return _out(attempt)

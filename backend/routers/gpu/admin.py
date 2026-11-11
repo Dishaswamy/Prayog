@@ -14,7 +14,7 @@ from logic.gpu.scheduler.cancel import admin_cancel_job
 from logic.gpu.scheduler.claim import utc_now
 from logic.gpu.scheduler.config import SchedulerConfig
 from logic.gpu.scheduler.overview import pool_picture
-from logic.gpu.scheduler.passes import Trigger, run_pass
+from logic.gpu.scheduler.passes import Trigger, trigger_pass
 from models import User
 from routers.gpu.jobs import get_pass_sessions, get_scheduler_config
 from schemas.gpu.jobs import CancelOut
@@ -134,7 +134,7 @@ def change_sharing(
     pass_sessions: sessionmaker = Depends(get_pass_sessions),
 ):
     node_ops.change_sharing(db, node_id, admin.id, body.reason, body.donation_mode, body.teaching_pool)
-    background.add_task(run_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
+    background.add_task(trigger_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
     return _node_out(db, node_id)
 
 
@@ -159,7 +159,7 @@ def cancel_any_job(
     pass_sessions: sessionmaker = Depends(get_pass_sessions),
 ):
     result = admin_cancel_job(db, job_id, admin.id, body.reason, cfg=cfg)
-    background.add_task(run_pass, pass_sessions, Trigger.CANCEL, cfg=cfg)
+    background.add_task(trigger_pass, pass_sessions, Trigger.CANCEL, cfg=cfg)
     return CancelOut.from_result(result)
 
 
@@ -209,7 +209,7 @@ def book_maintenance(
                                          confirm=body.confirm, cfg=cfg)
     except maintenance.CollisionNotConfirmed as exc:
         return _collision_response(exc)
-    background.add_task(run_pass, pass_sessions, Trigger.MAINTENANCE, cfg=cfg)
+    background.add_task(trigger_pass, pass_sessions, Trigger.MAINTENANCE, cfg=cfg)
     return BookingOut(booking_id=booking_id, unit_ids=sorted(set(body.unit_ids)), starts_at=body.starts_at,
                       ends_at=body.ends_at, reason=body.reason, collisions=_collisions(p))
 
@@ -229,7 +229,7 @@ def move_maintenance(
         p = maintenance.move(db, booking_id, body.starts_at, body.ends_at, confirm=body.confirm, cfg=cfg)
     except maintenance.CollisionNotConfirmed as exc:
         return _collision_response(exc)
-    background.add_task(run_pass, pass_sessions, Trigger.MAINTENANCE, cfg=cfg)
+    background.add_task(trigger_pass, pass_sessions, Trigger.MAINTENANCE, cfg=cfg)
     return PreviewOut(clear_by=p.clear_by, collisions=_collisions(p))
 
 
@@ -244,7 +244,7 @@ def cancel_maintenance(
     pass_sessions: sessionmaker = Depends(get_pass_sessions),
 ):
     maintenance.cancel(db, booking_id)
-    background.add_task(run_pass, pass_sessions, Trigger.MAINTENANCE, cfg=cfg)
+    background.add_task(trigger_pass, pass_sessions, Trigger.MAINTENANCE, cfg=cfg)
 
 
 # ── hardware warnings (US-ADM-05) ───────────────────────────────────────
@@ -284,7 +284,7 @@ def resolve_warning(
     except maintenance.CollisionNotConfirmed as exc:
         return _collision_response(exc)
     if decision.action != hardware.Action.DISMISS:
-        background.add_task(run_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
+        background.add_task(trigger_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
     return DecisionOut(**asdict(decision))
 
 

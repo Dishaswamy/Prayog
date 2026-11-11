@@ -1,0 +1,90 @@
+FFFFFFFFFF....F                                                          [100%]
+================================== FAILURES ===================================
+_ test_a_nul_character_in_a_job_field_is_refused_not_a_server_error[client_request_id] _
+tests\scheduler\test_adversarial.py:91: in test_a_nul_character_in_a_job_field_is_refused_not_a_server_error
+    assert r.status_code == 400, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 400
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+_ test_a_nul_character_in_a_job_field_is_refused_not_a_server_error[project_ref] _
+tests\scheduler\test_adversarial.py:91: in test_a_nul_character_in_a_job_field_is_refused_not_a_server_error
+    assert r.status_code == 400, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 400
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+_ test_a_nul_character_in_a_job_field_is_refused_not_a_server_error[snapshot_hash] _
+tests\scheduler\test_adversarial.py:91: in test_a_nul_character_in_a_job_field_is_refused_not_a_server_error
+    assert r.status_code == 400, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 400
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+_______________ test_a_nul_character_in_a_node_name_is_refused ________________
+tests\scheduler\test_adversarial.py:99: in test_a_nul_character_in_a_node_name_is_refused
+    assert r.status_code == 400, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 400
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+_____ test_an_absurd_unit_count_in_a_heartbeat_is_refused[1000000000000] ______
+tests\scheduler\test_adversarial.py:106: in test_an_absurd_unit_count_in_a_heartbeat_is_refused
+    assert r.status_code == 422, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 422
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  prayog.scheduler:nodes.py:391 node alert UNIT_COUNT_MISMATCH on node 2: Registered 4 units; the agent reports 1000000000000.
+_ test_an_absurd_unit_count_in_a_heartbeat_is_refused[1000000000000000000000000000000] _
+tests\scheduler\test_adversarial.py:106: in test_an_absurd_unit_count_in_a_heartbeat_is_refused
+    assert r.status_code == 422, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 422
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  prayog.scheduler:nodes.py:391 node alert UNIT_COUNT_MISMATCH on node 2: Registered 4 units; the agent reports 1000000000000000000000000000000.
+_ test_an_out_of_range_agent_report_is_refused_and_the_job_keeps_running[report0] _
+tests\scheduler\test_adversarial.py:126: in test_an_out_of_range_agent_report_is_refused_and_the_job_keeps_running
+    assert r.status_code == 422, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 422
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+_ test_an_out_of_range_agent_report_is_refused_and_the_job_keeps_running[report1] _
+tests\scheduler\test_adversarial.py:126: in test_an_out_of_range_agent_report_is_refused_and_the_job_keeps_running
+    assert r.status_code == 422, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 422
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+______________ test_a_signed_token_without_an_expiry_is_refused _______________
+tests\scheduler\test_adversarial.py:135: in test_a_signed_token_without_an_expiry_is_refused
+    assert world.client.get("/jobs", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+E   AssertionError: assert 200 == 401
+E    +  where 200 = <Response [200 OK]>.status_code
+E    +    where <Response [200 OK]> = get('/jobs', headers={'Authorization': 'Bearer <test token>'})
+E    +      where get = <starlette.testclient.TestClient object at 0x0000024F619CCC50>.get
+E    +        where <starlette.testclient.TestClient object at 0x0000024F619CCC50> = namespace(client=<starlette.testclient.TestClient object at 0x0000024F619CCC50>, labs={'NLP': 1, 'ROBOTICS': 2, 'VISIO...TRAL': 4, 'COURSE': 5}, seed=<tests.scheduler.db_factories.Seed object at 0x0000024F619CC650>, admin=1, alice=3, bob=4).client
+___ test_naming_someone_elses_snapshot_on_a_job_does_not_let_you_rebuild_it ___
+tests\scheduler\test_adversarial.py:165: in test_naming_someone_elses_snapshot_on_a_job_does_not_let_you_rebuild_it
+    assert r.status_code == 404, r.text
+E   AssertionError: {"attempt_id":1,"snapshot_hash":"06d42c7c-0418-42fa-af8d-d7783179c5bc","job_id":2,"job_state":"QUEUED","reproduces":"reproduces:job-1","state":"REBUILD_INITIATED","created_at":"2026-11-06T12:23:04.946009"}
+E   assert 201 == 404
+E    +  where 201 = <Response [201 Created]>.status_code
+_____ test_a_submission_during_a_database_outage_gets_a_retryable_answer ______
+tests\scheduler\test_adversarial.py:226: in test_a_submission_during_a_database_outage_gets_a_retryable_answer
+    assert r.status_code == 503, r.text
+E   AssertionError: Internal Server Error
+E   assert 500 == 503
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+=========================== short test summary info ===========================
+FAILED tests/scheduler/test_adversarial.py::test_a_nul_character_in_a_job_field_is_refused_not_a_server_error[client_request_id]
+FAILED tests/scheduler/test_adversarial.py::test_a_nul_character_in_a_job_field_is_refused_not_a_server_error[project_ref]
+FAILED tests/scheduler/test_adversarial.py::test_a_nul_character_in_a_job_field_is_refused_not_a_server_error[snapshot_hash]
+FAILED tests/scheduler/test_adversarial.py::test_a_nul_character_in_a_node_name_is_refused
+FAILED tests/scheduler/test_adversarial.py::test_an_absurd_unit_count_in_a_heartbeat_is_refused[1000000000000]
+FAILED tests/scheduler/test_adversarial.py::test_an_absurd_unit_count_in_a_heartbeat_is_refused[1000000000000000000000000000000]
+FAILED tests/scheduler/test_adversarial.py::test_an_out_of_range_agent_report_is_refused_and_the_job_keeps_running[report0]
+FAILED tests/scheduler/test_adversarial.py::test_an_out_of_range_agent_report_is_refused_and_the_job_keeps_running[report1]
+FAILED tests/scheduler/test_adversarial.py::test_a_signed_token_without_an_expiry_is_refused
+FAILED tests/scheduler/test_adversarial.py::test_naming_someone_elses_snapshot_on_a_job_does_not_let_you_rebuild_it
+FAILED tests/scheduler/test_adversarial.py::test_a_submission_during_a_database_outage_gets_a_retryable_answer
+11 failed, 4 passed in 9.54s
+E   assert 90 == 3
+E   assert [2, 1] == [1, 2]
+3 failed, 15 deselected in 0.60s

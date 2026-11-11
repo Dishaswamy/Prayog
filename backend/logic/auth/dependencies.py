@@ -22,6 +22,7 @@ def get_current_user(
             credentials.credentials,
             SECRET_KEY,
             algorithms=[ALGORITHM],
+            options={"require": ["exp", "sub"]},   # a token that never expires is not one we issued
         )
         user_id = int(payload["sub"])
     except jwt.ExpiredSignatureError:

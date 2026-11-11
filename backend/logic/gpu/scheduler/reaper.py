@@ -32,6 +32,7 @@ from logic.gpu.scheduler.claim import utc_now
 from logic.gpu.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
 from logic.gpu.scheduler.domain import AlertKind, DrainMode, JobState, NodeState, ReleaseReason
 from logic.gpu.scheduler.lifecycle import release, request_stop
+from logic.gpu.scheduler.liveness import can_judge_silence
 from logic.gpu.scheduler.nodes import cancel_unsatisfiable_jobs, raise_alert, transition
 
 log = logging.getLogger("prayog.scheduler")
@@ -55,8 +56,12 @@ class ReapResult:
 def reap(session: Session, now: datetime | None = None, cfg: SchedulerConfig = DEFAULT_CONFIG) -> ReapResult:
     now = now or utc_now()
     result = ReapResult()
-    _heartbeats(session, now, cfg, result)
-    _dispatch_timeouts(session, now, cfg, result)
+    # Silence means something only if the platform could hear it (D3-08).
+    if can_judge_silence(session, now, cfg):
+        _heartbeats(session, now, cfg, result)
+        _dispatch_timeouts(session, now, cfg, result)
+    else:
+        log.info("reaper: the platform was not listening; heartbeats and dispatch timeouts are not judged yet")
     _walltime_backstop(session, now, cfg, result)
     _maintenance_starts(session, now, cfg, result)
     _hard_drains(session, now, cfg, result)

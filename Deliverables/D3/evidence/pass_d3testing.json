@@ -1,0 +1,63 @@
+{
+  "40 queued, 5 nodes x 4 units": {
+    "single_pass_ms": {
+      "n": 5,
+      "mean": 204.42,
+      "p50": 200.15,
+      "p95": 242.34,
+      "p99": 242.34,
+      "max": 242.34
+    },
+    "statements_per_pass": 158,
+    "jobs_placed": 16,
+    "four_concurrent_passes_ms": {
+      "n": 20,
+      "mean": 877.23,
+      "p50": 856.04,
+      "p95": 1103.1,
+      "p99": 1210.42,
+      "max": 1210.42
+    }
+  },
+  "200 queued, 10 nodes x 4 units": {
+    "single_pass_ms": {
+      "n": 5,
+      "mean": 508.61,
+      "p50": 513.0,
+      "p95": 576.62,
+      "p99": 576.62,
+      "max": 576.62
+    },
+    "statements_per_pass": 416,
+    "jobs_placed": 30,
+    "four_concurrent_passes_ms": {
+      "n": 20,
+      "mean": 11992.49,
+      "p50": 11801.16,
+      "p95": 13573.79,
+      "p99": 13853.35,
+      "max": 13853.35
+    }
+  },
+  "400 queued, 20 nodes x 4 units": {
+    "single_pass_ms": {
+      "n": 5,
+      "mean": 945.12,
+      "p50": 939.01,
+      "p95": 964.99,
+      "p99": 964.99,
+      "max": 964.99
+    },
+    "statements_per_pass": 826,
+    "jobs_placed": 60,
+    "four_concurrent_passes_ms": {
+      "n": 20,
+      "mean": 49087.36,
+      "p50": 47937.37,
+      "p95": 54852.61,
+      "p99": 55053.7,
+      "max": 55053.7
+    }
+  },
+  "invariants_at_end": {}
+}
