@@ -105,14 +105,19 @@ Below, `V` is the letter of the version uploaded after the final deploy, and `PR
 
 *1:30, 2:00. Student CLI and web, then admin.*
 
-1. A run that crashes, whose log ends in a CUDA illegal-memory-access error:
+1. A run that runs out of GPU memory. `fake_fail` also takes `hardware`, `import`, `data` or `bug`, and each one
+   gets a different diagnosis.
    ```powershell
-   prayog run PROJECT --walltime 00:05 --hp fake_seconds=20 --hp fake_fail=true --hp job=crash
-   prayog project status PROJECT          # FAILED, exit code 1, the end of its log
+   prayog run PROJECT --walltime 00:05 --hp fake_seconds=20 --hp fake_fail=oom --hp job=crash
+   prayog project status PROJECT          # FAILED, exit code 1, "CUDA out of memory" at the end of its log
    ```
 2. **Student web view:** the Steward's diagnosis of that run (S1). It gives the likely cause, cites the evidence
    and makes a proposal; the student approves or rejects it. The Steward proposes, a person decides.
-3. **Admin window:** Steward hardware warnings (S2). Investigate, then freeze, drain or dismiss.
+3. **Admin window:** Steward hardware warnings (S2). The server raises one only when runs of **two different
+   users** fail on the same GPU unit within 24 hours. Prepare it beforehand: from two accounts, one after the other
+   on an idle cluster, run a 1-GPU job with `--hp fake_fail=hardware`. Best fit puts both on the smallest free node,
+   `fake-rtx-2x`, normally unit 0; terminal 1 shows where each started. Then investigate the warning and freeze,
+   drain or dismiss.
 4. **Optional:** a failed rebuild gives a single-use link to a chat about it (S3); a successful one gives
    optimisation advice (S4).
 

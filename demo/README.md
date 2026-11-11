@@ -74,7 +74,11 @@ Pass these as hyperparameters to `prayog run`:
 |---|---|
 | `fake_seconds=N` | how long it "trains" (default 60, or `start --run-seconds`) |
 | `fake_steps=N` | how many steps it logs and checkpoints (default 10) |
-| `fake_fail=true` | crashes about 60% of the way through with a fake CUDA error and exit code 1 (`fake_fail=N` for exit code N) |
+| `fake_fail=KIND` | crashes with the log a real failure of that kind leaves, which is what the Steward diagnoses: `bug` (or `true`: a CUDA illegal memory access), `oom` (CUDA out of memory), `hardware` (an NVIDIA Xid "GPU has fallen off the bus"), `import` (a missing module) or `data` (a missing dataset file). `bug`, `oom` and `hardware` fail 60% of the way through, `import` and `data` at start; all exit with code 1 (`fake_fail=N` for exit code N) |
+
+The Steward's diagnosis (S1) of each kind differs, even with the offline `heuristic` reasoning: out of memory,
+library version, missing data, hardware or code bug. An admin hardware warning (S2) needs failures on the same
+GPU unit from **two different users** within 24 hours, so use `fake_fail=hardware` from two accounts.
 
 Results are deterministic: the same code version and hyperparameters always give the same metrics and
 byte-identical checkpoints, so a rebuild is reported as `REPRODUCED`. Plain jobs (`POST /jobs`, as the

@@ -15,7 +15,13 @@ are ordinary nodes.
 Each run can steer its fake job with hyperparameters (prayog run ... --hp KEY=VALUE):
     fake_seconds=N   how long it "trains" (default --run-seconds, 60)
     fake_steps=N     how many steps it logs (default 10)
-    fake_fail=true   exit with code 1 about 60% of the way through (or fake_fail=N for exit code N)
+    fake_fail=KIND   crash, with the log a real failure of that kind would leave (what the Steward diagnoses):
+                       true or bug  a CUDA illegal memory access in the training code, 60% of the way through
+                       oom          CUDA out of memory, 60% of the way through
+                       hardware     an NVIDIA Xid "GPU has fallen off the bus" fault, 60% of the way through
+                       import       a missing Python module, at start
+                       data         a missing dataset file, at start
+                     A number N crashes like `bug` with exit code N.
 
 Results are deterministic: the same code, entrypoint and hyperparameters always give the same
 metrics and byte-identical checkpoints, so `prayog project compare` reports a rebuild as REPRODUCED.
@@ -43,6 +49,38 @@ DEFAULT_BACKEND = HERE.parent / "backend"       # this repo's backend
 STATE = HERE / "state"
 
 log = logging.getLogger("fake-gpus")
+
+# fake_fail kind -> (exit code, when it fails as a share of the steps, the end of the log)
+FAILURES = {
+    "bug": (1, 0.6, 'Traceback (most recent call last):\n  File "main.py", line 42, in <module>\n'
+                    "    loss = model(batch).loss\n"
+                    "RuntimeError: CUDA error: an illegal memory access was encountered"),
+    "oom": (1, 0.6, 'Traceback (most recent call last):\n  File "main.py", line 42, in <module>\n'
+                    "    loss = model(batch).loss\n"
+                    "torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 GiB (GPU 0; "
+                    "15.78 GiB total capacity; 13.21 GiB already allocated; 1.12 GiB free)"),
+    "hardware": (1, 0.6, "NVRM: Xid (PCI:0000:3b:00): 79, pid=4121, GPU has fallen off the bus.\n"
+                         'Traceback (most recent call last):\n  File "main.py", line 42, in <module>\n'
+                         "RuntimeError: CUDA error: unspecified launch failure"),
+    "import": (1, 0.0, 'Traceback (most recent call last):\n  File "main.py", line 3, in <module>\n'
+                       "    import timm\nModuleNotFoundError: No module named 'timm'"),
+    "data": (1, 0.0, 'Traceback (most recent call last):\n  File "main.py", line 17, in <module>\n'
+                     "FileNotFoundError: [Errno 2] No such file or directory: '/data/train/images'"),
+}
+
+
+def failure_of(value) -> tuple[str, int] | None:
+    """The fake_fail hyperparameter as (kind, exit code), or None for a run that succeeds."""
+    if value is None or value is False:
+        return None
+    if value is True:
+        return "bug", FAILURES["bug"][0]
+    if isinstance(value, int):
+        return ("bug", value) if value else None
+    kind = str(value).strip().lower()
+    if kind not in FAILURES:
+        raise RuntimeError(f"fake_fail must be true, a number or one of {', '.join(FAILURES)}, not {value!r}")
+    return kind, FAILURES[kind][0]
 
 
 def load_agent_module(backend: Path):
@@ -73,15 +111,15 @@ class FakeRunner:
 
     def start(self, spec) -> dict:
         hp = json.loads(spec.hyperparameters_json)
-        fail = hp.get("fake_fail", False)
-        exit_code = 1 if fail is True else (int(fail) if isinstance(fail, int) and not isinstance(fail, bool) else 0)
+        failure = failure_of(hp.get("fake_fail"))
         steps = max(1, int(hp.get("fake_steps", self.steps)))
         seed = hashlib.sha256(f"{self._code_digest(spec.code_dir)}|{spec.entrypoint}|{spec.hyperparameters_json}"
                               .encode()).hexdigest()
         handle = {
             "kind": "fake", "name": spec.name, "label": spec.label, "started": time.time(),
             "seconds": max(1.0, float(hp.get("fake_seconds", self.seconds))), "steps": steps,
-            "exit_code": exit_code, "fail_at": math.ceil(steps * 0.6) if exit_code else None,
+            "failure": failure[0] if failure else None, "exit_code": failure[1] if failure else 0,
+            "fail_at": math.ceil(steps * FAILURES[failure[0]][1]) if failure else None,
             "seed": seed, "output": str(spec.output_dir), "log": str(spec.log_path), "done": 0, "best": None,
             "gpus": list(spec.gpu_indexes),
         }
@@ -125,8 +163,7 @@ class FakeRunner:
             handle["done"] += 1
             self._write_step(handle, handle["done"])
         if handle["fail_at"] is not None and handle["done"] >= handle["fail_at"]:
-            self._log(handle, "Traceback (most recent call last):\n  File \"main.py\", line 42, in <module>\n"
-                              "RuntimeError: CUDA error: an illegal memory access was encountered (fake failure)")
+            self._log(handle, FAILURES[handle.get("failure") or "bug"][2])
             return handle["exit_code"]
         if elapsed >= handle["seconds"]:
             self._log(handle, f"[fake-gpu] finished: best loss {handle['best']}")
