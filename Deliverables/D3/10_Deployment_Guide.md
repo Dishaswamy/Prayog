@@ -10,7 +10,7 @@ Prayog is five kinds of process around one PostgreSQL 16 database. Nothing else 
 | Process | Command (from `backend/`) | Instances | State it holds | If it stops |
 |---|---|---|---|---|
 | **API** (FastAPI + web app) | `uvicorn main:app --host 127.0.0.1 --port 8000 --workers 4` | 1 VM, *N* workers | none (stateless) | users and node agents get connection errors; nothing is lost (failure drill F2) |
-| **Scheduler tick** (reaper + safety-net pass) | `python -m logic.scheduler.run` | **exactly 1** | none | jobs are still placed by event-driven passes, but **dead nodes are not detected** until it restarts (drill F4) |
+| **Scheduler tick** (reaper + safety-net pass) | `python -m logic.gpu.scheduler.run` | **exactly 1** | none | jobs are still placed by event-driven passes, but **dead nodes are not detected** until it restarts (drill F4) |
 | **Steward worker** | `python -m integration.steward_worker` | 1 | none | diagnoses wait in the outbox and are processed when it returns |
 | **Steward Runtime** (model adapter) | `uvicorn steward_runtime.app:app --port 8100` | 1 | none; no DB credentials (ADR-S01) | the worker degrades to "no diagnosis available" (PRAYOG-102) |
 | **Node agent** | `python -m node_agent.agent --server https://… --units 8 --state-dir /var/lib/prayog-agent --runner docker --image prayog-ml-runtime:python3.12` | 1 per GPU node | its state file (running allocations, credential) | the reaper marks the node DOWN after `heartbeat_timeout` (30 s) and requeues its jobs (drill F1) |
