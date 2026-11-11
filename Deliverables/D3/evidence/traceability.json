@@ -1,0 +1,1931 @@
+[
+ {
+  "key": "PRAYOG-17",
+  "summary": "Create GitHub repository, branch protection and PR template",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-18",
+  "summary": "Configure Jira\u2013GitHub integration and smart commits",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-19",
+  "summary": "Database schema and migrations for the core data model",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-20",
+  "summary": "Configuration module with startup invariant validation",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [
+   "NFR-GPU-053"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9fe8fa5"
+  ],
+  "src": [
+   "backend/logic/scheduler/config.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-21",
+  "summary": "Structured logging and correlation IDs",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [
+   "NFR-GPU-049"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-22",
+  "summary": "Developer environment: Docker Compose with simulated node agents",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [
+   "NFR-GPU-033"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [
+   "backend/node_agent/__init__.py",
+   "backend/node_agent/simulated.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-23",
+  "summary": "Metrics endpoint",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [
+   "NFR-GPU-051"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9fe8fa5"
+  ],
+  "src": [
+   "backend/logic/scheduler/metrics.py",
+   "backend/logic/scheduler/passes.py",
+   "backend/models.py",
+   "backend/routers/scheduler/metrics.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-24",
+  "summary": "Cloud deployment on the free tier, with a runbook",
+  "type": "Task",
+  "epic": "Platform foundations",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-25",
+  "summary": "Register a Prayog account with institute email and password",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-01"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-26",
+  "summary": "Submit an enrolment request with purpose, Professor and period",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-05"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-27",
+  "summary": "See the status of my enrolment request",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-28",
+  "summary": "Professor reviews and decides enrolment requests naming them",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-10"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-29",
+  "summary": "Platform Admin approves or rejects enrolment",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-14"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-30",
+  "summary": "Authenticate the CLI with prayog login",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-20"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [
+   "cli/src/prayog/cli.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-31",
+  "summary": "Record each approved user's lab and account type",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-GPU-139"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-32",
+  "summary": "Enrol a node agent with a one-time token and node-scoped credential",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-GPU-110"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [
+   "backend/logic/scheduler/domain.py",
+   "backend/logic/scheduler/nodes.py",
+   "backend/models.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-33",
+  "summary": "Authorize every protected operation server-side",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-28",
+   "NFR-GPU-029"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-34",
+  "summary": "Log out and have the server session end",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-47"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-35",
+  "summary": "Time-bounded access that expires on its approved end date",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-36"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-36",
+  "summary": "Distinguish expired authorization from wrong credentials",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "NFR-AUTH-09"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-37",
+  "summary": "Retrieval survives expiry; commitment does not",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-GPU-145"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-38",
+  "summary": "Request an access extension",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-42"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-39",
+  "summary": "Revoke a user's authorization",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-39"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-40",
+  "summary": "Prevent one person holding admin and submitting rights",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-GPU-173"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-41",
+  "summary": "Deactivate a departed user's account",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUTH-66"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-42",
+  "summary": "Review authentication and authorization audit records",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [
+   "FR-AUD-01"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [
+   "backend/logic/auth.py"
+  ],
+  "tests": [
+   "backend/tests/test_review_fixes.py"
+  ],
+  "passed": 14,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-43",
+  "summary": "Professor keeps continuing institutional access",
+  "type": "Story",
+  "epic": "Identity and Access",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-44",
+  "summary": "Link a local project folder to Prayog",
+  "type": "Story",
+  "epic": "Project and Workspace",
+  "reqs": [
+   "FR-GPU-001"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-45",
+  "summary": "Capture an immutable, content-addressed project snapshot",
+  "type": "Story",
+  "epic": "Project and Workspace",
+  "reqs": [
+   "FR-GPU-006"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [
+   "bb3692b"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-46",
+  "summary": "Submit a GPU execution request for a linked project",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-009"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "82f1ca7",
+   "b3d9c46"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-47",
+  "summary": "Declare GPU count and walltime, and validate them",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-010"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "b3d9c46"
+  ],
+  "src": [
+   "backend/logic/scheduler/requests.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-48",
+  "summary": "Answer the submission on the spot",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-017"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "b3d9c46"
+  ],
+  "src": [
+   "backend/logic/scheduler/requests.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-49",
+  "summary": "Eligibility evaluator",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-030"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "30b4035",
+   "ba6a1b3"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-50",
+  "summary": "Priority class resolver P0\u2013P3",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-036"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "af13dd1"
+  ],
+  "src": [
+   "backend/logic/scheduler/classes.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-51",
+  "summary": "Fair-share scoring policy with deterministic ordering",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-043"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9739a3a"
+  ],
+  "src": [
+   "backend/logic/scheduler/passes.py"
+  ],
+  "tests": [
+   "backend/tests/reference_pass.py"
+  ],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-52",
+  "summary": "Scheduling pass orchestrator and its triggers",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-121"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "93580e7"
+  ],
+  "src": [
+   "backend/integration/steward_bridge.py",
+   "backend/logic/scheduler/passes.py",
+   "backend/logic/scheduler/run.py",
+   "backend/routers/mlflow_runs.py",
+   "backend/routers/scheduler/agent.py",
+   "backend/routers/scheduler/jobs.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-53",
+  "summary": "Atomic claim transaction with the owner-claim guard",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "NFR-GPU-001",
+   "FR-GPU-051"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "a80afd5",
+   "d522d4c",
+   "0810186",
+   "b3f8aa4"
+  ],
+  "src": [
+   "backend/logic/scheduler/claim.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-54",
+  "summary": "Show why a queued job is waiting, and until when",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-021"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9fe8fa5"
+  ],
+  "src": [
+   "backend/logic/scheduler/eligibility.py",
+   "backend/logic/scheduler/requests.py",
+   "backend/schemas/scheduler/jobs.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-55",
+  "summary": "Refuse a submission that would exceed the group's GPU-hour cap",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-104"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9fe8fa5"
+  ],
+  "src": [
+   "backend/logic/scheduler/requests.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-56",
+  "summary": "Show the group's remaining cap and per-member consumption",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-178"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9fe8fa5"
+  ],
+  "src": [
+   "backend/logic/scheduler/requests.py",
+   "backend/schemas/scheduler/jobs.py",
+   "backend/web/research.js"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-57",
+  "summary": "Edit a queued job without farming queue age",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-070"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9fe8fa5"
+  ],
+  "src": [
+   "backend/logic/scheduler/requests.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-58",
+  "summary": "Resubmit a past run with changed resources",
+  "type": "Story",
+  "epic": "GPU Scheduling Core",
+  "reqs": [
+   "FR-GPU-133"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-59",
+  "summary": "Dispatch an allocation idempotently to the node agent",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "NFR-GPU-019",
+   "FR-GPU-058"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "a10356b",
+   "5d21052",
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/dispatch.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-60",
+  "summary": "Node agent materialises the workspace and executes the run",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-062"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-61",
+  "summary": "Enforce walltime and stop safely",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-073"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/reaper.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-62",
+  "summary": "Check what my job is doing right now",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-018"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-63",
+  "summary": "Cancel a job in any state",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-065"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/cancel.py",
+   "backend/models.py"
+  ],
+  "tests": [
+   "backend/tests/test_admin_cancel_job.py"
+  ],
+  "passed": 6,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-64",
+  "summary": "Requeue a job interrupted by hardware without losing its place",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-077"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [
+   "backend/logic/scheduler/domain.py",
+   "backend/logic/scheduler/nodes.py",
+   "backend/logic/scheduler/reaper.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-65",
+  "summary": "Account GPU-hours actually consumed",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-097"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "b52273d",
+   "9fe8fa5"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-66",
+  "summary": "Return the outcome and logs of every terminal run",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-091"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-67",
+  "summary": "Notify the owner of maintenance that will stop their job",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-109"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [
+   "backend/logic/scheduler/requests.py",
+   "backend/schemas/scheduler/jobs.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-68",
+  "summary": "Tell the owner when no machine can ever run their queued job",
+  "type": "Story",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-117"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [
+   "backend/logic/scheduler/nodes.py",
+   "backend/logic/scheduler/reaper.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-69",
+  "summary": "Notification records surfaced by the CLI",
+  "type": "Task",
+  "epic": "Execution and Job Lifecycle",
+  "reqs": [
+   "FR-GPU-176"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [
+   "backend/logic/scheduler/maintenance.py",
+   "backend/logic/scheduler/nodes.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-70",
+  "summary": "Capture run outputs and store them server-side",
+  "type": "Story",
+  "epic": "Results and Synchronization",
+  "reqs": [
+   "NFR-GPU-022",
+   "FR-GPU-086"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-71",
+  "summary": "Synchronize results into the project folder automatically",
+  "type": "Story",
+  "epic": "Results and Synchronization",
+  "reqs": [
+   "FR-GPU-091"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [
+   "f81a75d"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-72",
+  "summary": "Report exactly which files block a synchronization",
+  "type": "Story",
+  "epic": "Results and Synchronization",
+  "reqs": [
+   "FR-GPU-177"
+  ],
+  "status": "Done",
+  "assignee": "Aditi",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-73",
+  "summary": "Register GPU nodes and their units",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-025"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/nodes.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-74",
+  "summary": "Alert when a node fails to come online or stops reporting",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-174"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/domain.py",
+   "backend/logic/scheduler/nodes.py",
+   "backend/models.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-75",
+  "summary": "Schedule, narrow or cancel maintenance windows",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-081"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/maintenance.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-76",
+  "summary": "Take a node out of service for repair",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-080"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/config.py",
+   "backend/logic/scheduler/domain.py",
+   "backend/logic/scheduler/nodes.py",
+   "backend/logic/scheduler/reaper.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-77",
+  "summary": "Return a repaired node to service",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-169"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/nodes.py",
+   "backend/models.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-78",
+  "summary": "Decommission a node permanently",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-112"
+  ],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "fe073a0"
+  ],
+  "src": [
+   "backend/logic/scheduler/nodes.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-79",
+  "summary": "Change a node's donation mode and teaching-pool flag",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-111"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "280efa6"
+  ],
+  "src": [
+   "backend/logic/scheduler/nodes.py"
+  ],
+  "tests": [
+   "backend/tests/test_node_sharing.py"
+  ],
+  "passed": 5,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-80",
+  "summary": "Read-only operational picture of the pool",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-156"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "6a69856"
+  ],
+  "src": [
+   "backend/logic/scheduler/overview.py",
+   "backend/web/pool.js"
+  ],
+  "tests": [
+   "backend/tests/test_pool_picture.py"
+  ],
+  "passed": 4,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-81",
+  "summary": "Cancel any user's job with a recorded reason",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-065"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "fdac771"
+  ],
+  "src": [
+   "backend/logic/scheduler/cancel.py",
+   "backend/models.py"
+  ],
+  "tests": [
+   "backend/tests/test_admin_cancel_job.py"
+  ],
+  "passed": 6,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-82",
+  "summary": "Investigate a suspected hardware fault",
+  "type": "Story",
+  "epic": "Node Operations and Maintenance",
+  "reqs": [
+   "FR-GPU-158"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "b3989d4",
+   "ef2ba50"
+  ],
+  "src": [
+   "backend/integration/hardware_investigation.py",
+   "backend/logic/scheduler/config.py",
+   "steward/src/prayog_steward/api/app.py",
+   "steward/src/prayog_steward/hardware.py",
+   "steward/src/prayog_steward/ports.py"
+  ],
+  "tests": [
+   "backend/tests/test_hardware_investigation.py"
+  ],
+  "passed": 9,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-83",
+  "summary": "Capture metrics continuously and seal snapshots automatically",
+  "type": "Story",
+  "epic": "Experiment Ledger",
+  "reqs": [
+   "FR-ML-001"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "c016065"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-84",
+  "summary": "Outbox relay and idempotent ledger consumer",
+  "type": "Story",
+  "epic": "Experiment Ledger",
+  "reqs": [
+   "FR-ML-001"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "02ea411"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-85",
+  "summary": "Snapshot state machine with INCOMPLETE",
+  "type": "Story",
+  "epic": "Experiment Ledger",
+  "reqs": [
+   "FR-ML-007"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "d2414e5",
+   "473fe07",
+   "056d578"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-86",
+  "summary": "Professor reads the ledger of students naming them",
+  "type": "Story",
+  "epic": "Experiment Ledger",
+  "reqs": [
+   "FR-ML-004"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [],
+  "src": [
+   "backend/logic/mlflow_professor_ledger.py",
+   "backend/web/professor.js"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-87",
+  "summary": "Admin sees volume and availability, never content",
+  "type": "Story",
+  "epic": "Experiment Ledger",
+  "reqs": [
+   "FR-ML-005"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "e39fd45",
+   "38fef47",
+   "d437c43",
+   "6147302"
+  ],
+  "src": [
+   "steward/src/prayog_steward/api/app.py",
+   "steward/src/prayog_steward/config.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-88",
+  "summary": "Hand over project IP to the supervising Professor",
+  "type": "Story",
+  "epic": "Experiment Ledger",
+  "reqs": [
+   "FR-ML-008"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "40f474d"
+  ],
+  "src": [
+   "backend/web/research.js"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-89",
+  "summary": "Trigger an environment rebuild from a Snapshot ID",
+  "type": "Story",
+  "epic": "Verified Reproduction",
+  "reqs": [
+   "FR-ML-003"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "91f034e",
+   "ef11447"
+  ],
+  "src": [
+   "backend/alembic/versions/c3a8d5e1f7b2_steward_integration.py",
+   "backend/logic/rebuild.py",
+   "backend/models.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-90",
+  "summary": "Rebuild attempt state machine and the pre-init boundary",
+  "type": "Story",
+  "epic": "Verified Reproduction",
+  "reqs": [
+   "FR-ML-003",
+   "FR-STW-001"
+  ],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "a62c05e",
+   "29ff6f0"
+  ],
+  "src": [
+   "backend/alembic/versions/c3a8d5e1f7b2_steward_integration.py",
+   "backend/logic/gpu_runs.py",
+   "backend/logic/rebuild.py",
+   "backend/models.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-91",
+  "summary": "Submit-by-snapshot through the ordinary scheduling path",
+  "type": "Story",
+  "epic": "Verified Reproduction",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "17f5e9e",
+   "4e4768c",
+   "ade3089"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-92",
+  "summary": "Metric comparator with per-metric tolerances",
+  "type": "Story",
+  "epic": "Verified Reproduction",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "Nideesh",
+  "commits": [
+   "9eb3226",
+   "b38fb53"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-93",
+  "summary": "RAG pipeline with an authorization-bound context window",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "NFR-SEC-002",
+   "FR-STW-015"
+  ],
+  "status": "Done",
+  "assignee": "Disha Swamy",
+  "commits": [
+   "9e4b9a9",
+   "08faeec"
+  ],
+  "src": [
+   "backend/scripts/setup_steward.py",
+   "steward/src/prayog_steward/db/engine.py",
+   "steward/src/prayog_steward/db/migrations/versions/0001_initial_schema.py",
+   "steward/src/prayog_steward/ports.py",
+   "steward/src/prayog_steward/sessions/context.py"
+  ],
+  "tests": [
+   "steward/tests/integration/test_api.py"
+  ],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-94",
+  "summary": "Diagnostic link when a rebuild fails",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "NFR-SEC-003",
+   "FR-STW-003"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "steward/src/prayog_steward/cli.py",
+   "steward/src/prayog_steward/sessions/links.py",
+   "steward/src/steward_contracts/s3.py"
+  ],
+  "tests": [
+   "steward/tests/unit/test_components.py"
+  ],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-95",
+  "summary": "Run-failure diagnosis with cited evidence",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "FR-GPU-146"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "backend/alembic/versions/c3a8d5e1f7b2_steward_integration.py",
+   "backend/logic/scheduler/lifecycle.py",
+   "backend/models.py",
+   "backend/schemas/scheduler/agent.py",
+   "steward/src/prayog_steward/hooks.py",
+   "steward/src/steward_contracts/s1.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-96",
+  "summary": "Two-stage sanitiser for ingestion and outbound search",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "NFR-SEC-006",
+   "FR-STW-011"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "steward/src/prayog_steward/ports.py",
+   "steward/src/prayog_steward/rag/sanitiser.py",
+   "steward/src/prayog_steward/search.py",
+   "steward/src/prayog_steward/sessions/context.py",
+   "steward/src/steward_contracts/base.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-97",
+  "summary": "Output guard: no fabrication, no command execution",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "FR-GPU-151",
+   "FR-STW-013"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "steward/src/prayog_steward/__init__.py",
+   "steward/src/prayog_steward/api/app.py",
+   "steward/src/prayog_steward/coordinator/service.py",
+   "steward/src/prayog_steward/sessions/s3.py",
+   "steward/src/steward_contracts/s3.py"
+  ],
+  "tests": [
+   "steward/tests/unit/test_validation.py"
+  ],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-98",
+  "summary": "Approve or reject a Steward-proposed corrected job",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "FR-GPU-149"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "steward/src/prayog_steward/coordinator/proposals.py",
+   "steward/src/prayog_steward/owner.py",
+   "steward/src/steward_contracts/s1.py"
+  ],
+  "tests": [
+   "steward/tests/integration/test_s1_flow.py"
+  ],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-99",
+  "summary": "Cross-user fault correlation and hardware warnings",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "FR-GPU-159"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "steward/src/steward_contracts/s2.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-100",
+  "summary": "Optimisation advisory after a successful rebuild",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "FR-STW-006"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "backend/logic/gpu_runs.py",
+   "steward/src/prayog_steward/cli.py",
+   "steward/src/prayog_steward/sessions/s4.py",
+   "steward/src/steward_contracts/s4.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-101",
+  "summary": "Prove per-user isolation of ingestion, retrieval and caching",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "NFR-SEC-001"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "steward/src/prayog_steward/db/migrations/versions/0001_initial_schema.py"
+  ],
+  "tests": [
+   "steward/tests/unit/test_migration_sql.py"
+  ],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-102",
+  "summary": "Degrade safely when the agent is unavailable",
+  "type": "Story",
+  "epic": "Steward \u2014 Agentic AI",
+  "reqs": [
+   "NFR-AVAIL-001",
+   "NFR-GPU-055",
+   "FR-STW-010"
+  ],
+  "status": "Done",
+  "assignee": "Areen Mahich",
+  "commits": [],
+  "src": [
+   "backend/integration/steward_bridge.py",
+   "backend/integration/steward_worker.py",
+   "backend/logic/scheduler/lifecycle.py",
+   "steward/src/prayog_steward/api/app.py",
+   "steward/src/prayog_steward/config.py",
+   "steward/src/prayog_steward/coordinator/service.py",
+   "steward/src/prayog_steward/hooks.py",
+   "steward/src/prayog_steward/reasoning_client.py",
+   "steward/src/prayog_steward/sessions/s3.py",
+   "steward/src/steward_contracts/envelope.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-103",
+  "summary": "Unit test suite and coverage gate",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [
+   "NFR-GPU-054"
+  ],
+  "status": "In Progress",
+  "assignee": "",
+  "commits": [],
+  "src": [
+   "backend/logic/scheduler/__init__.py",
+   "backend/logic/scheduler/run.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-104",
+  "summary": "Concurrency harness for the claim",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [
+   "NFR-GPU-001"
+  ],
+  "status": "In Progress",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-105",
+  "summary": "Property tests for the fairness and allocation invariants",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [
+   "NFR-GPU-009"
+  ],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [
+   "backend/logic/scheduler/config.py"
+  ],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-106",
+  "summary": "Integration and end-to-end suite",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [
+   "59db073",
+   "9838d1a",
+   "33d2884"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-107",
+  "summary": "Adversarial testing",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-108",
+  "summary": "Security testing and threat model",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-109",
+  "summary": "Performance and load experiment with one optimization",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [
+   "NFR-GPU-014"
+  ],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-110",
+  "summary": "Failure and recovery testing",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [
+   "NFR-GPU-042"
+  ],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-111",
+  "summary": "Five meaningful defects found, fixed and regression-tested",
+  "type": "Task",
+  "epic": "Quality Engineering",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-112",
+  "summary": "AI Engineering Log \u2014 architecture activities",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "Done",
+  "assignee": "Adithya Venkatraman",
+  "commits": [
+   "9efaf63"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-113",
+  "summary": "Deliverable 2 package",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "In Progress",
+  "assignee": "Disha Swamy",
+  "commits": [
+   "04b6cee"
+  ],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-114",
+  "summary": "Update the traceability matrix to implementation and tests",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-115",
+  "summary": "Cost estimation, effort model and Gantt chart",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-116",
+  "summary": "Deliverable 3 package",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-117",
+  "summary": "Scenario-driven demonstration rehearsal",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-118",
+  "summary": "Engineering retrospective and final report",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ },
+ {
+  "key": "PRAYOG-119",
+  "summary": "Final traceability and Jira dashboard",
+  "type": "Task",
+  "epic": "Deliverables and Traceability",
+  "reqs": [],
+  "status": "To Do",
+  "assignee": "",
+  "commits": [],
+  "src": [],
+  "tests": [],
+  "passed": 0,
+  "failed": 0
+ }
+]

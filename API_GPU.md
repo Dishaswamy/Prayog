@@ -216,7 +216,7 @@ Cancels your job.
 
 | Error | When |
 |---|---|
-| 403 `You do not have permission to cancel this job.` | someone else's job (the attempt is logged) |
+| 404 `Job not found.` | no such job, or someone else's: the same answer, so IDs cannot be probed (the attempt is audited) |
 | 404 `Job not found.` | |
 | 409 `Job 42 is already COMPLETED.` | the job has already ended |
 

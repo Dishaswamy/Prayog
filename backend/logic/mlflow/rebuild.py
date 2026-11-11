@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 import models as orm
 from logic.common.errors import AppError, NotFoundError
 from logic.mlflow.experiments import rebuildable_snapshot
+from mlflow_models import ModelSnapshot
 from logic.gpu.scheduler.config import DEFAULT_CONFIG, SchedulerConfig
 from logic.gpu.scheduler.domain import JobState
 from logic.gpu.scheduler.requests import submit_job
@@ -99,7 +100,13 @@ def _resolve_snapshot(db: Session, user_id: int, snapshot_id: str) -> tuple[str 
     recorded = rebuildable_snapshot(db, snapshot_id, user_id)
     if recorded is not None:
         return recorded.project_id, f"reproduces:{recorded.run_id}"
+    # A snapshot the ledger knows, but that this user cannot rebuild (someone else's, or
+    # incomplete), stays rejected: jobs carry a client-supplied snapshot_hash, so a job
+    # naming it says nothing about who owns it.
+    in_ledger = db.scalar(select(ModelSnapshot.id).where(ModelSnapshot.snapshot_id == snapshot_id))
     db.rollback()                         # end the ledger read before the scheduler locks rows
+    if in_ledger is not None:
+        raise RebuildRejected("Snapshot not found or not accessible.")
     original = db.scalars(
         select(orm.Job)
         .where(orm.Job.user_id == user_id, orm.Job.snapshot_hash == snapshot_id, orm.Job.reproduces.is_(None))

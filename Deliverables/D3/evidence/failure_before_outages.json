@@ -1,0 +1,48 @@
+{
+  "database_outage_long_60s": {
+    "outage_seconds": 60,
+    "job_was_running_before": true,
+    "submit_during_outage": {
+      "status": 503,
+      "retry_after": "5",
+      "body": "{\"detail\":\"The service is temporarily unavailable. Please retry shortly.\",\"code\":\"DATABASE_UNAVAILABLE\"}"
+    },
+    "health_during_outage": 503,
+    "all_answers_during_outage": [
+      503
+    ],
+    "tick_process_survived": true,
+    "seconds_to_healthy_after_restart": 0.3,
+    "retry_with_same_request_id": 201,
+    "rows_for_that_request": 1,
+    "new_job_rows": 1,
+    "running_job_state_after": "RUNNING",
+    "node_state_after": "AVAILABLE",
+    "node_alerts_after": "0",
+    "uncharged_release_reason": "",
+    "agent_errors_during_outage": 4,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  },
+  "api_outage_long_45s": {
+    "outage_seconds": 45,
+    "heartbeat_timeout_seconds": 30,
+    "during_outage": {
+      "node": "DOWN",
+      "job": "QUEUED"
+    },
+    "seconds_to_healthy": 2.7,
+    "node_state_after": "DOWN",
+    "job_state_after": "QUEUED",
+    "same_allocation_still_live": false,
+    "false_node_down_alerts": 1,
+    "invariants": {
+      "unit_with_two_live_allocations": 0,
+      "job_with_two_live_allocations": 0,
+      "placed_job_without_allocation": 0
+    }
+  }
+}

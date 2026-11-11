@@ -19,6 +19,7 @@ touched (FR-GPU-124).
 
 import json
 import logging
+import threading
 import time
 from collections import Counter
 from dataclasses import dataclass, replace
@@ -84,6 +85,39 @@ def run_pass(
 
     _log(result, seconds)
     return result
+
+
+# At most one event-triggered pass runs per API process, plus one owed (NFR-GPU-007 expects
+# one per worker). Each submission used to start a pass of its own, so a burst stacked
+# up passes that fought over the same rows until every request slowed down.
+_trigger_lock = threading.Lock()
+_pass_running = False
+_pass_owed = False
+
+
+def trigger_pass(sessions: sessionmaker, trigger: str, cfg: SchedulerConfig = DEFAULT_CONFIG) -> None:
+    """
+    Run a pass for an event. If this process is already in a pass, leave it one more to run
+    and return: that pass starts after the caller's change committed, so it sees the change.
+    """
+    global _pass_running, _pass_owed
+    with _trigger_lock:
+        if _pass_running:
+            _pass_owed = True
+            return
+        _pass_running = True
+    try:
+        while True:
+            run_pass(sessions, trigger, cfg=cfg)
+            with _trigger_lock:
+                if not _pass_owed:
+                    _pass_running = False
+                    return
+                _pass_owed = False
+    except BaseException:
+        with _trigger_lock:                       # the tick covers whatever this pass did not reach
+            _pass_running = _pass_owed = False
+        raise
 
 
 class _Pass:
@@ -172,6 +206,7 @@ class _Pass:
                     self.taken_elsewhere.add(job.job_id)
                     break
                 self.claim_failures[job.job_id] = outcome.queue_reason
+                self._learn(node_id, job, outcome.status)
 
     def _best_fit(self, job: JobView, node_ids: list[int]) -> list[int]:
         """Nodes still eligible after earlier claims, fewest usable units first, then node id (FR-GPU-122)."""
@@ -182,6 +217,30 @@ class _Pass:
         node = self.nodes[node_id]
         units = tuple(replace(u, free=False) if u.unit_id in unit_ids else u for u in node.units)
         self.nodes[node_id] = replace(node, units=units)
+
+    def _learn(self, node_id: int, job: JobView, status: ClaimStatus) -> None:
+        """
+        A failed claim shows this pass's snapshot of the node is out of date. Without this,
+        a pass that lost a race tries every remaining job on every node it still believes
+        is free, each a locking transaction of its own, so overlapping passes cost
+        jobs x nodes x passes. Only this pass's view changes; the claim still decides.
+        """
+        node = self.nodes[node_id]
+        if status == ClaimStatus.NODE_UNAVAILABLE:
+            still_free = 0                                    # it left AVAILABLE
+        elif status == ClaimStatus.LOST_CLAIM_RACE:
+            still_free = job.gpus - 1                         # fewer than this job needs are free now
+        else:
+            return
+        usable = {u.unit_id for u in usable_units(job, node, self.now)}
+        units = []
+        for unit in node.units:
+            if unit.unit_id in usable and still_free <= 0:
+                unit = replace(unit, free=False)
+            elif unit.unit_id in usable:
+                still_free -= 1
+            units.append(unit)
+        self.nodes[node_id] = replace(node, units=tuple(units))
 
     def _queue_reasons(self) -> dict[int, QueueReason]:
         reasons = {}

@@ -396,53 +396,95 @@ def job_status(
     db: Session, user_id: int, job_id: int, now: datetime | None = None, cfg: SchedulerConfig = DEFAULT_CONFIG
 ) -> JobStatus:
     """The owner's view of one job. Someone else's job is reported as not found (NFR-GPU-030)."""
-    now = now or utc_now()
     job = db.get(orm.Job, job_id)
     if job is None or job.user_id != user_id:
         raise NotFoundError("Job not found.")
+    return _statuses(db, [job], now or utc_now(), cfg)[0]
 
-    last_run = db.scalars(select(orm.Run).where(orm.Run.job_id == job.id).order_by(orm.Run.id.desc()).limit(1)).first()
-    if job.state == JobState.QUEUED:
-        return JobStatus(job, job.state_reason, p0_free_at=_p0_free_at(db, job, now, cfg), run=last_run)
 
-    row = db.execute(
-        select(orm.Allocation, orm.Node.name)
-        .join(orm.Node, orm.Node.id == orm.Allocation.node_id)
-        .where(orm.Allocation.job_id == job.id, orm.Allocation.released_at.is_(None))
-    ).first()
-    if row is None:
-        return JobStatus(job, None, run=last_run)                       # ended: the last run says how
-
-    allocation, node_name = row
-    units = db.execute(
-        select(orm.GpuUnit.id, orm.GpuUnit.unit_index)
-        .join(orm.AllocationUnit, orm.AllocationUnit.unit_id == orm.GpuUnit.id)
-        .where(orm.AllocationUnit.allocation_id == allocation.id)
-        .order_by(orm.GpuUnit.unit_index)
+def job_statuses(
+    db: Session, user_id: int, limit: int, now: datetime | None = None, cfg: SchedulerConfig = DEFAULT_CONFIG
+) -> list[JobStatus]:
+    """
+    The owner's newest jobs, each exactly as job_status reports it (FR-GPU-154), in a
+    number of queries that does not grow with the number of jobs: one per kind of row,
+    one per lab with queued jobs, and one per running job that has started.
+    """
+    jobs = db.scalars(
+        select(orm.Job).where(orm.Job.user_id == user_id).order_by(orm.Job.id.desc()).limit(limit)
     ).all()
-    walltime_ends_at = None
-    planned = None
-    if allocation.acknowledged_at is not None:
-        walltime_ends_at = allocation.acknowledged_at + timedelta(minutes=job.walltime_minutes)
-        planned = db.execute(
-            select(orm.MaintenanceWindow.starts_at, orm.MaintenanceWindow.reason)
-            .where(orm.MaintenanceWindow.unit_id.in_([u for u, _ in units]),
-                   orm.MaintenanceWindow.starts_at > now, orm.MaintenanceWindow.starts_at < walltime_ends_at)
-            .order_by(orm.MaintenanceWindow.starts_at)
-            .limit(1)
-        ).first()
-    return JobStatus(
-        job, None, allocation.node_id, node_name, tuple(i for _, i in units),
-        run=last_run if job.state == JobState.RUNNING else None,
-        walltime_ends_at=walltime_ends_at,
-        stop_reason=allocation.stop_reason,
-        planned_stop_at=planned[0] if planned else None,
-        planned_stop_reason=planned[1] if planned else None,
-    )
+    return _statuses(db, jobs, now or utc_now(), cfg)
 
 
-def _p0_free_at(db: Session, job: orm.Job, now: datetime, cfg: SchedulerConfig) -> datetime | None:
-    own_nodes = db.scalars(select(orm.Node.id).where(orm.Node.owner_lab_id == job.lab_id)).all()
+def _statuses(db: Session, jobs: list[orm.Job], now: datetime, cfg: SchedulerConfig) -> list[JobStatus]:
+    if not jobs:
+        return []
+    ids = [job.id for job in jobs]
+    last_run: dict[int, orm.Run] = {}
+    for run in db.scalars(select(orm.Run).where(orm.Run.job_id.in_(ids)).order_by(orm.Run.id)):
+        last_run[run.job_id] = run                                   # ascending ids: the last one wins
+
+    held = [job.id for job in jobs if job.state != JobState.QUEUED]
+    live: dict[int, tuple[orm.Allocation, str]] = {}
+    if held:
+        for allocation, node_name in db.execute(
+            select(orm.Allocation, orm.Node.name)
+            .join(orm.Node, orm.Node.id == orm.Allocation.node_id)
+            .where(orm.Allocation.job_id.in_(held), orm.Allocation.released_at.is_(None))
+            .order_by(orm.Allocation.id)
+        ):
+            live.setdefault(allocation.job_id, (allocation, node_name))
+    units: dict[int, list[tuple[int, int]]] = {}
+    if live:
+        for allocation_id, unit_id, index in db.execute(
+            select(orm.AllocationUnit.allocation_id, orm.GpuUnit.id, orm.GpuUnit.unit_index)
+            .join(orm.GpuUnit, orm.GpuUnit.id == orm.AllocationUnit.unit_id)
+            .where(orm.AllocationUnit.allocation_id.in_([a.id for a, _ in live.values()]))
+            .order_by(orm.GpuUnit.unit_index)
+        ):
+            units.setdefault(allocation_id, []).append((unit_id, index))
+
+    lab_capacity: dict[int, tuple | None] = {}                       # one load per lab, not per job
+    out = []
+    for job in jobs:
+        run = last_run.get(job.id)
+        if job.state == JobState.QUEUED:
+            if job.lab_id not in lab_capacity:
+                lab_capacity[job.lab_id] = _lab_capacity(db, job.lab_id, now, cfg)
+            capacity = lab_capacity[job.lab_id]
+            p0 = p0_guaranteed_free_at(to_job_view(job), *capacity, now) if capacity else None
+            out.append(JobStatus(job, job.state_reason, p0_free_at=p0, run=run))
+            continue
+        if job.id not in live:
+            out.append(JobStatus(job, None, run=run))                   # ended: the last run says how
+            continue
+        allocation, node_name = live[job.id]
+        held_units = units.get(allocation.id, [])
+        walltime_ends_at = None
+        planned = None
+        if allocation.acknowledged_at is not None:
+            walltime_ends_at = allocation.acknowledged_at + timedelta(minutes=job.walltime_minutes)
+            planned = db.execute(
+                select(orm.MaintenanceWindow.starts_at, orm.MaintenanceWindow.reason)
+                .where(orm.MaintenanceWindow.unit_id.in_([u for u, _ in held_units]),
+                       orm.MaintenanceWindow.starts_at > now, orm.MaintenanceWindow.starts_at < walltime_ends_at)
+                .order_by(orm.MaintenanceWindow.starts_at)
+                .limit(1)
+            ).first()
+        out.append(JobStatus(
+            job, None, allocation.node_id, node_name, tuple(i for _, i in held_units),
+            run=run if job.state == JobState.RUNNING else None,
+            walltime_ends_at=walltime_ends_at,
+            stop_reason=allocation.stop_reason,
+            planned_stop_at=planned[0] if planned else None,
+            planned_stop_reason=planned[1] if planned else None,
+        ))
+    return out
+
+
+def _lab_capacity(db: Session, lab_id: int, now: datetime, cfg: SchedulerConfig):
+    """The lab's own nodes and when each busy unit is guaranteed free, or None if it owns none."""
+    own_nodes = db.scalars(select(orm.Node.id).where(orm.Node.owner_lab_id == lab_id)).all()
     if not own_nodes:
         return None
     nodes = load_nodes(db, now, own_nodes)
@@ -456,4 +498,4 @@ def _p0_free_at(db: Session, job: orm.Job, now: datetime, cfg: SchedulerConfig) 
     )
     bound = timedelta(seconds=cfg.walltime_completion_bound_seconds)
     busy_until = {unit_id: (started or now) + timedelta(minutes=walltime) + bound for unit_id, started, walltime in rows}
-    return p0_guaranteed_free_at(to_job_view(job), nodes, busy_until, now)
+    return nodes, busy_until

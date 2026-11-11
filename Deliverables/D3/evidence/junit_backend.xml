@@ -1,0 +1,642 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="2" failures="13" skipped="11" tests="951" time="465.911" timestamp="2026-11-06T17:58:55.704823+05:30" hostname="BOOK-MA8UJ0U0I4"><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_admin_revoke_records_reason" time="0.526" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_context_that_disagrees_with_purpose_is_refused" time="0.152" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_course_purpose_submits_a_course_job" time="0.205" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_course_student_gets_course_account_in_central_lab" time="0.112" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_expired_student_is_revoked_automatically" time="0.156" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_expired_student_with_unfinished_job_is_revoked_after_it_finishes" time="0.216" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_no_approved_request_means_no_job" time="0.044" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_no_context_until_both_approve" time="0.077" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_pending_revoke_blocks_new_and_edited_work" time="0.181" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_pending_revoke_completes_when_the_job_finishes" time="0.252" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_research_approval_needs_a_professor_lab" time="0.093" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_research_purpose_submits_a_research_job_in_the_professors_lab" time="0.134" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_research_student_gets_research_account_in_professors_lab" time="0.106" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_researcher_cannot_ask_for_course_project" time="0.049" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_researcher_defaults_to_research_project" time="0.081" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_researcher_is_never_auto_revoked" time="0.175" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_revoke_removes_gpu_access" time="0.125" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_revoke_with_unfinished_job_is_pending_not_immediate" time="0.199" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_student_before_end_date_is_kept" time="0.131" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_student_must_choose_a_purpose" time="0.051" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_student_past_end_date_cannot_submit" time="0.119" /><testcase classname="tests.test_access_request_purpose.AccessRequestPurposeTests" name="test_sweep_waits_while_the_job_is_unfinished" time="0.201" /><testcase classname="tests.test_admin_cancel_job.AdminCancelJobTests" name="test_admin_cancels_a_queued_job_and_the_reason_actor_and_time_are_audited" time="0.106" /><testcase classname="tests.test_admin_cancel_job.AdminCancelJobTests" name="test_another_user_cannot_cancel_the_job_through_the_owner_path" time="0.078" /><testcase classname="tests.test_admin_cancel_job.AdminCancelJobTests" name="test_finished_or_unknown_jobs_are_refused" time="0.624" /><testcase classname="tests.test_admin_cancel_job.AdminCancelJobTests" name="test_reason_is_mandatory_and_nothing_changes_without_one" time="0.144" /><testcase classname="tests.test_admin_cancel_job.AdminCancelJobTests" name="test_route_cancels_for_an_admin_and_refuses_everyone_else" time="0.226" /><testcase classname="tests.test_admin_cancel_job.AdminCancelJobTests" name="test_running_job_is_asked_to_stop_and_keeps_its_units_until_the_agent_confirms" time="0.182" /><testcase classname="tests.test_admin_mlflow.AdminMLFlowOverviewTests" name="test_overview_contains_aggregates_only" time="0.121" /><testcase classname="tests.test_admin_mlflow.AdminMLFlowOverviewTests" name="test_overview_route_requires_database_authenticated_admin" time="0.004" /><testcase classname="tests.test_artifact_storage.ArtifactStorageTests" name="test_local_storage_persists_and_resolves_private_file" time="0.041"><failure message="AssertionError: 438 != 384">self = &lt;test_artifact_storage.ArtifactStorageTests testMethod=test_local_storage_persists_and_resolves_private_file&gt;
+
+    def test_local_storage_persists_and_resolves_private_file(self):
+        source = self.root / "upload.tmp"
+        source.write_bytes(b"local-artifact")
+    
+        path = artifact_storage.persist_artifact(source, "12345678-1234-1234-1234-123456789abc")
+    
+        self.assertEqual(path.read_bytes(), b"local-artifact")
+&gt;       self.assertEqual(path.stat().st_mode &amp; 0o777, 0o600)
+E       AssertionError: 438 != 384
+
+tests\test_artifact_storage.py:30: AssertionError</failure></testcase><testcase classname="tests.test_artifact_storage.ArtifactStorageTests" name="test_rejects_unsafe_storage_key" time="0.022" /><testcase classname="tests.test_artifact_storage.ArtifactStorageTests" name="test_s3_cache_cannot_reuse_a_local_artifact_with_the_same_key" time="1.973" /><testcase classname="tests.test_artifact_storage.ArtifactStorageTests" name="test_s3_mode_requires_bucket_configuration" time="0.028" /><testcase classname="tests.test_artifact_storage.ArtifactStorageTests" name="test_s3_mode_uploads_and_downloads_to_private_cache" time="0.052"><failure message="AssertionError: 438 != 384">self = &lt;test_artifact_storage.ArtifactStorageTests testMethod=test_s3_mode_uploads_and_downloads_to_private_cache&gt;
+make_client = &lt;MagicMock name='client' id='1376028589232'&gt;
+
+    @patch("boto3.client")
+    def test_s3_mode_uploads_and_downloads_to_private_cache(self, make_client):
+        client = make_client.return_value
+        payload = b"s3-compatible-artifact"
+        source = self.root / "upload.tmp"
+        source.write_bytes(payload)
+    
+        with patch.dict(os.environ, {
+            "PRAYOG_ARTIFACT_STORAGE": "s3",
+            "PRAYOG_S3_BUCKET": "private-prayog-test",
+            "PRAYOG_S3_PREFIX": "ml-flow",
+            "PRAYOG_S3_REGION": "ap-south-1",
+            "PRAYOG_S3_SERVER_SIDE_ENCRYPTION": "AES256",
+        }, clear=False):
+            artifact_storage.persist_artifact(source, "12345678-1234-1234-1234-123456789abc")
+            client.upload_file.assert_called_once_with(
+                str(source),
+                "private-prayog-test",
+                "ml-flow/12345678-1234-1234-1234-123456789abc",
+                ExtraArgs={"ServerSideEncryption": "AES256"},
+            )
+    
+            def download(bucket, key, destination):
+                self.assertEqual(bucket, "private-prayog-test")
+                self.assertEqual(key, "ml-flow/12345678-1234-1234-1234-123456789abc")
+                Path(destination).write_bytes(payload)
+    
+            client.download_file.side_effect = download
+            resolved = artifact_storage.resolve_artifact("12345678-1234-1234-1234-123456789abc")
+            self.assertEqual(resolved.read_bytes(), payload)
+&gt;           self.assertEqual(resolved.stat().st_mode &amp; 0o777, 0o600)
+E           AssertionError: 438 != 384
+
+tests\test_artifact_storage.py:70: AssertionError</failure></testcase><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_admin_creates_a_professor_who_logs_in_with_the_given_password" time="1.039" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_forgot_password_rejects_mismatched_or_short_passwords" time="0.061" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_forgot_password_reply_is_the_same_for_unknown_emails_and_sends_nothing" time="0.169" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_full_password_reset_by_otp" time="1.676" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_login_without_a_role_is_rejected" time="0.230" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_logout_ends_only_that_session" time="1.143" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_logout_remembers_the_token_only_until_it_expires" time="0.680" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_logout_twice_and_without_a_token" time="0.439" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_signup_then_login_by_email_or_user_id_with_the_role" time="0.907" /><testcase classname="tests.test_auth_routes.AuthRouteTests" name="test_wrong_role_wrong_password_and_unknown_user_look_identical" time="0.821" /><testcase classname="tests.test_cli_end_to_end.CliEndToEndTests" name="test_a_users_whole_journey" time="26.614" /><testcase classname="tests.test_cli_end_to_end.CliEndToEndTests" name="test_errors_are_explained_not_dumped" time="5.956" /><testcase classname="tests.test_cli_end_to_end.CliEndToEndTests" name="test_rebuilding_a_run_and_checking_it_matches" time="12.572" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_a_user_who_never_requested_access_cannot_log_in_from_the_terminal" time="1.509" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_approved_users_get_a_token_that_works" time="2.531" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_auto_revoked_student_is_expired_not_revoked" time="1.634" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_pending_and_rejected_requests_cannot_log_in" time="2.081" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_professor_and_admin_can_log_in" time="1.512" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_revoked_user_cannot_log_in_again" time="2.149" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_student_past_the_end_date_cannot_log_in_even_before_the_sweep" time="1.746" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_the_web_portal_login_still_works_for_a_user_without_access" time="1.455" /><testcase classname="tests.test_cli_login.CliLoginTests" name="test_wrong_password_or_role_is_the_same_generic_401_and_reveals_nothing_about_access" time="2.830" /><testcase classname="tests.test_cli_rebuild_reaches_steward.CliRebuildReachesStewardTests" name="test_a_failed_cli_rebuild_is_a_failed_attempt_on_the_sealed_run" time="3.795" /><testcase classname="tests.test_cli_rebuild_reaches_steward.CliRebuildReachesStewardTests" name="test_a_successful_cli_rebuild_is_a_successful_attempt" time="3.124" /><testcase classname="tests.test_concurrency.ConcurrencyTests" name="test_c1_duplicate_submissions_create_one_job" time="0.682" /><testcase classname="tests.test_concurrency.ConcurrencyTests" name="test_c2_active_job_limit_holds_under_parallel_submission" time="1.596" /><testcase classname="tests.test_concurrency.ConcurrencyTests" name="test_c3_parallel_passes_never_double_allocate_a_unit" time="2.537"><failure message="AssertionError: Items in the first set but not the second:&#10;33&#10;35&#10;37&#10;38&#10;39&#10;31">self = &lt;test_concurrency.ConcurrencyTests testMethod=test_c3_parallel_passes_never_double_allocate_a_unit&gt;
+
+    def test_c3_parallel_passes_never_double_allocate_a_unit(self):
+        user = self.make_user("c3")
+        node = self.make_node("c3", units=4)
+        jobs = [self.make_job(user, gpus=1 + (i % 2)) for i in range(10)]
+    
+        results = _together(8, lambda _: run_pass(SessionLocal, Trigger.TICK))
+        self.assertEqual([r for r in results if isinstance(r, Exception)], [])
+    
+        self.db.expire_all()
+        live = self.db.execute(
+            select(orm.Allocation.id, orm.Allocation.job_id, orm.AllocationUnit.unit_id)
+            .join(orm.AllocationUnit, orm.AllocationUnit.allocation_id == orm.Allocation.id)
+            .where(orm.Allocation.node_id == node.id, orm.Allocation.released_at.is_(None))
+        ).all()
+        per_unit = Counter(unit for _, _, unit in live)
+        self.assertTrue(live, "the passes should have placed something on the free node")
+        self.assertEqual(max(per_unit.values()), 1, "a unit is in two live allocations")
+        self.assertLessEqual(len(per_unit), 4)
+        per_job = Counter(job for _, job, _ in {(a, j, 0) for a, j, _ in live})
+        self.assertEqual(max(per_job.values()), 1, "a job has two live allocations")
+        for unit in self.units_of(node):
+            holders = {a for a, _, u in live if u == unit.id}
+            self.assertEqual({unit.current_allocation_id} - {None}, holders)
+        mine = {j.id for j in jobs}
+        scheduled = self.db.scalars(select(orm.Job.id).where(orm.Job.id.in_(mine), orm.Job.state == JobState.SCHEDULED)).all()
+&gt;       self.assertEqual(set(scheduled), {j for _, j, _ in live if j in mine})
+E       AssertionError: Items in the first set but not the second:
+E       33
+E       35
+E       37
+E       38
+E       39
+E       31
+
+tests\test_concurrency.py:108: AssertionError</failure></testcase><testcase classname="tests.test_concurrency.ConcurrencyTests" name="test_c4_parallel_wrong_passwords_lock_the_account_once" time="5.046" /><testcase classname="tests.test_concurrency.ConcurrencyTests" name="test_c5_cancel_racing_scheduling_passes" time="0.209" /><testcase classname="tests.test_concurrency.ConcurrencyTests" name="test_c6_one_inconsistent_unit_does_not_stop_scheduling" time="0.249" /><testcase classname="tests.test_database_unavailable.DatabaseUnavailableTests" name="test_connection_refused_is_503" time="0.035" /><testcase classname="tests.test_database_unavailable.DatabaseUnavailableTests" name="test_pool_timeout_is_503" time="0.028" /><testcase classname="tests.test_diagnostic_session_audit.DiagnosticSessionAuditTests" name="test_consumption_requires_same_user_session_and_audits_success" time="0.017"><failure message="AssertionError: '\\private\\log.txt' != '/private/log.txt'&#10;- \private\log.txt&#10;? ^       ^&#10;+ /private/log.txt&#10;? ^       ^">self = &lt;test_diagnostic_session_audit.DiagnosticSessionAuditTests testMethod=test_consumption_requires_same_user_session_and_audits_success&gt;
+verify = &lt;MagicMock name='get_verified_artifact' id='1376041031136'&gt;
+
+    @patch("logic.diagnostic_links.get_verified_artifact")
+    def test_consumption_requires_same_user_session_and_audits_success(self, verify):
+        token = "t" * 48
+        link = SimpleNamespace(
+            id="link-1", token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            session_hash=self.session_hash, user_id=7, rebuild_id=11, artifact_id="log-1",
+            expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5), consumed_at=None,
+        )
+        artifact = SimpleNamespace(id="log-1", user_id=7, experiment_id=2, kind="LOG")
+        link_query = MagicMock()
+        link_query.filter.return_value.with_for_update.return_value.first.return_value = link
+        artifact_query = MagicMock()
+        artifact_query.filter.return_value.first.return_value = artifact
+        self.db.query.side_effect = [link_query, artifact_query]
+        verify.return_value = (artifact, Path("/private/log.txt"))
+    
+        result, path = consume_diagnostic_link(self.db, token, self.user, "session-a")
+    
+        self.assertIs(result, artifact)
+&gt;       self.assertEqual(str(path), "/private/log.txt")
+E       AssertionError: '\\private\\log.txt' != '/private/log.txt'
+E       - \private\log.txt
+E       ? ^       ^
+E       + /private/log.txt
+E       ? ^       ^
+
+tests\test_diagnostic_session_audit.py:80: AssertionError</failure></testcase><testcase classname="tests.test_diagnostic_session_audit.DiagnosticSessionAuditTests" name="test_creation_records_session_hash_and_created_audit" time="0.013" /><testcase classname="tests.test_diagnostic_session_audit.DiagnosticSessionAuditTests" name="test_creation_requires_failed_attempt_and_audits_rejection" time="0.011" /><testcase classname="tests.test_diagnostic_session_audit.DiagnosticSessionAuditTests" name="test_invalid_ttl_is_audited_before_rejection" time="0.006" /><testcase classname="tests.test_diagnostic_session_audit.DiagnosticSessionAuditTests" name="test_replay_is_denied_and_audited" time="0.009" /><testcase classname="tests.test_diagnostic_session_audit.DiagnosticSessionAuditTests" name="test_session_mismatch_is_denied_and_audited_without_reading_artifact" time="0.010" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_a_dataset_file_is_served_with_its_exact_bytes" time="1.269" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_a_job_that_is_not_an_ml_run_has_no_workload" time="1.181" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_a_released_allocation_serves_nothing" time="1.110" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_a_staged_file_that_is_not_in_this_runs_dataset_is_not_served" time="0.960" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_another_nodes_agent_cannot_read_the_allocation" time="0.874" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_code_outside_the_runs_version_is_not_served" time="1.210" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_corrupted_staged_bytes_are_refused_not_served" time="0.936" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_deleted_data_is_not_served" time="0.894" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_no_credential_or_a_wrong_one_is_unauthorised" time="0.762" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_the_code_archive_can_be_downloaded_chunk_by_chunk" time="1.068" /><testcase classname="tests.test_gpu_agent_api.AgentWorkloadTests" name="test_the_workload_describes_the_run" time="0.807" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_a_checkpoint_needs_a_step_and_cannot_be_code" time="0.835" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_a_new_best_replaces_the_old_one" time="1.105" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_a_repeated_metric_step_is_a_conflict" time="0.941" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_a_step_is_checkpointed_once" time="0.899" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_acknowledging_shows_the_run_as_running" time="0.933" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_an_empty_checkpoint_is_refused" time="0.839" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_another_nodes_agent_cannot_send_results" time="0.965" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_artifacts_belong_to_the_runs_owner_and_experiment" time="1.113" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_bad_metrics_are_refused" time="0.940" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_checkpoints_are_stored_as_the_runs_weights_artifacts" time="1.280" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_metrics_are_recorded_against_the_run" time="1.179" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_results_are_refused_after_the_allocation_is_released" time="1.452" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_results_are_refused_before_the_allocation_has_started" time="1.081" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_the_log_is_attached_to_the_run" time="1.150" /><testcase classname="tests.test_gpu_agent_api.AgentResultsTests" name="test_two_checkpoints_with_identical_bytes_share_storage_but_keep_their_steps" time="1.103" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_metric_the_rebuild_never_logged_is_a_difference" time="5.197" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_non_deterministic_program_is_not_reproduced" time="4.325" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_rebuild_may_not_change_the_originals_settings" time="2.888" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_rebuild_reproduces_a_deterministic_run_byte_for_byte" time="4.862" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_rebuild_takes_its_own_gpus_and_walltime" time="2.902" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_rebuild_that_failed_is_not_reproduced" time="3.179" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_rebuild_uses_the_originals_version_even_after_the_project_moved_on" time="5.281" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_retried_rebuild_request_returns_the_same_run" time="2.986" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_run_that_succeeded_without_saving_weights_compares_on_metrics_alone" time="3.694" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_run_whose_stored_code_was_corrupted_cannot_be_rebuilt" time="2.792" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_run_without_data_is_rebuilt_without_data" time="2.229" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_a_tolerance_accepts_small_differences" time="3.651" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_another_users_run_cannot_be_rebuilt" time="3.061" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_changed_data_is_refused_with_the_paths_named_and_nothing_is_queued" time="2.634" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_malformed_references_are_bad_requests" time="2.901" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_missing_and_extra_data_files_are_named" time="3.246" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_only_a_rebuild_can_be_compared_and_the_tolerance_must_be_sane" time="6.075" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_rebuilding_a_rebuild_is_allowed" time="4.871" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_the_data_must_be_staged_again_after_it_was_deleted" time="3.253" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_the_rebuild_is_recorded_as_one_linked_to_its_snapshot_and_job" time="3.099" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_the_rebuild_run_gets_its_own_checkpoints" time="4.659" /><testcase classname="tests.test_gpu_rebuild.GpuRebuildTests" name="test_unfinished_failed_and_unknown_runs_are_all_refused_the_same_way" time="3.218" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_a_cancelled_queued_job_is_picked_up_by_the_sweep_and_shown_cancelled_at_once" time="1.483" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_a_crash_fails_the_run_with_the_exit_code_and_output_and_keeps_checkpoints" time="1.625" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_a_failing_hook_never_blocks_the_release" time="1.155" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_a_job_the_platform_gives_up_on_fails_the_run_with_a_reason" time="0.984" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_a_platform_stop_requeues_the_run_and_discards_the_partial_attempt" time="1.334" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_a_requeued_run_can_run_again_from_step_one" time="1.682" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_a_successful_run_without_checkpoints_still_seals_without_weights" time="0.967" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_an_ordinary_job_is_untouched_by_the_hook" time="0.882" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_cancelling_a_running_job_cancels_the_run" time="1.269" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_hitting_the_walltime_fails_the_run_and_keeps_its_checkpoints" time="1.441" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_sealing_announces_the_run_once_to_the_ledger" time="1.382" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_success_marks_the_run_succeeded_and_keeps_every_result" time="1.448" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_success_seals_a_snapshot_of_the_exact_version_with_the_best_checkpoint" time="1.456" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_syncing_again_changes_nothing" time="1.502" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_the_datas_retention_clock_starts_when_the_run_ends" time="1.653" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_the_sealed_snapshot_can_be_rebuilt" time="1.422" /><testcase classname="tests.test_gpu_run_finalize.RunFinalizeTests" name="test_without_a_best_flag_the_last_checkpoint_is_the_snapshot_weights" time="1.410" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_a_retry_after_a_crash_between_job_and_run_creates_the_missing_run" time="0.749" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_a_retry_returns_the_same_run_and_creates_nothing_more" time="0.687" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_a_run_is_numbered_within_its_version_and_linked_to_a_job" time="0.619" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_a_run_uses_the_current_version_unless_told_otherwise" time="0.987" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_a_user_without_gpu_access_is_refused" time="0.322" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_an_entrypoint_the_version_lacks_is_refused_before_a_job_exists" time="0.818" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_an_unknown_version_is_not_found_and_queues_nothing" time="0.544" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_another_users_project_is_not_found" time="0.571" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_no_uploaded_version_is_not_found" time="0.241" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_oversized_hyperparameters_are_refused" time="0.491" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_runs_count_up_within_a_version_and_restart_in_the_next" time="1.132" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_scheduler_rules_still_apply_and_no_run_is_left_behind" time="0.822" /><testcase classname="tests.test_gpu_run_submission.RunSubmissionTests" name="test_submission_triggers_a_scheduling_pass_only_when_a_job_was_created" time="0.833" /><testcase classname="tests.test_gpu_run_submission.RunDatasetTests" name="test_a_dataset_that_is_not_staged_is_refused_naming_the_files" time="0.632" /><testcase classname="tests.test_gpu_run_submission.RunDatasetTests" name="test_a_declared_size_that_differs_from_the_staged_file_is_refused" time="0.669" /><testcase classname="tests.test_gpu_run_submission.RunDatasetTests" name="test_a_malformed_digest_is_a_validation_error" time="0.586" /><testcase classname="tests.test_gpu_run_submission.RunDatasetTests" name="test_a_run_may_have_no_dataset" time="1.033" /><testcase classname="tests.test_gpu_run_submission.RunDatasetTests" name="test_a_staged_dataset_is_fingerprinted_for_the_run" time="1.029" /><testcase classname="tests.test_gpu_run_submission.RunDatasetTests" name="test_two_runs_can_share_one_staged_file" time="0.967" /><testcase classname="tests.test_gpu_run_submission.RunDatasetTests" name="test_unsafe_or_duplicate_dataset_paths_are_refused" time="1.067" /><testcase classname="tests.test_gpu_run_submission.RunReadingTests" name="test_one_run_is_read_by_version_and_number" time="1.142" /><testcase classname="tests.test_gpu_run_submission.RunReadingTests" name="test_runs_list_newest_first_and_filter_by_version" time="1.667" /><testcase classname="tests.test_gpu_run_submission.RunReadingTests" name="test_status_summarises_the_project" time="1.134" /><testcase classname="tests.test_gpu_run_submission.RunReadingTests" name="test_the_versions_list_counts_runs" time="0.773" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_a_vanished_unit_can_only_be_dismissed" time="0.089" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_dismiss_changes_nothing_but_closes_the_warning" time="0.128" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_drain_takes_the_node_out_of_service_with_the_reason" time="0.097" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_freeze_books_a_window_on_the_unit_from_now_and_resolves_the_warning" time="0.161" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_freeze_that_would_stop_a_running_job_needs_confirmation" time="0.160" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_investigation_shows_cited_runs_history_finding_and_the_unit_state" time="0.073" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_reason_is_required_and_a_closed_warning_cannot_be_resolved_again" time="0.101" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_routes_are_admin_only_and_report_collisions" time="0.356" /><testcase classname="tests.test_hardware_investigation.HardwareInvestigationTests" name="test_without_the_steward_the_routes_answer_503" time="0.130" /><testcase classname="tests.test_job_list_batched.BatchedJobListTests" name="test_every_job_matches_the_single_job_view" time="0.577" /><testcase classname="tests.test_job_list_batched.BatchedJobListTests" name="test_limit_keeps_the_newest" time="0.371" /><testcase classname="tests.test_job_list_batched.BatchedJobListTests" name="test_query_count_does_not_grow_with_jobs" time="0.746" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_a_lab_that_has_used_a_lot_ranks_below_a_fresh_lab" time="0.543" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_a_researcher_under_another_professor_runs_on_that_labs_node" time="0.304" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_claim_refuses_a_node_made_reserved_after_the_snapshot" time="0.217" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_claim_refuses_a_node_moved_into_the_teaching_pool_for_a_research_job" time="0.221" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_claim_works_on_a_node_that_is_still_shared" time="0.231" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_course_student_runs_only_on_a_teaching_pool_node" time="0.313" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_research_job_never_runs_on_another_labs_reserved_or_the_teaching_pool" time="0.307" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_research_student_works_in_the_lab_like_a_researcher" time="0.302" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_researcher_runs_on_the_professors_own_lab_node" time="0.335" /><testcase classname="tests.test_lab_scheduling.LabSchedulingTests" name="test_without_any_usage_the_earlier_job_wins" time="0.454" /><testcase classname="tests.test_login.LoginSchemaTests" name="test_identifier_can_be_sent_as_email_user_id_or_identifier" time="0.003" /><testcase classname="tests.test_login.LoginSchemaTests" name="test_role_is_case_insensitive" time="0.004" /><testcase classname="tests.test_login.LoginSchemaTests" name="test_role_is_required" time="0.005" /><testcase classname="tests.test_login.LoginSchemaTests" name="test_role_must_be_a_known_one" time="0.004" /><testcase classname="tests.test_login.RandomPasswordTests" name="test_random_passwords_are_long_and_different" time="0.006" /><testcase classname="tests.test_login.LoginTests" name="test_email_and_user_id_ignore_case_and_spaces" time="0.625" /><testcase classname="tests.test_login.LoginTests" name="test_login_with_email_and_role" time="0.369" /><testcase classname="tests.test_login.LoginTests" name="test_login_with_user_id_and_role" time="0.358" /><testcase classname="tests.test_login.LoginTests" name="test_new_professor_logs_in_directly_with_the_generated_password" time="0.748" /><testcase classname="tests.test_login.LoginTests" name="test_professor_with_an_explicit_password_gets_no_temporary_one" time="0.585" /><testcase classname="tests.test_login.LoginTests" name="test_unknown_account_is_refused" time="0.602" /><testcase classname="tests.test_login.LoginTests" name="test_wrong_password_is_refused" time="0.381" /><testcase classname="tests.test_login.LoginTests" name="test_wrong_role_is_refused" time="0.905" /><testcase classname="tests.test_mlflow_artifacts.ArtifactStorageTests" name="test_empty_upload_is_rejected_and_not_registered" time="0.388" /><testcase classname="tests.test_mlflow_artifacts.ArtifactStorageTests" name="test_upload_records_server_computed_digest_and_download_verifies_it" time="0.273" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_boolean_tolerance_is_rejected" time="0.006" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_invalid_tolerance_rejected" time="0.009" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_metrics_outside_tolerance_fail" time="0.015" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_metrics_within_per_metric_tolerance_pass" time="0.015" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_missing_metric_fails_comparison" time="0.011" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_no_metrics_is_not_a_pass" time="0.015" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_numeric_string_tolerance_is_rejected" time="0.012" /><testcase classname="tests.test_mlflow_compare.MetricComparatorTests" name="test_only_successful_rebuilds_can_be_compared" time="0.012" /><testcase classname="tests.test_mlflow_e2e.MLFlowEndToEndTests" name="test_artifact_content_address_reuse_preserves_metadata_identity" time="0.004"><skipped type="pytest.skip" message="PostgreSQL and Docker end-to-end test runs in CI">C:\Users\Areen\Prayog-final\backend\tests\test_mlflow_e2e.py:383: PostgreSQL and Docker end-to-end test runs in CI</skipped></testcase><testcase classname="tests.test_mlflow_e2e.MLFlowEndToEndTests" name="test_authenticated_api_queue_worker_artifacts_snapshot_and_first_time_failure" time="0.002"><skipped type="pytest.skip" message="PostgreSQL and Docker end-to-end test runs in CI">C:\Users\Areen\Prayog-final\backend\tests\test_mlflow_e2e.py:112: PostgreSQL and Docker end-to-end test runs in CI</skipped></testcase><testcase classname="tests.test_mlflow_e2e.MLFlowEndToEndTests" name="test_failed_worker_rebuild_reaches_terminal_state_and_releases_container" time="0.003"><skipped type="pytest.skip" message="PostgreSQL and Docker end-to-end test runs in CI">C:\Users\Areen\Prayog-final\backend\tests\test_mlflow_e2e.py:327: PostgreSQL and Docker end-to-end test runs in CI</skipped></testcase><testcase classname="tests.test_mlflow_e2e.MLFlowEndToEndTests" name="test_worker_rebuild_dispatch_reaches_terminal_state" time="0.002"><skipped type="pytest.skip" message="PostgreSQL and Docker end-to-end test runs in CI">C:\Users\Areen\Prayog-final\backend\tests\test_mlflow_e2e.py:257: PostgreSQL and Docker end-to-end test runs in CI</skipped></testcase><testcase classname="tests.test_mlflow_handover.ProjectHandoverTests" name="test_cancelled_handover_cannot_be_approved" time="0.007" /><testcase classname="tests.test_mlflow_handover.ProjectHandoverTests" name="test_handover_endpoints_are_registered" time="0.005" /><testcase classname="tests.test_mlflow_handover.ProjectHandoverTests" name="test_push_rejects_unassigned_professor_before_creating_request" time="0.194" /><testcase classname="tests.test_mlflow_handover.ProjectHandoverTests" name="test_rejected_handover_cannot_be_approved" time="0.004" /><testcase classname="tests.test_mlflow_handover.ProjectHandoverTests" name="test_rejection_is_terminal_and_committed" time="0.007" /><testcase classname="tests.test_mlflow_ledger_consumer.MLFlowLedgerConsumerTests" name="test_ledger_consumer_records_new_event_once" time="0.005" /><testcase classname="tests.test_mlflow_ledger_consumer.MLFlowLedgerConsumerTests" name="test_ledger_consumer_rejects_unsealed_payload" time="0.004" /><testcase classname="tests.test_mlflow_ledger_consumer.MLFlowLedgerConsumerTests" name="test_ledger_consumer_returns_false_for_duplicate_key" time="0.013" /><testcase classname="tests.test_mlflow_ledger_consumer.MLFlowLedgerConsumerTests" name="test_run_sealed_event_has_stable_idempotency_key_and_minimal_payload" time="0.006" /><testcase classname="tests.test_mlflow_ledger_consumer.MLFlowLedgerConsumerTests" name="test_run_sealed_event_is_only_eligible_for_matching_recorded_snapshot" time="0.011" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_corrupt_required_artifact_converts_success_report_to_failed" time="0.015" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_corrupt_source_does_not_prevent_recording_rebuild_failure" time="0.022" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_experiment_rejects_model_outside_owned_project" time="0.011" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_external_update_cannot_finalize_a_worker_claimed_rebuild" time="0.011" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_failed_first_time_run_does_not_require_steward" time="0.011" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_failed_rebuild_requires_diagnostic_summary" time="0.007" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_failed_rebuild_with_verified_log_atomically_enqueues_steward_event" time="0.012" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_failed_run_can_preserve_available_weights_in_incomplete_snapshot" time="0.014" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_log_metric_normalizes_name_before_persisting" time="0.012" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_log_metric_rejects_blank_or_overlong_names" time="0.011" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_log_metric_rejects_invalid_steps_and_nonfinite_values" time="0.015" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_malformed_expected_metrics_make_snapshot_incomplete" time="0.013" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_missing_expected_metrics_make_snapshot_incomplete" time="0.010" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_new_run_preserves_project_and_model_mapping" time="0.011" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_other_users_rebuild_is_not_found" time="0.007" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_rebuild_rejects_snapshot_before_creating_attempt_when_artifact_invalid" time="0.010" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_rebuild_rejects_snapshot_digest_mismatch_before_creating_attempt" time="0.007" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_rebuild_terminal_state_cannot_be_changed" time="0.009" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_start_run_attaches_verified_code_artifact_for_worker_execution" time="0.012" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_start_run_moves_created_to_running" time="0.007" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_start_run_rejects_non_created_state" time="0.009" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_successful_rebuild_finishes_execution_and_records_new_snapshot" time="0.016" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_successful_run_creates_immutable_snapshot" time="0.015" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_successful_run_with_missing_code_persists_incomplete_snapshot" time="0.012" /><testcase classname="tests.test_mlflow_lifecycle.MLFlowLifecycleTests" name="test_user_cannot_finish_a_run_queued_for_worker_execution" time="0.011" /><testcase classname="tests.test_mlflow_metric_batch.MLFlowMetricBatchTests" name="test_batch_is_persisted_in_one_transaction" time="0.012" /><testcase classname="tests.test_mlflow_metric_batch.MLFlowMetricBatchTests" name="test_batch_requires_running_run" time="0.008" /><testcase classname="tests.test_mlflow_metric_batch.MLFlowMetricBatchTests" name="test_database_duplicate_rolls_back_entire_batch" time="0.014" /><testcase classname="tests.test_mlflow_metric_batch.MLFlowMetricBatchTests" name="test_duplicate_name_and_step_in_batch_is_rejected_before_write" time="0.011" /><testcase classname="tests.test_mlflow_metric_batch.MLFlowMetricBatchTests" name="test_non_finite_values_are_rejected_before_write" time="0.009" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_cancelled_rebuild_does_not_enqueue_ai_work" time="0.006" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_claim_sets_lease_and_increments_attempts" time="0.010" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_delivery_failure_dead_letters_after_max_attempts" time="0.010" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_delivery_failure_uses_backoff_and_sanitizes_error" time="0.012" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_dispatch_uses_idempotency_key_and_marks_delivery" time="0.005" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_failed_rebuild_with_verified_log_enqueues_diagnosis_only" time="0.005" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_failed_rebuild_without_verified_log_does_not_enqueue_diagnosis" time="0.005" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_handler_failure_is_scheduled_for_retry" time="0.009" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_ineligible_event_is_dead_lettered_without_calling_handler" time="0.007" /><testcase classname="tests.test_mlflow_outbox.MLFlowOutboxTests" name="test_successful_rebuild_enqueues_optimization_without_source_artifact_content" time="0.007" /><testcase classname="tests.test_mlflow_outbox_worker.MLFlowOutboxWorkerTests" name="test_load_handlers_includes_builtin_run_sealed_consumer" time="0.018" /><testcase classname="tests.test_mlflow_outbox_worker.MLFlowOutboxWorkerTests" name="test_load_handlers_requires_configured_ai_consumers" time="0.012" /><testcase classname="tests.test_mlflow_outbox_worker.MLFlowOutboxWorkerTests" name="test_run_sealed_handler_persists_event_and_closes_session" time="0.009" /><testcase classname="tests.test_mlflow_professor.ProfessorMLFlowAuthorizationTests" name="test_non_professor_is_rejected_before_database_lookup" time="0.004" /><testcase classname="tests.test_mlflow_professor.ProfessorMLFlowAuthorizationTests" name="test_professor_without_profile_is_not_authorized" time="0.006" /><testcase classname="tests.test_mlflow_professor.ProfessorMLFlowAuthorizationTests" name="test_related_project_can_be_returned" time="0.006" /><testcase classname="tests.test_mlflow_professor.ProfessorMLFlowAuthorizationTests" name="test_related_user_ids_are_deduplicated_across_students_and_researchers" time="0.010" /><testcase classname="tests.test_mlflow_professor.ProfessorMLFlowAuthorizationTests" name="test_unrelated_project_is_reported_as_not_found" time="0.013" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_artifact_inventory_response_does_not_expose_storage_key" time="0.113" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_experiment_tags_redact_credential_like_keys" time="0.039" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_non_professor_cannot_call_professor_endpoint" time="0.033" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_platform_admin_cannot_use_professor_access_as_artifact_access" time="0.040" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_professor_api_does_not_expose_mutating_run_route" time="0.071" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_professor_can_list_projects_from_authorized_service" time="0.041" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_rebuild_response_does_not_expose_log_uri" time="0.048" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_run_response_does_not_expose_artifact_uris" time="0.043" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_snapshot_response_does_not_expose_artifact_uris" time="0.043" /><testcase classname="tests.test_mlflow_professor_api.ProfessorMLFlowAPITests" name="test_unrelated_run_is_returned_as_not_found" time="0.045" /><testcase classname="tests.test_mlflow_professor_ledger.ProfessorLedgerTests" name="test_only_professor_can_read_ledger" time="0.004" /><testcase classname="tests.test_mlflow_professor_ledger.ProfessorLedgerTests" name="test_returns_only_enrolled_students_recorded_snapshots_as_metadata" time="0.016" /><testcase classname="tests.test_mlflow_professor_ledger.ProfessorLedgerTests" name="test_skips_ledger_rows_without_matching_persisted_snapshot" time="0.017" /><testcase classname="tests.test_mlflow_professor_ledger.ProfessorLedgerTests" name="test_skips_malformed_ledger_payload" time="0.015" /><testcase classname="tests.test_mlflow_professor_postgres.ProfessorMLFlowPostgresIsolationTests" name="test_approved_researcher_is_visible_until_relationship_row_is_removed" time="0.089" /><testcase classname="tests.test_mlflow_professor_postgres.ProfessorMLFlowPostgresIsolationTests" name="test_only_active_related_students_are_visible" time="0.075" /><testcase classname="tests.test_mlflow_professor_postgres.ProfessorMLFlowPostgresIsolationTests" name="test_removed_relationship_row_revokes_visibility" time="0.052" /><testcase classname="tests.test_mlflow_professor_redaction.ProfessorMetadataRedactionTests" name="test_metadata_redaction_handles_serialized_credentials_recursively" time="0.003" /><testcase classname="tests.test_mlflow_professor_redaction.ProfessorMetadataRedactionTests" name="test_nested_metadata_redacts_secret_keys_without_changing_safe_values" time="0.003" /><testcase classname="tests.test_mlflow_professor_redaction.ProfessorMetadataRedactionTests" name="test_professor_response_models_apply_redaction" time="0.004" /><testcase classname="tests.test_mlflow_professor_redaction.ProfessorMetadataRedactionTests" name="test_sensitive_text_redacts_assignment_bearer_and_url_credentials" time="0.003" /><testcase classname="tests.test_mlflow_queue_order.SharedQueueOrderingTests" name="test_empty_shared_queue_returns_none" time="0.013" /><testcase classname="tests.test_mlflow_queue_order.SharedQueueOrderingTests" name="test_older_first_time_run_is_claimed_before_newer_rebuild" time="0.021" /><testcase classname="tests.test_mlflow_queue_order.SharedQueueOrderingTests" name="test_older_rebuild_is_claimed_before_newer_first_time_run" time="0.010" /><testcase classname="tests.test_mlflow_rebuild_preinit.RebuildPreinitBoundaryTests" name="test_artifact_verification_failure_does_not_leak_details_or_create_attempt" time="0.012" /><testcase classname="tests.test_mlflow_rebuild_preinit.RebuildPreinitBoundaryTests" name="test_missing_snapshot_is_generic_preinit_rejection_without_attempt" time="0.012" /><testcase classname="tests.test_mlflow_rebuild_preinit.RebuildPreinitBoundaryTests" name="test_non_recorded_snapshot_has_same_response_as_missing_snapshot" time="0.008" /><testcase classname="tests.test_mlflow_routes.MLFlowRouteRegistrationTests" name="test_mlflow_routes_are_registered_in_openapi" time="3.922" /><testcase classname="tests.test_mlflow_snapshot_storage_failures.SnapshotStorageFailureTests" name="test_code_storage_failure_finishes_run_and_persists_incomplete_snapshot" time="0.018" /><testcase classname="tests.test_mlflow_snapshot_storage_failures.SnapshotStorageFailureTests" name="test_incomplete_snapshot_cannot_be_rebuilt" time="0.013" /><testcase classname="tests.test_mlflow_snapshot_storage_failures.SnapshotStorageFailureTests" name="test_incomplete_snapshot_remains_in_snapshot_listing" time="0.017" /><testcase classname="tests.test_mlflow_snapshot_storage_failures.SnapshotStorageFailureTests" name="test_optional_artifact_storage_failure_makes_snapshot_incomplete" time="0.009" /><testcase classname="tests.test_mlflow_worker.MLFlowWorkerTests" name="test_container_command_enforces_isolation_and_no_gpu_access" time="0.007" /><testcase classname="tests.test_mlflow_worker.MLFlowWorkerTests" name="test_extracts_archive_and_validates_relative_entrypoint" time="0.059"><failure message="AssertionError: PurePosixPath('main.py') != WindowsPath('main.py')">self = &lt;test_mlflow_worker.MLFlowWorkerTests testMethod=test_extracts_archive_and_validates_relative_entrypoint&gt;
+
+    def test_extracts_archive_and_validates_relative_entrypoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "code.zip"
+            with zipfile.ZipFile(archive, "w") as output:
+                output.writestr("main.py", "print('ok')\n")
+                output.writestr("lib/helper.py", "VALUE = 1\n")
+            workspace = root / "workspace"
+    
+            extract_code_archive(archive, workspace)
+    
+&gt;           self.assertEqual(validate_entrypoint(workspace, "main.py"), Path("main.py"))
+E           AssertionError: PurePosixPath('main.py') != WindowsPath('main.py')
+
+tests\test_mlflow_worker.py:55: AssertionError</failure></testcase><testcase classname="tests.test_mlflow_worker.MLFlowWorkerTests" name="test_first_time_run_claim_is_committed_to_one_worker" time="0.014" /><testcase classname="tests.test_mlflow_worker.MLFlowWorkerTests" name="test_input_weights_are_copied_before_mount_is_made_read_only" time="0.044" /><testcase classname="tests.test_mlflow_worker.MLFlowWorkerTests" name="test_output_artifact_must_be_regular_file_not_symlink" time="0.015"><failure message="OSError: [WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpbu_gja6a\\output\\weights.bin' -&gt; 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpbu_gja6a\\output\\linked.bin'">self = &lt;test_mlflow_worker.MLFlowWorkerTests testMethod=test_output_artifact_must_be_regular_file_not_symlink&gt;
+
+    def test_output_artifact_must_be_regular_file_not_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "output"
+            output.mkdir()
+            weights = output / "weights.bin"
+            weights.write_bytes(b"weights")
+            self.assertEqual(safe_output_file(output, "weights.bin"), weights)
+    
+            link = output / "linked.bin"
+&gt;           link.symlink_to(weights)
+
+tests\test_mlflow_worker.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpbu_gja6a/output/linked.bin')
+target = WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpbu_gja6a/output/weights.bin')
+target_is_directory = False
+
+    def symlink_to(self, target, target_is_directory=False):
+        """
+        Make this path a symlink pointing to the target path.
+        Note the order of arguments (link, target) is the reverse of os.symlink.
+        """
+        if not hasattr(os, "symlink"):
+            raise NotImplementedError("os.symlink() not available on this system")
+&gt;       os.symlink(target, self, target_is_directory)
+E       OSError: [WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpbu_gja6a\\output\\weights.bin' -&gt; 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpbu_gja6a\\output\\linked.bin'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1386: OSError</failure></testcase><testcase classname="tests.test_mlflow_worker.MLFlowWorkerTests" name="test_rejects_archive_path_traversal" time="0.040" /><testcase classname="tests.test_mlflow_worker.MLFlowWorkerTests" name="test_rejects_entrypoint_path_traversal" time="0.012" /><testcase classname="tests.test_mlflow_worker_docker.MLFlowWorkerDockerSmokeTests" name="test_container_executes_entrypoint_and_returns_output_artifact" time="0.005"><skipped type="pytest.skip" message="Docker smoke test runs in CI">C:\Users\Areen\Prayog-final\backend\tests\test_mlflow_worker_docker.py:41: Docker smoke test runs in CI</skipped></testcase><testcase classname="tests.test_mlflow_worker_docker.MLFlowWorkerDockerSmokeTests" name="test_container_failure_returns_real_nonzero_exit_code" time="0.002"><skipped type="pytest.skip" message="Docker smoke test runs in CI">C:\Users\Areen\Prayog-final\backend\tests\test_mlflow_worker_docker.py:52: Docker smoke test runs in CI</skipped></testcase><testcase classname="tests.test_mlflow_worker_docker.MLFlowWorkerDockerSmokeTests" name="test_container_timeout_kills_execution" time="0.003"><skipped type="pytest.skip" message="Docker smoke test runs in CI">C:\Users\Areen\Prayog-final\backend\tests\test_mlflow_worker_docker.py:61: Docker smoke test runs in CI</skipped></testcase><testcase classname="tests.test_node_agent_docker.DockerAgentRunsTests" name="test_a_crash_in_a_container_is_reported_with_its_exit_code" time="0.003"><skipped type="pytest.skip" message="Docker smoke tests run in CI">C:\Users\Areen\Prayog-final\backend\tests\test_node_agent_docker.py:71: Docker smoke tests run in CI</skipped></testcase><testcase classname="tests.test_node_agent_docker.DockerAgentRunsTests" name="test_a_run_in_a_container_ships_its_results_and_leaves_nothing_behind" time="0.003"><skipped type="pytest.skip" message="Docker smoke tests run in CI">C:\Users\Areen\Prayog-final\backend\tests\test_node_agent_docker.py:48: Docker smoke tests run in CI</skipped></testcase><testcase classname="tests.test_node_agent_docker.DockerAgentRunsTests" name="test_cancelling_stops_the_container" time="0.003"><skipped type="pytest.skip" message="Docker smoke tests run in CI">C:\Users\Areen\Prayog-final\backend\tests\test_node_agent_docker.py:79: Docker smoke tests run in CI</skipped></testcase><testcase classname="tests.test_node_agent_docker.DockerAgentRunsTests" name="test_the_container_is_isolated" time="0.003"><skipped type="pytest.skip" message="Docker smoke tests run in CI">C:\Users\Areen\Prayog-final\backend\tests\test_node_agent_docker.py:59: Docker smoke tests run in CI</skipped></testcase><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_a_checkpoint_still_being_written_is_not_shipped_early" time="4.603" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_a_corrupted_dataset_file_is_never_trained_on" time="1.857" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_a_crashing_program_fails_the_run_and_keeps_what_it_saved" time="2.338" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_a_dataset_deleted_before_the_run_started_fails_it_clearly" time="1.801" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_a_plain_job_without_a_run_is_handled_as_before" time="0.989" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_a_restarted_agent_finds_the_run_and_does_not_start_it_again" time="2.157" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_a_run_trains_ships_its_results_and_is_sealed" time="2.845" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_an_agent_that_died_while_preparing_fails_the_run_instead_of_hanging" time="1.500" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_cancelling_stops_the_program_and_cancels_the_run" time="1.747"><failure message="AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?">self = &lt;test_node_agent_runs.AgentRunsTests testMethod=test_cancelling_stops_the_program_and_cancels_the_run&gt;
+
+        def test_cancelling_stops_the_program_and_cancels_the_run(self):
+            source = '''\
+    import os, pathlib, time
+    out = pathlib.Path(os.environ["PRAYOG_OUTPUT_DIR"])
+    (out / "checkpoints").mkdir()
+    (out / "checkpoints" / "step-1.bin").write_bytes(b"saved")
+    print("training", flush=True)
+    time.sleep(600)
+    '''
+            run = self.submit_program(source, dataset=False)
+            agent = self.make_agent(run)
+            self.drive(agent, lambda: self.db.query(RunCheckpoint).filter_by(run_id=run["run_id"]).count() == 1)
+            self.assertEqual(self.client.post(f"/jobs/{run['job_id']}/cancel").status_code, 200)
+&gt;           self.drive(agent, self.finished(run))
+
+tests\test_node_agent_runs.py:139: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\agent_case.py:78: in drive
+    agent.step()
+node_agent\simulated.py:108: in step
+    self._supervise(key, order)
+node_agent\agent.py:132: in _supervise
+    self.runner.stop(handle)                                # SIGTERM, grace, SIGKILL
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;node_agent.runners.SubprocessRunner object at 0x000001406445C5C0&gt;
+handle = {'kind': 'subprocess', 'name': 'alloc-147', 'pid': 4052}
+
+    def stop(self, handle: dict) -&gt; None:
+        child = self._children.get(handle["name"])
+        if child is None or child.poll() is not None:
+            return
+&gt;       os.killpg(child.pid, signal.SIGTERM)
+        ^^^^^^^^^
+E       AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?
+
+node_agent\runners.py:89: AttributeError</failure></testcase><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_corrupted_code_is_never_run" time="1.544" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_results_arrive_while_the_program_is_still_running" time="2.314" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_the_agent_stops_a_run_at_its_walltime_and_keeps_its_checkpoints" time="1.726"><failure message="AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?">self = &lt;test_node_agent_runs.AgentRunsTests testMethod=test_the_agent_stops_a_run_at_its_walltime_and_keeps_its_checkpoints&gt;
+
+        def test_the_agent_stops_a_run_at_its_walltime_and_keeps_its_checkpoints(self):
+            source = '''\
+    import os, pathlib, time
+    out = pathlib.Path(os.environ["PRAYOG_OUTPUT_DIR"])
+    (out / "checkpoints").mkdir()
+    (out / "checkpoints" / "step-1.bin").write_bytes(b"saved")
+    time.sleep(600)
+    '''
+            run = self.submit_program(source, dataset=False)
+            offset = {"minutes": 0}
+            from datetime import UTC, datetime
+            clock = lambda: datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=offset["minutes"])
+            agent = self.make_agent(run, clock=clock)
+            self.drive(agent, lambda: self.db.query(RunCheckpoint).filter_by(run_id=run["run_id"]).count() == 1)
+            offset["minutes"] = 61                                                  # the one-hour walltime passes
+&gt;           self.drive(agent, self.finished(run))
+
+tests\test_node_agent_runs.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\agent_case.py:78: in drive
+    agent.step()
+node_agent\simulated.py:108: in step
+    self._supervise(key, order)
+node_agent\agent.py:132: in _supervise
+    self.runner.stop(handle)                                # SIGTERM, grace, SIGKILL
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;node_agent.runners.SubprocessRunner object at 0x0000014064473560&gt;
+handle = {'kind': 'subprocess', 'name': 'alloc-150', 'pid': 27044}
+
+    def stop(self, handle: dict) -&gt; None:
+        child = self._children.get(handle["name"])
+        if child is None or child.poll() is not None:
+            return
+&gt;       os.killpg(child.pid, signal.SIGTERM)
+        ^^^^^^^^^
+E       AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?
+
+node_agent\runners.py:89: AttributeError</failure></testcase><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_the_final_results_are_retried_when_the_server_is_unreachable" time="3.186" /><testcase classname="tests.test_node_agent_runs.AgentRunsTests" name="test_the_workspace_is_removed_and_nothing_is_run_twice" time="2.983"><failure message="AssertionError: Lists differ: [WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpaiargeit/workspaces/152')] != []&#10;&#10;First list contains 1 additional elements.&#10;First extra element 0:&#10;WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpaiargeit/workspaces/152')&#10;&#10;- [WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpaiargeit/workspaces/152')]&#10;+ []">self = &lt;test_node_agent_runs.AgentRunsTests testMethod=test_the_workspace_is_removed_and_nothing_is_run_twice&gt;
+
+    def test_the_workspace_is_removed_and_nothing_is_run_twice(self):
+        run = self.submit_program()
+        agent = self.make_agent(run)
+        self.drive(agent, self.finished(run))
+        agent.step()
+        agent.step()
+&gt;       self.assertEqual(list((self.state_dir / "workspaces").iterdir()), [])
+E       AssertionError: Lists differ: [WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpaiargeit/workspaces/152')] != []
+E       
+E       First list contains 1 additional elements.
+E       First extra element 0:
+E       WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpaiargeit/workspaces/152')
+E       
+E       - [WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmpaiargeit/workspaces/152')]
+E       + []
+
+tests\test_node_agent_runs.py:54: AssertionError</failure></testcase><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_a_chunk_of_the_wrong_length_is_refused" time="0.046" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_a_chunk_that_fails_its_checksum_is_refused" time="0.027" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_a_file_that_differs_from_the_inventory_is_refused" time="0.136" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_a_file_the_manifest_does_not_list_is_refused" time="0.179" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_a_listed_file_that_is_missing_is_refused" time="0.079" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_a_server_refusal_is_reported" time="0.023" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_a_symlink_in_the_archive_is_refused" time="0.124" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_an_archive_that_fails_the_manifest_digest_is_refused" time="0.147" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_an_entrypoint_outside_the_code_is_refused" time="0.196" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_dataset_bytes_that_fail_the_blake3_check_are_refused_and_removed" time="0.115" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_dataset_files_are_placed_at_their_paths_read_only" time="0.146" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_dataset_of_the_wrong_size_is_refused" time="0.102" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_good_code_is_joined_verified_and_extracted_read_only" time="0.107" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_path_traversal_in_the_archive_is_refused" time="0.168" /><testcase classname="tests.test_node_agent_units.WorkspaceTests" name="test_unsafe_dataset_paths_are_refused" time="0.231" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_a_container_that_will_not_start_is_an_error" time="0.011" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_a_machine_without_gpu_passthrough_exposes_none" time="0.006" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_a_vanished_container_counts_as_killed" time="0.006" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_cleanup_keeps_the_containers_output_in_the_log_then_removes_it" time="0.031" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_code_and_data_are_read_only_and_only_the_output_is_writable" time="0.006" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_docker_state_maps_to_an_exit_code" time="0.018" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_only_the_allocated_gpus_are_exposed" time="0.004" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_the_container_is_locked_down" time="0.005" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_the_container_is_named_for_the_allocation" time="0.006" /><testcase classname="tests.test_node_agent_units.RunnerTests" name="test_the_program_finds_its_inputs_through_the_environment" time="0.005" /><testcase classname="tests.test_node_agent_units.SubprocessRunnerTests" name="test_a_program_the_agent_lost_track_of_counts_as_killed" time="0.017" /><testcase classname="tests.test_node_agent_units.SubprocessRunnerTests" name="test_exit_codes_and_output_are_reported" time="0.282" /><testcase classname="tests.test_node_agent_units.SubprocessRunnerTests" name="test_stop_ends_a_program_that_ignores_nothing" time="0.037"><failure message="AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?">self = &lt;test_node_agent_units.SubprocessRunnerTests testMethod=test_stop_ends_a_program_that_ignores_nothing&gt;
+
+    def test_stop_ends_a_program_that_ignores_nothing(self):
+        runner, handle = self.start("import time; time.sleep(600)")
+        self.assertIsNone(runner.poll(handle))
+&gt;       runner.stop(handle)
+
+tests\test_node_agent_units.py:306: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;node_agent.runners.SubprocessRunner object at 0x0000014064303440&gt;
+handle = {'kind': 'subprocess', 'name': 'a', 'pid': 18800}
+
+    def stop(self, handle: dict) -&gt; None:
+        child = self._children.get(handle["name"])
+        if child is None or child.poll() is not None:
+            return
+&gt;       os.killpg(child.pid, signal.SIGTERM)
+        ^^^^^^^^^
+E       AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?
+
+node_agent\runners.py:89: AttributeError</failure></testcase><testcase classname="tests.test_node_agent_units.SubprocessRunnerTests" name="test_stop_ends_a_program_that_ignores_nothing" time="0.001"><error message="failed on teardown with &quot;PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'&quot;">path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u'
+onexc = &lt;function TemporaryDirectory._rmtree.&lt;locals&gt;.onexc at 0x00000140644851C0&gt;
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+&gt;                   os.rmdir(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:627: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+func = &lt;built-in function rmdir&gt;
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+exc = PermissionError(13, 'The process cannot access the file because it is being used by another process')
+
+    def onexc(func, path, exc):
+        if isinstance(exc, PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+&gt;                   _os.unlink(path)
+E                   PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:905: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+onexc = &lt;function TemporaryDirectory._rmtree.&lt;locals&gt;.onexc at 0x0000014064486AC0&gt;
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.rmdir(fullname)
+                except OSError as err:
+                    onexc(os.rmdir, fullname, err)
+            for name in filenames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.unlink(fullname)
+                except OSError as err:
+                    onexc(os.unlink, fullname, err)
+        try:
+&gt;           os.rmdir(path)
+E           PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:637: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+func = &lt;built-in function rmdir&gt;
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+exc = PermissionError(13, 'The process cannot access the file because it is being used by another process')
+
+    def onexc(func, path, exc):
+        if isinstance(exc, PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+&gt;                   _os.unlink(path)
+E                   PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:905: PermissionError
+
+During handling of the above exception, another exception occurred:
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:950: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:930: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:781: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:629: in _rmtree_unsafe
+    onexc(os.rmdir, fullname, err)
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:920: in onexc
+    cls._rmtree(path, ignore_errors=ignore_errors,
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:930: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:781: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:639: in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:920: in onexc
+    cls._rmtree(path, ignore_errors=ignore_errors,
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:930: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:781: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:639: in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+onexc = &lt;function TemporaryDirectory._rmtree.&lt;locals&gt;.onexc at 0x0000014064484720&gt;
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.rmdir(fullname)
+                except OSError as err:
+                    onexc(os.rmdir, fullname, err)
+            for name in filenames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.unlink(fullname)
+                except OSError as err:
+                    onexc(os.unlink, fullname, err)
+        try:
+&gt;           os.rmdir(path)
+E           PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpmpbl9y3u\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:637: PermissionError</error></testcase><testcase classname="tests.test_node_agent_units.SubprocessRunnerTests" name="test_stop_kills_a_program_that_ignores_sigterm" time="0.540"><failure message="AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?">self = &lt;test_node_agent_units.SubprocessRunnerTests testMethod=test_stop_kills_a_program_that_ignores_sigterm&gt;
+
+    def test_stop_kills_a_program_that_ignores_sigterm(self):
+        with patch.object(runners, "STOP_GRACE_SECONDS", 0.3):
+            runner, handle = self.start("import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); print('up', flush=True); time.sleep(600)")
+            time.sleep(0.5)
+&gt;           runner.stop(handle)
+
+tests\test_node_agent_units.py:313: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;node_agent.runners.SubprocessRunner object at 0x00000140644F1DF0&gt;
+handle = {'kind': 'subprocess', 'name': 'a', 'pid': 27560}
+
+    def stop(self, handle: dict) -&gt; None:
+        child = self._children.get(handle["name"])
+        if child is None or child.poll() is not None:
+            return
+&gt;       os.killpg(child.pid, signal.SIGTERM)
+        ^^^^^^^^^
+E       AttributeError: module 'os' has no attribute 'killpg'. Did you mean: 'kill'?
+
+node_agent\runners.py:89: AttributeError</failure></testcase><testcase classname="tests.test_node_agent_units.SubprocessRunnerTests" name="test_stop_kills_a_program_that_ignores_sigterm" time="0.002"><error message="failed on teardown with &quot;PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'&quot;">path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4'
+onexc = &lt;function TemporaryDirectory._rmtree.&lt;locals&gt;.onexc at 0x0000014064486520&gt;
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+&gt;                   os.rmdir(fullname)
+E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:627: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+func = &lt;built-in function rmdir&gt;
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+exc = PermissionError(13, 'The process cannot access the file because it is being used by another process')
+
+    def onexc(func, path, exc):
+        if isinstance(exc, PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+&gt;                   _os.unlink(path)
+E                   PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:905: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+onexc = &lt;function TemporaryDirectory._rmtree.&lt;locals&gt;.onexc at 0x00000140644868E0&gt;
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.rmdir(fullname)
+                except OSError as err:
+                    onexc(os.rmdir, fullname, err)
+            for name in filenames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.unlink(fullname)
+                except OSError as err:
+                    onexc(os.unlink, fullname, err)
+        try:
+&gt;           os.rmdir(path)
+E           PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:637: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+func = &lt;built-in function rmdir&gt;
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+exc = PermissionError(13, 'The process cannot access the file because it is being used by another process')
+
+    def onexc(func, path, exc):
+        if isinstance(exc, PermissionError):
+            if repeated and path == name:
+                if ignore_errors:
+                    return
+                raise
+    
+            try:
+                if path != name:
+                    _resetperms(_os.path.dirname(path))
+                _resetperms(path)
+    
+                try:
+&gt;                   _os.unlink(path)
+E                   PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:905: PermissionError
+
+During handling of the above exception, another exception occurred:
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:950: in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:930: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:781: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:629: in _rmtree_unsafe
+    onexc(os.rmdir, fullname, err)
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:920: in onexc
+    cls._rmtree(path, ignore_errors=ignore_errors,
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:930: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:781: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:639: in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:920: in onexc
+    cls._rmtree(path, ignore_errors=ignore_errors,
+..\..\AppData\Local\Programs\Python\Python312\Lib\tempfile.py:930: in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:781: in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:639: in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+onexc = &lt;function TemporaryDirectory._rmtree.&lt;locals&gt;.onexc at 0x0000014064484040&gt;
+
+    def _rmtree_unsafe(path, onexc):
+        def onerror(err):
+            onexc(os.scandir, err.filename, err)
+        results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+        for dirpath, dirnames, filenames in results:
+            for name in dirnames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.rmdir(fullname)
+                except OSError as err:
+                    onexc(os.rmdir, fullname, err)
+            for name in filenames:
+                fullname = os.path.join(dirpath, name)
+                try:
+                    os.unlink(fullname)
+                except OSError as err:
+                    onexc(os.unlink, fullname, err)
+        try:
+&gt;           os.rmdir(path)
+E           PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmpy0h2cby4\\code'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\shutil.py:637: PermissionError</error></testcase><testcase classname="tests.test_node_agent_units.SubprocessRunnerTests" name="test_the_program_sees_its_environment_and_only_its_gpus" time="0.287" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_file_still_changing_waits_until_stable_unless_final" time="0.019" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_half_written_line_waits_for_the_rest" time="0.087" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_large_metrics_file_is_sent_in_bounded_batches" time="0.187" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_metrics_symlink_is_not_followed" time="0.034"><failure message="OSError: [WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmp68u9zfj3\\elsewhere.txt' -&gt; 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmp68u9zfj3\\metrics.jsonl'">self = &lt;test_node_agent_units.ResultShipperTests testMethod=test_a_metrics_symlink_is_not_followed&gt;
+
+    def test_a_metrics_symlink_is_not_followed(self):
+        target = self.out / "elsewhere.txt"
+        target.write_text('{"name": "stolen", "value": 1}\n')
+&gt;       (self.out / "metrics.jsonl").symlink_to(target)
+
+tests\test_node_agent_units.py:465: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmp68u9zfj3/metrics.jsonl')
+target = WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmp68u9zfj3/elsewhere.txt')
+target_is_directory = False
+
+    def symlink_to(self, target, target_is_directory=False):
+        """
+        Make this path a symlink pointing to the target path.
+        Note the order of arguments (link, target) is the reverse of os.symlink.
+        """
+        if not hasattr(os, "symlink"):
+            raise NotImplementedError("os.symlink() not available on this system")
+&gt;       os.symlink(target, self, target_is_directory)
+E       OSError: [WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmp68u9zfj3\\elsewhere.txt' -&gt; 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmp68u9zfj3\\metrics.jsonl'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1386: OSError</failure></testcase><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_server_error_does_not_lose_metrics" time="0.069" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_server_error_leaves_the_checkpoint_to_be_retried" time="0.025" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_step_the_server_already_has_is_not_retried" time="0.017" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_a_symlink_a_directory_and_an_empty_file_are_not_sent" time="0.013"><failure message="OSError: [WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmptcjoxaf2\\secret.txt' -&gt; 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmptcjoxaf2\\checkpoints\\step-1.bin'">self = &lt;test_node_agent_units.ResultShipperTests testMethod=test_a_symlink_a_directory_and_an_empty_file_are_not_sent&gt;
+
+    def test_a_symlink_a_directory_and_an_empty_file_are_not_sent(self):
+        target = self.out / "secret.txt"
+        target.write_text("do not send")
+&gt;       (self.out / "checkpoints" / "step-1.bin").symlink_to(target)
+
+tests\test_node_agent_units.py:369: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmptcjoxaf2/checkpoints/step-1.bin')
+target = WindowsPath('C:/Users/Areen/AppData/Local/Temp/tmptcjoxaf2/secret.txt')
+target_is_directory = False
+
+    def symlink_to(self, target, target_is_directory=False):
+        """
+        Make this path a symlink pointing to the target path.
+        Note the order of arguments (link, target) is the reverse of os.symlink.
+        """
+        if not hasattr(os, "symlink"):
+            raise NotImplementedError("os.symlink() not available on this system")
+&gt;       os.symlink(target, self, target_is_directory)
+E       OSError: [WinError 1314] A required privilege is not held by the client: 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmptcjoxaf2\\secret.txt' -&gt; 'C:\\Users\\Areen\\AppData\\Local\\Temp\\tmptcjoxaf2\\checkpoints\\step-1.bin'
+
+..\..\AppData\Local\Programs\Python\Python312\Lib\pathlib.py:1386: OSError</failure></testcase><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_an_empty_or_missing_log_sends_nothing" time="0.014" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_an_oversized_checkpoint_is_skipped_for_good" time="0.012" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_bad_lines_are_skipped_without_blocking_the_rest" time="0.047" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_checkpoints_are_sent_in_step_order_once_each" time="0.050" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_metrics_are_not_sent_twice_even_after_a_restart" time="0.045" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_metrics_lines_are_sent_as_a_batch" time="0.050" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_names_that_are_not_checkpoints_are_ignored" time="0.046" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_the_log_is_uploaded_and_its_tail_returned" time="0.040" /><testcase classname="tests.test_node_agent_units.ResultShipperTests" name="test_what_was_sent_is_remembered_across_an_agent_restart" time="0.021" /><testcase classname="tests.test_node_sharing.NodeSharingTests" name="test_both_fields_can_change_together" time="0.195" /><testcase classname="tests.test_node_sharing.NodeSharingTests" name="test_reason_and_a_change_are_required_and_retired_nodes_are_refused" time="0.202" /><testcase classname="tests.test_node_sharing.NodeSharingTests" name="test_reserved_teaching_node_is_refused_either_way_round" time="0.225" /><testcase classname="tests.test_node_sharing.NodeSharingTests" name="test_route_is_admin_only_and_triggers_a_pass" time="0.312" /><testcase classname="tests.test_node_sharing.NodeSharingTests" name="test_sharing_applies_to_the_next_pass_and_running_jobs_keep_their_units" time="0.315" /><testcase classname="tests.test_pass_equivalence.PassEquivalenceTests" name="test_every_class_is_exercised" time="11.544" /><testcase classname="tests.test_pass_equivalence.PassEquivalenceTests" name="test_same_claims_and_results_over_many_random_pools" time="40.829" /><testcase classname="tests.test_password_reset.ResetSchemaTests" name="test_new_password_must_be_long_enough" time="0.004" /><testcase classname="tests.test_password_reset.ResetSchemaTests" name="test_otp_must_be_six_digits" time="0.010" /><testcase classname="tests.test_password_reset.ResetSchemaTests" name="test_passwords_must_match" time="0.005" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_a_new_otp_cancels_the_older_one" time="0.894" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_correct_otp_changes_the_password" time="0.789" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_expired_otp_is_refused" time="0.383" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_old_sessions_stop_working_after_a_reset" time="0.434" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_otp_works_only_once" time="0.441" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_password_does_not_change_before_the_otp_is_verified" time="0.672" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_request_returns_a_six_digit_otp_and_stores_only_hashes" time="0.392" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_second_request_inside_the_cooldown_is_ignored" time="0.567" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_too_many_wrong_attempts_cancel_the_otp_even_for_the_right_code" time="0.661" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_unknown_email_cannot_verify" time="0.220" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_unknown_email_sends_nothing" time="0.337" /><testcase classname="tests.test_password_reset.PasswordResetTests" name="test_wrong_otp_is_refused_and_counted" time="0.570" /><testcase classname="tests.test_pool_picture.PoolPictureTests" name="test_audit_limit_is_bounded_and_the_route_is_admin_only" time="0.394" /><testcase classname="tests.test_pool_picture.PoolPictureTests" name="test_no_project_contents_ever_appear" time="0.375" /><testcase classname="tests.test_pool_picture.PoolPictureTests" name="test_node_and_unit_states_with_the_holding_job_id_only" time="0.261" /><testcase classname="tests.test_pool_picture.PoolPictureTests" name="test_queue_utilisation_alerts_and_audit" time="0.278" /><testcase classname="tests.test_project_names.ProjectNameTests" name="test_create_returns_a_unique_id_and_stores_the_name_for_the_user" time="1.834" /><testcase classname="tests.test_project_names.ProjectNameTests" name="test_same_name_twice_is_a_conflict_ignoring_case_and_spaces" time="1.742" /><testcase classname="tests.test_project_names.ProjectNameTests" name="test_two_users_can_use_the_same_name" time="2.271" /><testcase classname="tests.test_project_versions.VersionLabelTests" name="test_labels_count_like_spreadsheet_columns" time="0.003" /><testcase classname="tests.test_project_versions.VersionLabelTests" name="test_labels_round_trip" time="0.028" /><testcase classname="tests.test_project_versions.VersionLabelTests" name="test_parse_accepts_lowercase_and_numbers" time="0.003" /><testcase classname="tests.test_project_versions.VersionLabelTests" name="test_parse_rejects_nonsense" time="0.007" /><testcase classname="tests.test_project_versions.VersionLabelTests" name="test_zero_has_no_label" time="0.003" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_a_manifest_naming_a_foreign_chunk_is_refused" time="0.652" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_a_manifest_whose_chunk_record_disagrees_is_refused" time="0.465" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_a_weights_artifact_cannot_be_a_version" time="0.351" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_an_artifact_that_is_not_a_manifest_is_refused" time="0.435" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_another_user_cannot_see_or_change_the_project_versions" time="0.597" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_changed_content_is_the_next_version_and_moves_head_and_current" time="0.796" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_checkout_moves_current_but_not_head" time="0.912" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_checkout_of_a_malformed_version_is_a_bad_request" time="0.555" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_checkout_of_a_missing_version_is_not_found" time="0.565" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_each_version_points_at_its_parent" time="1.019" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_first_upload_is_version_a_and_current" time="0.508" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_manifest_hash_is_the_blake3_storage_key_of_the_manifest" time="0.464" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_registering_an_older_content_makes_it_current_again" time="0.921" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_registering_the_same_content_again_creates_nothing" time="0.707" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_version_numbers_stay_unique_under_repeated_registration" time="1.291" /><testcase classname="tests.test_project_versions.ProjectVersionApiTests" name="test_versions_list_newest_first" time="1.028" /><testcase classname="tests.test_rebuild_scheduling_path.RebuildSchedulingPathTests" name="test_a_recorded_snapshot_is_queued_as_an_ordinary_job_carrying_reproduces" time="0.135" /><testcase classname="tests.test_rebuild_scheduling_path.RebuildSchedulingPathTests" name="test_a_snapshot_one_of_your_jobs_ran_names_that_jobs_run" time="0.245" /><testcase classname="tests.test_rebuild_scheduling_path.RebuildSchedulingPathTests" name="test_no_priority_advantage_over_a_first_time_job" time="0.147" /><testcase classname="tests.test_rebuild_scheduling_path.RebuildSchedulingPathTests" name="test_rebuilds_are_validated_like_any_job" time="0.087" /><testcase classname="tests.test_rebuild_scheduling_path.RebuildSchedulingPathTests" name="test_retry_with_the_same_request_id_returns_the_same_attempt" time="0.111" /><testcase classname="tests.test_rebuild_scheduling_path.RebuildSchedulingPathTests" name="test_route_reports_reproduces" time="0.159" /><testcase classname="tests.test_rebuild_scheduling_path.RebuildSchedulingPathTests" name="test_unknown_or_foreign_snapshots_are_rejected_without_a_job_or_attempt" time="0.103" /><testcase classname="tests.test_review_fixes.TestAccountTests" name="test_a_test_accounts_password_is_its_user_id_reversed" time="0.003" /><testcase classname="tests.test_review_fixes.LoginLockoutTests" name="test_a_good_login_clears_the_count" time="3.519" /><testcase classname="tests.test_review_fixes.LoginLockoutTests" name="test_sign_ins_and_the_lockout_are_audited_without_what_was_typed" time="3.380" /><testcase classname="tests.test_review_fixes.LoginLockoutTests" name="test_the_account_opens_again_after_the_lockout_period" time="3.462" /><testcase classname="tests.test_review_fixes.LoginLockoutTests" name="test_the_right_password_is_refused_during_a_lockout_with_the_same_answer" time="3.968" /><testcase classname="tests.test_review_fixes.ActiveAccessTests" name="test_an_unapproved_account_stores_nothing_but_can_still_read" time="1.340" /><testcase classname="tests.test_review_fixes.ActiveAccessTests" name="test_approval_opens_it_and_revoking_closes_it" time="1.617" /><testcase classname="tests.test_review_fixes.StewardSessionTests" name="test_a_session_ends_when_it_is_logged_out" time="1.541" /><testcase classname="tests.test_review_fixes.StewardSessionTests" name="test_a_session_ends_when_the_password_is_reset" time="1.626" /><testcase classname="tests.test_review_fixes.RunsInFlightTests" name="test_a_handover_leaves_a_placed_run_able_to_start_and_store_its_results" time="1.429" /><testcase classname="tests.test_review_fixes.RunsInFlightTests" name="test_a_later_platform_stop_does_not_undo_a_cancel" time="0.853" /><testcase classname="tests.test_review_fixes.RunsInFlightTests" name="test_a_sealed_run_reaches_the_professors_ledger_without_any_outside_service" time="4.544" /><testcase classname="tests.test_review_fixes.RunsInFlightTests" name="test_an_approved_steward_fix_runs_the_same_code_again" time="0.968" /><testcase classname="tests.test_review_fixes.RunsInFlightTests" name="test_an_owners_cancel_replaces_a_stop_that_would_requeue_the_job" time="0.889" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_a_file_over_the_size_limit_is_refused_before_it_is_read" time="0.111" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_a_file_with_the_wrong_size_counts_as_missing" time="0.178" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_a_malformed_digest_or_negative_size_is_refused" time="0.120" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_a_short_or_long_body_is_refused" time="0.148" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_an_empty_file_can_be_staged" time="0.155" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_an_upload_is_staged_and_reported_created" time="0.141" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_bytes_that_do_not_match_the_digest_are_refused_and_nothing_is_staged" time="0.102" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_missing_lists_only_what_is_not_staged" time="0.185" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_no_temporary_files_are_left_behind_after_a_refusal" time="0.084" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_staging_is_private_to_each_user" time="0.279" /><testcase classname="tests.test_staging.StagingUploadTests" name="test_uploading_the_same_file_again_is_a_no_op" time="0.216" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_a_failed_or_cancelled_run_starts_the_clock_too" time="1.026" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_a_later_run_using_the_data_extends_its_life" time="0.983" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_clearing_a_project_deletes_finished_data_but_keeps_data_in_use" time="0.993" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_clearing_does_not_touch_another_projects_data" time="1.315" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_clearing_someone_elses_project_is_not_found" time="0.781" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_data_is_deleted_once_the_hold_has_passed" time="1.046" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_data_is_kept_for_the_hold_after_the_run_ends" time="0.836" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_data_is_kept_while_its_run_is_unfinished_however_old" time="0.826" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_data_nobody_used_is_deleted_after_the_hold_from_upload" time="0.657" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_deleted_data_can_be_staged_again_and_used" time="0.827" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_expiry_is_idempotent" time="0.822" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_status_reports_the_data_still_held" time="0.890" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_the_fingerprint_survives_deletion_and_shows_the_data_gone" time="0.854" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_the_hold_comes_from_the_environment" time="0.513" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_the_object_is_kept_while_an_artifact_names_the_same_content" time="0.905" /><testcase classname="tests.test_staging.StagingExpiryTests" name="test_the_object_is_kept_while_another_user_still_has_it_staged" time="0.856" /><testcase classname="tests.test_steward_context.StewardContextIsolationTests" name="test_foreign_or_nonfailed_attempt_returns_empty_context" time="0.007" /><testcase classname="tests.test_steward_context.StewardContextIsolationTests" name="test_ingestion_requires_explicit_sanitization_and_failed_owned_attempt" time="0.012" /><testcase classname="tests.test_steward_context.StewardContextIsolationTests" name="test_invalid_embeddings_are_rejected" time="0.011" /><testcase classname="tests.test_steward_context.StewardContextIsolationTests" name="test_retrieval_is_scoped_by_user_and_attempt_in_database" time="0.010" /><testcase classname="tests.test_steward_context.StewardContextIsolationTests" name="test_unscoped_retrieval_returns_zero_rows_without_querying_database" time="0.005" /><testcase classname="tests.test_web_app.WebAppServingTests" name="test_api_responses_keep_their_own_headers" time="0.035" /><testcase classname="tests.test_web_app.WebAppServingTests" name="test_the_app_is_served_under_a_strict_policy" time="0.257" /><testcase classname="tests.test_web_app.WebAppServingTests" name="test_the_root_goes_to_the_app" time="0.030" /><testcase classname="tests.test_web_app.WebAppServingTests" name="test_the_stewards_modules_are_served_even_when_it_is_not_running" time="0.124" /><testcase classname="tests.test_web_app.MyJobsTests" name="test_the_limit_is_bounded" time="0.103" /><testcase classname="tests.test_web_app.MyJobsTests" name="test_the_list_is_the_owners_jobs_newest_first" time="0.418" /><testcase classname="tests.test_web_app.HandoverListTests" name="test_an_unknown_status_is_refused" time="0.598" /><testcase classname="tests.test_web_app.HandoverListTests" name="test_nobody_else_sees_it" time="0.740" /><testcase classname="tests.test_web_app.HandoverListTests" name="test_the_named_professor_sees_it_and_can_filter" time="0.870" /><testcase classname="tests.test_web_app.HandoverListTests" name="test_the_owner_sees_their_request" time="0.620" /></testsuite></testsuites>

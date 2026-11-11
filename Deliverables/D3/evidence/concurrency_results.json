@@ -1,0 +1,183 @@
+{
+  "part_a_http": {
+    "40 users, 1 GPU each, 4 units": {
+      "rounds": 10,
+      "rounds_wrong": 0,
+      "wrong_examples": [],
+      "double_allocations": 0,
+      "scheduled_per_round": [
+        4
+      ],
+      "units_held_per_round": [
+        4
+      ],
+      "fill_seconds_max": 0.63,
+      "submit_latency_ms": {
+        "n": 400,
+        "mean": 195.46,
+        "p50": 182.43,
+        "p95": 336.24,
+        "p99": 464.16,
+        "max": 506.19
+      }
+    },
+    "10 users, 3 GPUs each, 4 units (all-or-nothing)": {
+      "rounds": 10,
+      "rounds_wrong": 0,
+      "wrong_examples": [],
+      "double_allocations": 0,
+      "scheduled_per_round": [
+        1
+      ],
+      "units_held_per_round": [
+        3
+      ],
+      "fill_seconds_max": 0.141,
+      "submit_latency_ms": {
+        "n": 100,
+        "mean": 51.02,
+        "p50": 49.76,
+        "p95": 77.88,
+        "p99": 92.89,
+        "max": 93.42
+      }
+    }
+  },
+  "part_b_claim_race": {
+    "four concurrent claimers (NFR-GPU-038)": {
+      "threads": 4,
+      "rounds": 20,
+      "rounds_with_exactly_one_winner": 20,
+      "outcomes": {
+        "LOST_CLAIM_RACE": 60,
+        "CLAIMED": 20
+      },
+      "rounds_breaking_invariants": 0,
+      "claim_latency_ms": {
+        "n": 80,
+        "mean": 11.83,
+        "p50": 10.22,
+        "p95": 17.95,
+        "p99": 33.28,
+        "max": 33.28
+      }
+    },
+    "sixteen concurrent claimers": {
+      "threads": 16,
+      "rounds": 20,
+      "rounds_with_exactly_one_winner": 19,
+      "outcomes": {
+        "LOST_CLAIM_RACE": 300,
+        "CLAIMED": 19,
+        "JOB_UNAVAILABLE": 1
+      },
+      "rounds_breaking_invariants": 0,
+      "claim_latency_ms": {
+        "n": 320,
+        "mean": 32.72,
+        "p50": 32.78,
+        "p95": 44.07,
+        "p99": 52.48,
+        "max": 59.31
+      }
+    }
+  },
+  "design_peak_passes": {
+    "rounds": 10,
+    "pass_duration_ms": {
+      "n": 40,
+      "mean": 291.85,
+      "p50": 290.62,
+      "p95": 333.73,
+      "p99": 354.38,
+      "max": 354.38
+    },
+    "jobs_placed_per_round": [
+      16
+    ],
+    "rounds_breaking_invariants": 0
+  },
+  "part_c_strategies": {
+    "check then write, no lock, no index": {
+      "rounds": 100,
+      "workers": 8,
+      "rounds_double_booked": 99,
+      "rounds_with_no_winner": 0,
+      "attempts_refused_by_database": 0,
+      "mean_ms": 15.76,
+      "attempt_latency_ms": {
+        "n": 800,
+        "mean": 15.76,
+        "p50": 15.37,
+        "p95": 25.39,
+        "p99": 39.32,
+        "max": 54.73
+      }
+    },
+    "check then write, partial unique index only": {
+      "rounds": 100,
+      "workers": 8,
+      "rounds_double_booked": 0,
+      "rounds_with_no_winner": 0,
+      "attempts_refused_by_database": 697,
+      "mean_ms": 8.86,
+      "attempt_latency_ms": {
+        "n": 800,
+        "mean": 8.86,
+        "p50": 8.5,
+        "p95": 12.08,
+        "p99": 17.66,
+        "max": 26.32
+      }
+    },
+    "SERIALIZABLE transactions, no lock": {
+      "rounds": 100,
+      "workers": 8,
+      "rounds_double_booked": 0,
+      "rounds_with_no_winner": 0,
+      "attempts_refused_by_database": 698,
+      "mean_ms": 9.31,
+      "attempt_latency_ms": {
+        "n": 800,
+        "mean": 9.31,
+        "p50": 9.07,
+        "p95": 12.4,
+        "p99": 17.63,
+        "max": 21.17
+      }
+    },
+    "FOR UPDATE (waits for the lock)": {
+      "rounds": 100,
+      "workers": 8,
+      "rounds_double_booked": 0,
+      "rounds_with_no_winner": 0,
+      "attempts_refused_by_database": 0,
+      "mean_ms": 13.95,
+      "attempt_latency_ms": {
+        "n": 800,
+        "mean": 13.95,
+        "p50": 13.73,
+        "p95": 23.65,
+        "p99": 28.6,
+        "max": 33.49
+      }
+    },
+    "FOR UPDATE SKIP LOCKED plus index (Prayog)": {
+      "rounds": 100,
+      "workers": 8,
+      "rounds_double_booked": 0,
+      "rounds_with_no_winner": 0,
+      "attempts_refused_by_database": 0,
+      "mean_ms": 4.87,
+      "attempt_latency_ms": {
+        "n": 800,
+        "mean": 4.87,
+        "p50": 4.57,
+        "p95": 7.84,
+        "p99": 11.93,
+        "max": 19.43
+      }
+    }
+  },
+  "invariants_at_end": {}
+}

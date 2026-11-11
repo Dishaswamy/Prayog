@@ -31,7 +31,7 @@ class GpuRunCase(SchedulerPostgresCase):
         self.passes = []
         for module in ("routers.gpu.runs", "routers.gpu.agent", "routers.gpu.jobs",
                        "routers.gpu.admin"):
-            runner = patch(f"{module}.run_pass", lambda *a, **k: self.passes.append(k))
+            runner = patch(f"{module}.trigger_pass", lambda *a, **k: self.passes.append(k))
             runner.start()
             self.addCleanup(runner.stop)
 

@@ -1,0 +1,298 @@
+[
+ {
+  "id": "A01",
+  "category": "IDOR",
+  "attack": "bob reads alice's job by ID",
+  "expected": "404, same as a missing job",
+  "observed": 404,
+  "result": "PASS"
+ },
+ {
+  "id": "A02",
+  "category": "IDOR",
+  "attack": "existence oracle: foreign vs missing job",
+  "expected": "identical status and body",
+  "observed": "404/404",
+  "result": "PASS"
+ },
+ {
+  "id": "A03",
+  "category": "IDOR",
+  "attack": "bob cancels alice's job",
+  "expected": "refused; job unchanged",
+  "observed": "403, job QUEUED",
+  "result": "PASS"
+ },
+ {
+  "id": "A03b",
+  "category": "IDOR",
+  "attack": "existence oracle on cancel: foreign vs missing job",
+  "expected": "identical status (404), as for reads",
+  "observed": "403/404",
+  "result": "FAIL"
+ },
+ {
+  "id": "A04",
+  "category": "privilege escalation",
+  "attack": "student GET /admin/pool",
+  "expected": "403",
+  "observed": 403,
+  "result": "PASS"
+ },
+ {
+  "id": "A04",
+  "category": "privilege escalation",
+  "attack": "student GET /admin/nodes",
+  "expected": "403",
+  "observed": 403,
+  "result": "PASS"
+ },
+ {
+  "id": "A04",
+  "category": "privilege escalation",
+  "attack": "student GET /admin/alerts",
+  "expected": "403",
+  "observed": 403,
+  "result": "PASS"
+ },
+ {
+  "id": "A05",
+  "category": "privilege escalation",
+  "attack": "student registers a GPU node",
+  "expected": "403/422, nothing created",
+  "observed": 403,
+  "result": "PASS"
+ },
+ {
+  "id": "A06",
+  "category": "privilege escalation",
+  "attack": "user token on node-agent API",
+  "expected": "401/403",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A07",
+  "category": "token forgery",
+  "attack": "alg=none token",
+  "expected": "401",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A08",
+  "category": "token forgery",
+  "attack": "token signed with a guessed key",
+  "expected": "401",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A09",
+  "category": "token forgery",
+  "attack": "payload sub changed, signature kept",
+  "expected": "401",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A10",
+  "category": "session",
+  "attack": "expired token (correctly signed)",
+  "expected": "401",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A11",
+  "category": "privilege escalation",
+  "attack": "validly signed token claiming role ADMIN for a student",
+  "expected": "403 (role read from DB)",
+  "observed": 403,
+  "result": "PASS"
+ },
+ {
+  "id": "A12",
+  "category": "session",
+  "attack": "token reused after logout",
+  "expected": "401",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A13",
+  "category": "session",
+  "attack": "a second login survives the first one's logout",
+  "expected": "200",
+  "observed": 200,
+  "result": "PASS"
+ },
+ {
+  "id": "A14",
+  "category": "SQL injection",
+  "attack": "login email \"' OR '1'='1' --\"",
+  "expected": "401/422, never 200 or 500",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A14",
+  "category": "SQL injection",
+  "attack": "login email \"alice@iitk.ac.in' --\"",
+  "expected": "401/422, never 200 or 500",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A14",
+  "category": "SQL injection",
+  "attack": "login email 'admin@iitk.ac.in\"; DROP TABLE users; --'",
+  "expected": "401/422, never 200 or 500",
+  "observed": 401,
+  "result": "PASS"
+ },
+ {
+  "id": "A15",
+  "category": "input validation",
+  "attack": "100 kB password (hashing DoS)",
+  "expected": "422 before hashing",
+  "observed": 422,
+  "result": "PASS"
+ },
+ {
+  "id": "A16",
+  "category": "input validation",
+  "attack": "gpus=-1 walltime='00:30'",
+  "expected": "4xx with a reason",
+  "observed": "400 INVALID_GPUS",
+  "result": "PASS"
+ },
+ {
+  "id": "A16",
+  "category": "input validation",
+  "attack": "gpus=0 walltime='00:30'",
+  "expected": "4xx with a reason",
+  "observed": "400 INVALID_GPUS",
+  "result": "PASS"
+ },
+ {
+  "id": "A16",
+  "category": "input validation",
+  "attack": "gpus=1000000000 walltime='00:30'",
+  "expected": "4xx with a reason",
+  "observed": "400 GPUS_EXCEED_MAX_NODE",
+  "result": "PASS"
+ },
+ {
+  "id": "A16",
+  "category": "input validation",
+  "attack": "gpus=1 walltime='999:99'",
+  "expected": "4xx with a reason",
+  "observed": "400 INVALID_WALLTIME",
+  "result": "PASS"
+ },
+ {
+  "id": "A16",
+  "category": "input validation",
+  "attack": "gpus=1 walltime='00:00'",
+  "expected": "4xx with a reason",
+  "observed": "400 INVALID_WALLTIME",
+  "result": "PASS"
+ },
+ {
+  "id": "A16",
+  "category": "input validation",
+  "attack": "gpus='1; DROP' walltime='00:30'",
+  "expected": "4xx with a reason",
+  "observed": "400 INVALID_GPUS",
+  "result": "PASS"
+ },
+ {
+  "id": "A16",
+  "category": "input validation",
+  "attack": "gpus=1 walltime='1e9'",
+  "expected": "4xx with a reason",
+  "observed": "400 INVALID_WALLTIME",
+  "result": "PASS"
+ },
+ {
+  "id": "A17",
+  "category": "mass assignment",
+  "attack": "submit with lab_id/state/user_id fields",
+  "expected": "extra fields ignored or refused",
+  "observed": 201,
+  "result": "PASS"
+ },
+ {
+  "id": "A18",
+  "category": "path traversal",
+  "attack": "GET /app/../main.py",
+  "expected": "no source or secrets served",
+  "observed": 404,
+  "result": "PASS"
+ },
+ {
+  "id": "A18",
+  "category": "path traversal",
+  "attack": "GET /app/%2e%2e/main.py",
+  "expected": "no source or secrets served",
+  "observed": 404,
+  "result": "PASS"
+ },
+ {
+  "id": "A18",
+  "category": "path traversal",
+  "attack": "GET /app/..%2fmain.py",
+  "expected": "no source or secrets served",
+  "observed": 404,
+  "result": "PASS"
+ },
+ {
+  "id": "A18",
+  "category": "path traversal",
+  "attack": "GET /app/%2e%2e%2f%2e%2e%2f.env",
+  "expected": "no source or secrets served",
+  "observed": 404,
+  "result": "PASS"
+ },
+ {
+  "id": "A18",
+  "category": "path traversal",
+  "attack": "GET /app/web.css/../../database.py",
+  "expected": "no source or secrets served",
+  "observed": 404,
+  "result": "PASS"
+ },
+ {
+  "id": "A19",
+  "category": "brute force",
+  "attack": "11 wrong passwords then the right one",
+  "expected": "right password refused during lockout, same 401",
+  "observed": "{401} then 401",
+  "result": "PASS"
+ },
+ {
+  "id": "A20",
+  "category": "CORS",
+  "attack": "preflight from an unlisted origin",
+  "expected": "no Access-Control-Allow-Origin",
+  "observed": null,
+  "result": "PASS"
+ },
+ {
+  "id": "A21",
+  "category": "hardening",
+  "attack": "security headers on the web app",
+  "expected": "nosniff, frame and CSP headers present",
+  "observed": "all present",
+  "result": "PASS"
+ },
+ {
+  "id": "A22",
+  "category": "error handling",
+  "attack": "malformed path parameter",
+  "expected": "422 without a stack trace",
+  "observed": 422,
+  "result": "PASS"
+ }
+]

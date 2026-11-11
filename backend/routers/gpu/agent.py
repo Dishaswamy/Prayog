@@ -6,7 +6,7 @@ from logic.gpu.scheduler.config import SchedulerConfig
 from logic.mlflow.release import sync_allocation_run
 from logic.gpu.scheduler.dispatch import acknowledge, allocations_for, report
 from logic.gpu.scheduler.nodes import authenticate, enrol, heartbeat
-from logic.gpu.scheduler.passes import Trigger, run_pass
+from logic.gpu.scheduler.passes import Trigger, trigger_pass
 from models import Node
 from routers.gpu.jobs import get_pass_sessions, get_scheduler_config
 from schemas.gpu.agent import (
@@ -54,7 +54,7 @@ def node_heartbeat(
 ):
     result = heartbeat(db, node.id, body.unit_count, body.running_allocation_ids)
     if result.became_available:
-        background.add_task(run_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
+        background.add_task(trigger_pass, pass_sessions, Trigger.NODE_STATE, cfg=cfg)
     return HeartbeatOut(state=result.state, terminate_allocation_ids=list(result.terminate_allocation_ids))
 
 
@@ -88,5 +88,5 @@ def report_allocation(
                     log_tail=body.log_tail)
     if result is None:
         return ReportOut(applied=False, job_state=None)
-    background.add_task(run_pass, pass_sessions, Trigger.RUN_END, cfg=cfg)            # FR-GPU-121
+    background.add_task(trigger_pass, pass_sessions, Trigger.RUN_END, cfg=cfg)            # FR-GPU-121
     return ReportOut(applied=True, job_state=result.job_state)

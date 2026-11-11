@@ -533,6 +533,18 @@ class NodeAlert(Base):
     acknowledged_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
+class PlatformLiveness(Base):
+    """One row: when the API was last up and since when it has been up without a gap (D3-08)."""
+    __tablename__ = "platform_liveness"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_platform_liveness_one_row"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    api_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    listening_since: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
 class SchedulingPass(Base):
     """One row per scheduling pass: what it saw and did (A-74, NFR-GPU-051). Insert-only."""
     __tablename__ = "scheduling_passes"

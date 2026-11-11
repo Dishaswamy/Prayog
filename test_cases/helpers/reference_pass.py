@@ -9,7 +9,7 @@ from logic.gpu.scheduler.claim import ClaimOutcome, ClaimStatus, claim
 from logic.gpu.scheduler.classes import owners_with_queued_work, resolve_class
 from logic.gpu.scheduler.domain import JobView, NodeView, PriorityClass, QueueReason
 from logic.gpu.scheduler.eligibility import ineligibility_reason, is_eligible, usable_units
-from logic.gpu.scheduler.passes import PassResult
+from logic.gpu.scheduler.passes import PassResult, _Pass
 from logic.gpu.scheduler.scoring import ScoreBreakdown, rank_key
 
 
@@ -82,6 +82,7 @@ class ReferencePass:
                     self.taken_elsewhere.add(job.job_id)
                     break
                 self.claim_failures[job.job_id] = outcome.queue_reason
+                _Pass._learn(self, node_id, job, outcome.status)      # the same rule for a failed claim
 
     def _pair_is(self, job: JobView, node: NodeView, cls: PriorityClass) -> bool:
         return is_eligible(job, node, self.now) and resolve_class(job, node, self.owners_waiting) == cls

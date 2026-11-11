@@ -48,6 +48,7 @@ class SchedulerConfig:
     t_inprocess_seconds: float = 5.0
     heartbeat_interval_seconds: float = 10.0
     heartbeat_timeout_seconds: float = 30.0
+    platform_stamp_seconds: float = 2.0       # how often the API records that it is up (liveness.py)
     stop_grace_seconds: float = 15.0          # SIGTERM to SIGKILL (FR-GPU-068)
     drain_grace_minutes: float = 10.0         # FR-GPU-080
     dispatch_ack_timeout_seconds: float = 60.0   # FR-GPU-126
@@ -96,6 +97,8 @@ class SchedulerConfig:
              "walltime_tolerance > 0 and release_confirm > 0: the walltime completion bound must exceed stop_grace"),
             (self.heartbeat_timeout_seconds >= 3 * self.heartbeat_interval_seconds,
              "heartbeat_timeout >= 3 x heartbeat_interval: fewer missed beats makes DOWN detection flap"),
+            (3 * self.platform_stamp_seconds < self.heartbeat_timeout_seconds,
+             "3 x platform_stamp < heartbeat_timeout: an API outage must show before healthy nodes look dead"),
             (self.warning_cooldown_hours >= self.correlation_window_hours,
              "warning_cooldown >= correlation_window: a dismissed signature must not re-correlate early"),
             (self.t_max_minutes < self.max_walltime_minutes, "T_max < max_walltime: escalation must be reachable"),

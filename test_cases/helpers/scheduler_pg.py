@@ -164,7 +164,7 @@ class SchedulerPostgresCase(unittest.TestCase):
         app.dependency_overrides[get_current_user] = lambda: user
         self.addCleanup(app.dependency_overrides.pop, get_current_user, None)
         self.passes = []
-        runner = patch("routers.gpu.admin.run_pass", lambda *a, **k: self.passes.append(k))
+        runner = patch("routers.gpu.admin.trigger_pass", lambda *a, **k: self.passes.append(k))
         runner.start()
         self.addCleanup(runner.stop)
         return TestClient(app)

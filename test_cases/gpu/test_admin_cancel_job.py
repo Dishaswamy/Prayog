@@ -1,5 +1,5 @@
 """PRAYOG-81: a Platform Admin cancels any user's job with a recorded reason (US-ADM-07; FR-GPU-065, 099)."""
-from logic.common.errors import BadRequestError, ForbiddenError
+from logic.common.errors import BadRequestError, NotFoundError
 from logic.gpu.scheduler.cancel import admin_cancel_job, cancel_job
 from logic.gpu.scheduler.domain import JobState, ReleaseReason
 
@@ -56,7 +56,7 @@ class AdminCancelJobTests(SchedulerPostgresCase):
 
     def test_another_user_cannot_cancel_the_job_through_the_owner_path(self):
         job = self.make_job(self.owner)
-        with self.assertRaises(ForbiddenError):
+        with self.assertRaises(NotFoundError):
             cancel_job(self.db, job.id, self.other.id)
         self.db.refresh(job)
         self.assertEqual(job.state, JobState.QUEUED)

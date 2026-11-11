@@ -1,0 +1,147 @@
+[
+ {
+  "t": 23.17,
+  "event": "system up"
+ },
+ {
+  "t": 26.31,
+  "event": "n1 AVAILABLE"
+ },
+ {
+  "t": 28.89,
+  "event": "F1 job running",
+  "job": 1,
+  "state": "RUNNING"
+ },
+ {
+  "t": 29.24,
+  "event": "F1 agent killed (hard)"
+ },
+ {
+  "t": 38.41,
+  "event": "F1 node DOWN",
+  "detect_s": 9.17
+ },
+ {
+  "t": 38.75,
+  "event": "F1 job after node loss",
+  "state": "QUEUED",
+  "release": "NODE_FAILURE"
+ },
+ {
+  "t": 38.86,
+  "event": "F1 alerts",
+  "alerts": []
+ },
+ {
+  "t": 38.88,
+  "event": "F1 agent restarted (same state dir)"
+ },
+ {
+  "t": 42.77,
+  "event": "F1 node AVAILABLE again",
+  "after_s": 3.89
+ },
+ {
+  "t": 44.24,
+  "event": "F1 job RUNNING again",
+  "state": "RUNNING",
+  "allocations": 2,
+  "total_recovery_s": 15.0
+ },
+ {
+  "t": 45.66,
+  "event": "F2 API killed (hard)",
+  "job": 2
+ },
+ {
+  "t": 48.49,
+  "event": "F2 request while down",
+  "error": "ConnectError"
+ },
+ {
+  "t": 55.87,
+  "event": "F2 API back",
+  "downtime_s": 10.21
+ },
+ {
+  "t": 57.78,
+  "event": "F2 retry after restart",
+  "status": 200,
+  "same_id": true,
+  "jobs_with_id": 1,
+  "token_still_valid": 200
+ },
+ {
+  "t": 61.7,
+  "event": "F3 PostgreSQL stopped"
+ },
+ {
+  "t": 70.52,
+  "event": "F3 requests while DB down (status, seconds)",
+  "results": [
+   [
+    503,
+    2.89
+   ],
+   [
+    503,
+    3.02
+   ],
+   [
+    503,
+    2.91
+   ]
+  ],
+  "api_alive": true
+ },
+ {
+  "t": 72.62,
+  "event": "F3 PostgreSQL restarted",
+  "down_s": 10.92
+ },
+ {
+  "t": 73.43,
+  "event": "F3 API serves again without restart",
+  "ok": true,
+  "since_db_start_s": 11.73,
+  "api_pid_same": true
+ },
+ {
+  "t": 73.65,
+  "event": "F3 node after DB outage",
+  "node": "AVAILABLE"
+ },
+ {
+  "t": 73.88,
+  "event": "F3 node AVAILABLE",
+  "node": "AVAILABLE"
+ },
+ {
+  "t": 74.22,
+  "event": "F4 tick process killed"
+ },
+ {
+  "t": 75.38,
+  "event": "F4 job placed without the tick",
+  "job": 3,
+  "state": "SCHEDULED",
+  "placed": true
+ },
+ {
+  "t": 89.85,
+  "event": "F4 node with agent dead and no tick (no reaper)",
+  "node": "AVAILABLE"
+ },
+ {
+  "t": 96.57,
+  "event": "F4 tick restarted; reaper catches up",
+  "node": "DOWN",
+  "since_kill_s": 20.86
+ },
+ {
+  "t": 100.6,
+  "event": "F4 agent back",
+  "node": "AVAILABLE"
+ }
+]

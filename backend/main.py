@@ -1,10 +1,14 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DataError, InterfaceError, OperationalError, SQLAlchemyError, StatementError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
-from database import engine
+from database import SessionLocal, engine
 from logic.common.errors import AppError
 from routers.auth.access_requests import router as access_requests_router
 from routers.mlflow.admin import router as admin_mlflow_router
@@ -16,6 +20,7 @@ from routers.mlflow.professor import router as mlflow_professor_router
 from routers.gpu.admin import router as scheduler_admin_router
 from routers.gpu.agent import router as agent_router
 from routers.gpu.agent_runs import router as agent_runs_router
+from routers.gpu.jobs import ACTIVE_CONFIG
 from routers.gpu.jobs import router as jobs_router
 from routers.gpu.metrics import router as metrics_router
 from routers.auth.professors import router as professors_router
@@ -23,8 +28,19 @@ from routers.mlflow.rebuilds import router as rebuilds_router
 from integration.steward_bridge import install_steward
 from integration.web import install_web
 from logic.mlflow.release import register_mlflow_hooks
+from logic.gpu.scheduler.liveness import start_stamping
 
-app = FastAPI(title="Prayog API")
+log = logging.getLogger("prayog.api")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    stop_stamping = start_stamping(SessionLocal, ACTIVE_CONFIG)      # the reaper's evidence that we are listening
+    yield
+    stop_stamping.set()
+
+
+app = FastAPI(title="Prayog API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +57,42 @@ async def app_error_handler(request: Request, exc: AppError):
     if getattr(exc, "code", None):          # machine-readable code, e.g. a rejected GPU request
         content["code"] = exc.code
     return JSONResponse(status_code=exc.status_code, content=content)
+
+
+# The database is unreachable (stopped, restarting, failing over) or the pool is exhausted:
+# a temporary condition, so say so with 503 and a retry hint instead of a bare 500. Nothing
+# was saved, so the client can retry the same request (NFR-GPU-043). The driver's message
+# names hosts and ports, so it stays in the server log.
+@app.exception_handler(OperationalError)
+@app.exception_handler(InterfaceError)
+@app.exception_handler(PoolTimeoutError)
+async def database_unavailable_handler(request: Request, exc: Exception):
+    log.error("database unavailable on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(status_code=503, headers={"Retry-After": "5"},
+                        content={"detail": "The service is temporarily unavailable. Please retry shortly.",
+                                 "code": "DATABASE_UNAVAILABLE"})
+
+
+def _invalid_value() -> JSONResponse:
+    return JSONResponse(status_code=400, content={"detail": "A value in the request is not valid.", "code": "INVALID_VALUE"})
+
+
+# A value PostgreSQL cannot store, such as a number out of range, is the client's mistake.
+@app.exception_handler(DataError)
+async def data_error_handler(request: Request, exc: DataError):
+    return _invalid_value()
+
+
+# The driver refuses a NUL character in a string before it reaches PostgreSQL.
+@app.exception_handler(StatementError)
+@app.exception_handler(ValueError)
+async def statement_error_handler(request: Request, exc: Exception):
+    if "NUL (0x00)" in str(exc):
+        return _invalid_value()
+    log.exception("unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
+
 
 
 app.include_router(auth_router)
