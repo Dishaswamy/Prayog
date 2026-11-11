@@ -350,7 +350,9 @@ def _save_artifact(client: Client, known: dict, artifact_id: str, destination: P
     digest, size = hashlib.sha256(), 0
     handle, temporary = tempfile.mkstemp(dir=destination.parent, prefix=f".{destination.name}.", suffix=".part")
     try:
-        with client.stream(f"/mlflow/artifacts/{artifact_id}/content") as response, os.fdopen(handle, "wb") as out:
+        # The file is opened first so it is closed even when the server refuses the download:
+        # Windows cannot delete a file that is still open, which would hide the server's reason.
+        with os.fdopen(handle, "wb") as out, client.stream(f"/mlflow/artifacts/{artifact_id}/content") as response:
             for block in response.iter_bytes():
                 size += len(block)
                 digest.update(block)

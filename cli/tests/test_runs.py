@@ -576,6 +576,17 @@ def test_a_download_that_fails_its_checksum_is_not_saved(run, server, tmp_path, 
     assert list((tmp_path / "o").rglob(".*part")) == []
 
 
+def test_a_download_the_server_refuses_shows_its_reason_and_leaves_nothing(run, server, tmp_path, capsys):
+    results = ResultsServer(server)
+    serve = results.handler
+    results.server.handler = lambda request: (
+        httpx.Response(400, json={"detail": "Artifact data is missing; snapshot cannot be used"})
+        if request.url.path == "/mlflow/artifacts/ck2/content" else serve(request))
+    assert run("project", "download", "Vision", "A/1", "--to", str(tmp_path / "o")) == 1
+    assert "Artifact data is missing" in capsys.readouterr().err
+    assert list((tmp_path / "o").rglob(".*part")) == []
+
+
 def test_a_download_of_the_wrong_length_is_not_saved(run, server, tmp_path):
     ResultsServer(server, tamper={"ck2": b"short"})
     assert run("project", "download", "Vision", "A/1", "--to", str(tmp_path / "o")) == 1
