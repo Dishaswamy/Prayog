@@ -23,11 +23,13 @@ maintenance: a window an admin adds while a claim is in flight is handled like
 any window over a unit already in use (FR-GPU-084).
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models as orm
@@ -37,6 +39,7 @@ from logic.gpu.scheduler.loading import load_node_view, to_job_view
 from logic.gpu.scheduler.scoring import ScoreBreakdown
 
 GUARDED_CLASSES = (PriorityClass.P1, PriorityClass.P2)
+log = logging.getLogger("prayog.scheduler")
 
 
 class ClaimStatus(StrEnum):
@@ -97,13 +100,21 @@ def claim(
     now = now or utc_now()
     try:
         outcome = _claim(session, job_id, node_id, cls, breakdown, pass_id, trigger, now)
+        if outcome.claimed:
+            session.commit()
+        else:
+            session.rollback()
+    except IntegrityError as exc:
+        # The partial unique indexes fired: a unit's row says free while a live allocation
+        # holds it (FR-GPU-055 backstop). Nothing was written. Treat it as a lost claim so
+        # this pass goes on to other nodes and jobs instead of dying here on every pass.
+        session.rollback()
+        log.error("claim of job %s on node %s refused by the allocation indexes; the node's unit "
+                  "rows disagree with its live allocations: %s", job_id, node_id, exc.orig)
+        return ClaimOutcome(ClaimStatus.LOST_CLAIM_RACE)
     except BaseException:
         session.rollback()
         raise
-    if outcome.claimed:
-        session.commit()
-    else:
-        session.rollback()
     return outcome
 
 

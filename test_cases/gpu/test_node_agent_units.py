@@ -81,6 +81,8 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual((dirs["code"] / "pkg" / "mod.py").read_bytes(), b"X = 1\n")
         self.assertEqual(os.stat(dirs["code"] / "main.py").st_mode & 0o222, 0)
         self.assertEqual(oct(os.stat(dirs["output"]).st_mode & 0o777), "0o777")
+        if os.name == "posix":                       # Windows has no group/other permission bits
+            self.assertEqual(oct(os.stat(dirs["output"].parent).st_mode & 0o777), "0o700")
 
     def test_a_chunk_that_fails_its_checksum_is_refused(self):
         load, objects = self.load()

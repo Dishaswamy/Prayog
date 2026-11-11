@@ -1,5 +1,4 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from database import SessionLocal, get_db
@@ -8,8 +7,8 @@ from logic.gpu.scheduler.cancel import cancel_job
 from logic.gpu.scheduler.config import SchedulerConfig, load_config
 from logic.gpu.scheduler.domain import JobState
 from logic.gpu.scheduler.passes import Trigger, run_pass
-from logic.gpu.scheduler.requests import edit_job, format_walltime, job_status, quota_status, submit_job
-from models import Job, User
+from logic.gpu.scheduler.requests import JobStatus, edit_job, format_walltime, job_status, job_statuses, quota_status, submit_job
+from models import User
 from schemas.gpu.jobs import CancelOut, JobEdit, JobOut, JobSubmit, MemberUsage, QuotaOut, SubmissionOut
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -64,8 +63,8 @@ def my_jobs(
     current_user: User = Depends(get_current_user),
     cfg: SchedulerConfig = Depends(get_scheduler_config),
 ):
-    ids = db.scalars(select(Job.id).where(Job.user_id == current_user.id).order_by(Job.id.desc()).limit(limit)).all()
-    return [_job_out(db, current_user.id, job_id, cfg) for job_id in ids]
+    # One batch for the whole page, not a status lookup per job.
+    return [_to_out(s) for s in job_statuses(db, current_user.id, limit, cfg=cfg)]
 
 
 # A course account's sponsorship cap: total, used, committed, left, and per member.
@@ -128,7 +127,10 @@ def cancel(
 
 
 def _job_out(db: Session, user_id: int, job_id: int, cfg: SchedulerConfig) -> JobOut:
-    s = job_status(db, user_id, job_id, cfg=cfg)
+    return _to_out(job_status(db, user_id, job_id, cfg=cfg))
+
+
+def _to_out(s: JobStatus) -> JobOut:
     return JobOut(
         id=s.job.id,
         state=s.job.state,
