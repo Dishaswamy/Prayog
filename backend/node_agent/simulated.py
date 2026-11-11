@@ -24,7 +24,9 @@ number and are kept until delivered (FR-GPU-128).
 import argparse
 import json
 import logging
+import os
 import shutil
+import stat
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -38,6 +40,18 @@ log = logging.getLogger("prayog.agent")
 
 def utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def remove_workspace(path: Path) -> None:
+    """Delete a workspace. Its code and data were made read-only, which Windows refuses to delete,
+    so make everything writable first (on Linux this changes nothing that matters)."""
+    if path.exists():
+        for item in path.rglob("*"):
+            try:
+                os.chmod(item, stat.S_IRWXU if item.is_dir() else stat.S_IRUSR | stat.S_IWUSR)
+            except OSError:
+                pass
+    shutil.rmtree(path, ignore_errors=True)
 
 
 @dataclass
@@ -126,7 +140,7 @@ class SimulatedAgent:
         (workspace / "SNAPSHOT").write_text(order.get("snapshot_hash") or "")
         r = self.http.post(f"/agent/allocations/{key}/acknowledge", headers=self._headers)
         if r.status_code == 409:                                        # cancelled or requeued meanwhile
-            shutil.rmtree(workspace, ignore_errors=True)
+            remove_workspace(workspace)
             return
         r.raise_for_status()
         # Persist before running anything: a restart must find it and never start it again.
@@ -156,7 +170,7 @@ class SimulatedAgent:
         self._save()
 
     def _cleanup(self, key: str) -> None:
-        shutil.rmtree(self.state_dir / "workspaces" / key, ignore_errors=True)
+        remove_workspace(self.state_dir / "workspaces" / key)
         self.state["running"].pop(key, None)
         self._save()
 

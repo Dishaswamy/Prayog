@@ -64,6 +64,11 @@ class NodeAgent(SimulatedAgent):
     def _start(self, key: str, order: dict) -> None:
         try:
             load = self._workload(key)
+        except httpx.HTTPStatusError as exc:
+            if 400 <= exc.response.status_code < 500:              # refused for good: retrying cannot help
+                return self._start_refused(key, order, exc.response)
+            log.warning("could not read the workload of allocation %s yet: %s", key, exc)
+            return
         except httpx.HTTPError as exc:
             log.warning("could not read the workload of allocation %s yet: %s", key, exc)
             return
@@ -95,6 +100,30 @@ class NodeAgent(SimulatedAgent):
             with (workspace / "run.log").open("ab") as out:
                 out.write(f"[prayog] The run could not be started: {exc}\n".encode())
             entry["finishing"] = {"outcome": "EXITED", "exit_code": START_FAILED_EXIT_CODE}
+        self._save()
+
+    def _start_refused(self, key: str, order: dict, response: httpx.Response) -> None:
+        """The server will not hand over this run's workload (say, its stored code is missing). Fail the run
+        visibly, with the server's reason in its log, instead of asking again at every step forever."""
+        try:
+            reason = response.json().get("detail") or response.text
+        except ValueError:
+            reason = response.text
+        ack = self.http.post(f"/agent/allocations/{key}/acknowledge", headers=self._headers)
+        if ack.status_code == 409:                                  # cancelled or requeued meanwhile
+            return
+        ack.raise_for_status()
+        log.error("allocation %s refused by the server: %s", key, reason)
+        workspace = self.state_dir / "workspaces" / key
+        workspace.mkdir(parents=True, exist_ok=True)
+        with (workspace / "run.log").open("ab") as out:
+            out.write(f"[prayog] The run could not be started: the server refused its workload "
+                      f"(HTTP {response.status_code}): {reason}\n".encode())
+        self.state["running"][key] = {
+            "started": self.clock().isoformat(), "walltime_minutes": order["walltime_minutes"],
+            "units": order["unit_indexes"], "managed": True, "results": {}, "ship_attempts": 0,
+            "finishing": {"outcome": "EXITED", "exit_code": START_FAILED_EXIT_CODE},
+        }
         self._save()
 
     # ── supervise ──────────────────────────────────────────────────────

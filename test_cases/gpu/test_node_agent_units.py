@@ -485,5 +485,69 @@ class ResultShipperTests(unittest.TestCase):
         self.assertEqual(self.sent, [])
 
 
+REFUSED_ORDER = {"allocation_id": 7, "walltime_minutes": 5, "unit_indexes": [0], "stop_reason": None}
+
+
+class RefusedWorkloadTests(unittest.TestCase):
+    """The server refuses an allocation's workload for good (its stored code is gone). The agent must fail
+    the run with the server's reason, not ask again at every step forever."""
+
+    def setUp(self):
+        from node_agent.agent import NodeAgent
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.state_dir = Path(directory.name)
+        self.asked, self.reports, self.logs = [], [], []
+        self.agent = NodeAgent(httpx.Client(transport=httpx.MockTransport(self.handler), base_url="http://server"),
+                               self.state_dir, 1, runner=None)
+        self.agent.state["credential"] = "cred"
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        self.asked.append(path)
+        if path == "/agent/heartbeat":
+            return httpx.Response(200, json={"state": "AVAILABLE", "terminate_allocation_ids": []})
+        if path == "/agent/allocations":
+            return httpx.Response(200, json=[] if self.reports else [REFUSED_ORDER])
+        if path.endswith("/workload"):
+            return httpx.Response(400, json={"detail": "Artifact data is missing; snapshot cannot be used"})
+        if path.endswith("/acknowledge"):
+            return httpx.Response(200, json={})
+        if path.endswith("/results"):
+            self.logs.append(request.read().decode())
+            return httpx.Response(201, json={"artifact_id": "log", "kind": "LOG", "size_bytes": 1})
+        if path.endswith("/report"):
+            self.reports.append(json.loads(request.content))
+            return httpx.Response(200, json={"applied": True, "job_state": "FAILED"})
+        return httpx.Response(404)
+
+    def test_the_run_fails_with_the_servers_reason_and_is_not_retried_forever(self):
+        for _ in range(4):
+            self.agent.step()
+        self.assertEqual(self.asked.count("/agent/allocations/7/workload"), 1)
+        self.assertEqual([(r["outcome"], r["exit_code"]) for r in self.reports], [("EXITED", 125)])
+        self.assertIn("Artifact data is missing", self.reports[0]["log_tail"])
+        self.assertEqual(len(self.logs), 1)
+        self.assertFalse((self.state_dir / "workspaces" / "7").exists())
+
+
+class RemoveWorkspaceTests(unittest.TestCase):
+    def test_read_only_code_and_data_are_removed(self):
+        from node_agent.simulated import remove_workspace
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        workspace = Path(directory.name) / "workspaces" / "3"
+        (workspace / "code" / "pkg").mkdir(parents=True)
+        for path in (workspace / "code" / "main.py", workspace / "code" / "pkg" / "util.py"):
+            path.write_text("print(1)")
+            os.chmod(path, 0o444)                           # as workspace.prepare leaves them
+        remove_workspace(workspace)
+        self.assertFalse(workspace.exists())
+
+    def test_a_missing_workspace_is_fine(self):
+        from node_agent.simulated import remove_workspace
+        remove_workspace(Path(tempfile.gettempdir()) / "prayog-no-such-workspace")
+
+
 if __name__ == "__main__":
     unittest.main()
