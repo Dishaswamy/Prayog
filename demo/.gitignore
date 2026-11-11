@@ -1,0 +1,7 @@
+# Saved node identities (node credentials) and enrolment tokens: never commit them.
+state/
+*.log
+__pycache__/
+# Written by `prayog project link` and by running the samples locally.
+.prayog/
+output/
