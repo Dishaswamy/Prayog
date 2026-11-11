@@ -11,7 +11,7 @@ for the concurrency and security segments, two small sample projects, and the de
 | [`security_demo.py`](security_demo.py) | Read-only probes that must all be refused: no login, forged token, wrong role, someone else's job, fake node credential |
 | [`sample-projects/`](sample-projects/) | `cv` (a toy segmentation) and `linear-regression` (with a small dataset), both following the run contract |
 | [`RUNBOOK.md`](RUNBOOK.md) | The ten-minute demo: preparation, setup, and each segment with commands and fallbacks |
-| `state/` | Saved node identities, created by `setup`. Git-ignored: it holds node credentials. |
+| `state/` | Saved node identities, created by `setup`. Git-ignored: it holds node credentials, so the nodes can only be started on the machine that registered them. |
 
 Run everything from the repository root, with Python 3.11 or newer and `httpx` and `blake3` installed
 (the CLI's environment has both: `pip install -e ./cli`).
@@ -63,7 +63,8 @@ python demo/fake_gpus.py revive fake-a100-8x    # heartbeats again
 ```
 
 A killed node is marked DOWN only when the server's scheduler tick (`python -m logic.gpu.scheduler.run`) is
-running. On a one-process host, start the server with `backend/scripts/start_single_container.sh`.
+running. On a one-process host, start the server with `backend/scripts/start_single_container.sh` (added on
+branch `fix-demo-findings`).
 
 ### Steering a fake run
 
@@ -117,7 +118,7 @@ prayog run linear-regression --walltime 00:05 --data demo/sample-projects/linear
 
 - **Upload freeze.** `store_artifact` used to hold the experiment's row lock across an `await`, so two
   checkpoint uploads to one experiment at once could freeze an API worker for good (even `/health` hung). Fixed
-  in `backend/logic/mlflow/artifacts.py`. The fake nodes also send their uploads one at a time, which keeps an
+  on branch `fix-demo-findings`. The fake nodes also send their uploads one at a time, which keeps an
   unfixed server safe.
 - **A redeploy on Render wipes uploaded files.** The artifact store is the container's disk. Database rows
   survive, so old runs still list, but their versions fail with "Artifact data is missing". Upload a fresh

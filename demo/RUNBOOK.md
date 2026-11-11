@@ -13,19 +13,41 @@ repository root unless a step says otherwise.
 | [5. Security and unauthorised access](#5-security-and-unauthorised-access) | 1:00 | 7:30–8:30 |
 | [6. Jira → GitHub → test traceability](#6-jira--github--test-traceability) | 1:30 | 8:30–10:00 |
 
+## Where to run it from
+
+The kit is in `demo/`. Until both pull requests are merged, use a checkout of branch **`demo-day`**, which
+combines the fixes (`fix-demo-findings`) and this kit (`demo-kit`). After they are merged, use `main`.
+
+**One-time setup on the demo laptop:**
+
+```powershell
+git fetch origin; git switch demo-day
+py -3.12 -m venv "$env:USERPROFILE\.venvs\prayog"
+& "$env:USERPROFILE\.venvs\prayog\Scripts\python.exe" -m pip install -e .\cli
+```
+
+**The fake nodes belong to the machine that registered them.** Their credentials are in `demo/state/`, which is
+never committed. Either run the demo on that machine, or copy its `demo/state/` folder to the demo laptop (and
+never run both). The last option is to register a fresh set as the admin, after renaming the nodes in
+`nodes.json`, since names are unique: `python demo/fake_gpus.py setup --server … --email ADMIN@iitk.ac.in`.
+
 ## Before the day
 
 1. **Run the scheduler tick on the server.** It marks a silent node DOWN and requeues its job; segment 4 needs it.
-   On a Render web service, set the start command to `sh scripts/start_single_container.sh` (it runs the tick,
-   restarted if it exits, the Steward worker when configured, and the API with one worker). Check: kill a fake
-   node, and it shows DOWN within about 40 s.
+   - **If the server is deployed from a branch that includes `fix-demo-findings`:** on a Render web service, set the
+     start command to `sh scripts/start_single_container.sh`. It runs the tick (restarted if it exits), the
+     Steward worker when configured, and the API with one worker.
+   - **Otherwise:** use the same processes inline:
+     `sh -c "python -m logic.gpu.scheduler.run & uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"`.
+   - **Check:** kill a fake node, and it shows DOWN within about 40 s.
 2. **Set up the Steward.** Segment 2 needs it; without it every `/steward/*` route is 404.
    1. With `POSTGRES_*` pointing at the server's database, run `python -m scripts.setup_steward` in `backend/`.
    2. On the server, set `STEWARD_DB_USER`, `STEWARD_DB_PASSWORD`, `STEWARD_INPROCESS_REASONING=heuristic` (or
       `claude` with `ANTHROPIC_API_KEY`) and `STEWARD_PUBLIC_BASE_URL`.
    3. Check `/steward/healthz`, then rehearse segment 2 once.
-3. **Deploy for the last time, then prepare.** A redeploy on Render wipes uploaded files (versions, checkpoints,
-   logs). After it, upload a fresh version of the project you will demo (`prayog project update`), and pre-run:
+3. **Deploy for the last time, then prepare.** Deploying `fix-demo-findings` also removes the upload freeze, which
+   froze the server twice on 12 Nov 2026 (the fake nodes already avoid it). A redeploy on Render wipes uploaded
+   files (versions, checkpoints, logs). After it, upload a fresh version of the project you will demo (`prayog project update`), and pre-run:
    - one reference run and its rebuild, so the compare in segment 1 is instant;
    - a walltime overrun and a crash, so their results are ready in segment 4.
 4. **Logins.** Have four ready: a student or researcher with approved research access (CLI), the platform admin
