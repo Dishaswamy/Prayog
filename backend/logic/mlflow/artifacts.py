@@ -37,8 +37,17 @@ async def store_artifact(db: Session, user, experiment, kind: str, request) -> A
         if total == 0:
             raise BadRequestError("Artifact upload cannot be empty")
 
+        # BLAKE3 is the immutable storage identity, shared across metadata rows
+        # and namespaces. SHA-256 remains in metadata for compatibility. Stored first-writer-wins,
+        # so writing it before the lock is safe even when the upload turns out to be a duplicate.
+        storage_key = content_digest.hexdigest()
+        await anyio.to_thread.run_sync(persist_artifact, temporary_path, storage_key)   # off the event loop
+
         # Serialize uploads within an experiment so concurrent identical uploads
         # cannot create duplicate metadata rows for the same owner/experiment/kind.
+        # Nothing may be awaited from here to the commit: this lock is taken by a blocking call on
+        # the event loop, so a second upload to the same experiment waiting for it stalls the loop,
+        # and a holder suspended at an await could then never resume to release it.
         locked_experiment = (
             db.query(Experiment)
             .filter(Experiment.id == experiment.id, Experiment.user_id == user.id)
@@ -48,7 +57,6 @@ async def store_artifact(db: Session, user, experiment, kind: str, request) -> A
         if locked_experiment is None:
             raise NotFoundError("Experiment not found")
 
-        storage_key = content_digest.hexdigest()
         existing = db.query(Artifact).filter(
             Artifact.user_id == user.id,
             Artifact.experiment_id == experiment.id,
@@ -62,9 +70,6 @@ async def store_artifact(db: Session, user, experiment, kind: str, request) -> A
             get_verified_artifact(db, existing.id, user.id, experiment.id, kind)
             return existing
 
-        # BLAKE3 is the immutable storage identity, shared across metadata rows
-        # and namespaces. SHA-256 remains in metadata for compatibility.
-        await anyio.to_thread.run_sync(persist_artifact, temporary_path, storage_key)   # off the event loop
         artifact = Artifact(
             id=artifact_id,
             user_id=user.id,

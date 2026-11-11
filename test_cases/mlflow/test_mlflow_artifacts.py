@@ -57,6 +57,34 @@ class ArtifactStorageTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(BadRequestError):
                     get_verified_artifact(db, artifact.id, 9, 4, "CODE")
 
+    async def test_nothing_is_awaited_while_the_experiment_is_locked(self):
+        # The lock is taken by a blocking call on the event loop. An await while holding it lets a second
+        # upload to the same experiment block the loop on that lock, and the holder can then never resume:
+        # the worker freezes for good. This froze the Render deployment twice on 12 Nov 2026.
+        import anyio
+
+        order = []
+        real_run_sync = anyio.to_thread.run_sync
+
+        async def run_sync(fn, *args, **kwargs):
+            order.append(getattr(fn, "__name__", "thread"))
+            return await real_run_sync(fn, *args, **kwargs)
+
+        db = MagicMock()
+        db.query.return_value.filter.return_value.with_for_update.side_effect = (
+            lambda *a, **k: order.append("lock") or MagicMock())
+        db.commit.side_effect = lambda: order.append("commit")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            with patch("logic.mlflow.artifacts.ARTIFACT_ROOT", root), \
+                    patch("logic.common.artifact_storage.ARTIFACT_ROOT", root), \
+                    patch.object(anyio.to_thread, "run_sync", run_sync):
+                await store_artifact(db, SimpleNamespace(id=9), SimpleNamespace(id=4, project_id="p", model_id="m"),
+                                     "WEIGHTS", FakeRequest([b"weights"]))
+
+        self.assertLess(order.index("persist_artifact"), order.index("lock"))
+        self.assertEqual(order[order.index("lock"):], ["lock", "commit"])
+
     async def test_empty_upload_is_rejected_and_not_registered(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch("logic.mlflow.artifacts.ARTIFACT_ROOT", Path(directory)):
