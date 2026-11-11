@@ -52,7 +52,7 @@ services:
   tick:
     image: prayog-api
     restart: unless-stopped
-    command: ["python", "-m", "logic.scheduler.run"]
+    command: ["python", "-m", "logic.gpu.scheduler.run"]
     environment: *app_env
     volumes:
       - artifacts:/var/lib/prayog/artifacts
