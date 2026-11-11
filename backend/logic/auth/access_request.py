@@ -3,7 +3,8 @@ Access request flow
 
 1. Student / researcher submits a request          -> all statuses PENDING
 2. Professor and admin each decide APPROVED/REJECTED
-   - Either one REJECTED  -> final REJECTED (but they can still change their mind)
+   - Either one REJECTED  -> final REJECTED. They can still change their mind until the
+                             user sends a new request; a rejected user may apply again.
    - Both APPROVED        -> final APPROVED, row copied into Student/Researcher,
                              GPU scheduling context created from the purpose,
                              request is LOCKED (no more decisions)
@@ -33,8 +34,8 @@ VALID_DECISIONS = {"APPROVED", "REJECTED"}
 FINAL_STATUSES = {"PENDING", "APPROVED", "REJECTED", "REVOKED"}
 
 # Requests in these states still "hold" the user's slot and roll number.
-# REVOKED is the only state that frees them.
-ACTIVE_STATUSES = ["PENDING", "REJECTED", "APPROVED"]
+# REJECTED and REVOKED free them: the user can send a new request.
+ACTIVE_STATUSES = ["PENDING", "APPROVED"]
 
 # A job in one of these states is not finished: its owner's access cannot end yet.
 UNFINISHED_JOB_STATES = [JobState.IN_PROCESS, JobState.QUEUED, JobState.SCHEDULED, JobState.RUNNING]
@@ -76,7 +77,7 @@ def create_access_request(
             f"Your registered role is {current_user.role}, but you selected {role}"
         )
 
-    # One active request per user (a revoked user can apply again)
+    # One active request per user (a rejected or revoked user can apply again)
     existing = (
         db.query(AccessRequest)
         .filter(
@@ -266,6 +267,12 @@ def decide_access_request(
         )
     if access_request.final_status == "REVOKED":
         raise ConflictError("This access has been revoked. The user must submit a new request.")
+    # A rejected user may apply again. Once they have, the older request is history: it cannot be
+    # flipped to approved, or the user would hold two live requests.
+    newer = db.query(AccessRequest.id).filter(
+        AccessRequest.user_id == access_request.user_id, AccessRequest.id > access_request.id).first()
+    if newer is not None:
+        raise ConflictError("This request was replaced by a newer request from the same user.")
 
     # Record this person's decision (they may change it while not locked)
     if current_user.role == "PROFESSOR":

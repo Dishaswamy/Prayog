@@ -94,9 +94,12 @@ export async function accessPage(ctx) {
   const head = pageHead("GPU access", "Your request needs approval from your Professor and from an admin before you can submit jobs.");
   clear(ctx.view, head, loading());
   const [mine, professors] = await Promise.all([api("/access-requests/me"), api("/professors")]);
-  const open = mine.find((r) => r.final_status !== "REVOKED");
+  // A rejected or revoked request is history: the user can send a new one. Only a pending or approved one blocks the form.
+  const open = mine.find((r) => r.final_status !== "REVOKED" && r.final_status !== "REJECTED");
+  const rejected = !open && mine.length && mine[0].final_status === "REJECTED";
   clear(ctx.view, head,
     mine.length ? mine.map(requestCard) : null,
+    rejected ? h("p", { class: "muted" }, "Your last request was rejected. You can send a new one below.") : null,
     open ? null : requestForm(ctx, professors));
 }
 
