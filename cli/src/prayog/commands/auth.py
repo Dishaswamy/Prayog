@@ -17,7 +17,8 @@ DEFAULT_API_URL = "http://localhost:8000"
 def setup_login(p):
     p.add_argument("-e", "--email", help="your institute email address")
     p.add_argument("-r", "--role", choices=ROLES, help="the role your account has")
-    p.add_argument("--api-url", help=f"Prayog server (default: $PRAYOG_API_URL or {DEFAULT_API_URL})")
+    p.add_argument("--api-url", help="Prayog server (default: $PRAYOG_API_URL, else the server of the saved "
+                                     f"login, else {DEFAULT_API_URL})")
     p.add_argument("--password-stdin", action="store_true",
                    help="read the password from stdin (for scripts) instead of prompting")
     p.add_argument("--allow-insecure-http", action="store_true",
@@ -26,7 +27,9 @@ def setup_login(p):
 
 
 def login(ctx: Context, args) -> None:
-    api_url = (args.api_url or os.environ.get("PRAYOG_API_URL") or DEFAULT_API_URL).rstrip("/")
+    # Logging in again (say, after the token expired) goes back to the server of the saved login.
+    saved = ctx.creds.api_url if ctx.creds else None
+    api_url = (args.api_url or os.environ.get("PRAYOG_API_URL") or saved or DEFAULT_API_URL).rstrip("/")
     if not is_secure_enough(api_url) and not args.allow_insecure_http:
         raise CliError(f"Refusing to send your password to {api_url} over plain http. "
                        "Use an https URL.", USAGE)

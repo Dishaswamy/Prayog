@@ -62,7 +62,7 @@ Signs in and saves a login token on this computer.
 |---|---|
 | `-e`, `--email` | your institute email, such as `name@iitk.ac.in` (asked for if omitted) |
 | `-r`, `--role` | `student`, `researcher`, `professor` or `admin`; it must match your account (asked for if omitted) |
-| `--api-url` | the Prayog server; default `$PRAYOG_API_URL`, else `http://localhost:8000` |
+| `--api-url` | the Prayog server; default `$PRAYOG_API_URL`, else the server of the saved login, else `http://localhost:8000` |
 | `--password-stdin` | read the password from standard input, for scripts, instead of prompting |
 | `--allow-insecure-http` | allow sending the password over plain `http` to a server that is not on this machine |
 
@@ -331,7 +331,7 @@ hyperparameters, dataset fingerprint, metrics, checkpoints and log, which is wha
 
 | | |
 |---|---|
-| `PRAYOG_API_URL` | the server to log in to when `--api-url` is not given (default `http://localhost:8000`). The URL is saved with the token and later commands only ever send the token there. |
+| `PRAYOG_API_URL` | the server to log in to when `--api-url` is not given (default: the server of the saved login, else `http://localhost:8000`). The URL is saved with the token and later commands only ever send the token there. |
 | `PRAYOG_CONFIG_DIR` | where the login is kept (default `~/.prayog`; directory mode `0700`, file `0600`) |
 | `PRAYOG_PORTAL_URL` | the web portal's address, shown by `prayog access request` |
 

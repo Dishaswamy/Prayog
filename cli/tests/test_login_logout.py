@@ -71,6 +71,28 @@ def test_no_terminal_and_no_password_stdin_fails(run, server, monkeypatch, capsy
     assert server.seen == []
 
 
+def test_logging_in_again_uses_the_server_of_the_saved_login(run, server, monkeypatch):
+    credentials.save(credentials.Credentials(api_url="https://prayog.example", token="old", email=ME["email"],
+                                             user_id=ME["user_id"], role="STUDENT"))
+    stub_login(server)
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "pw-12345")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    assert run("login", "-e", "dishac22@iitk.ac.in", "-r", "student") == 0
+    assert {r.url.host for r in server.seen if r.url.path == "/auth/cli/login"} == {"prayog.example"}
+    assert credentials.load().api_url == "https://prayog.example"
+
+
+def test_the_environment_still_wins_over_the_saved_login(run, server, monkeypatch):
+    credentials.save(credentials.Credentials(api_url="https://prayog.example", token="old", email=ME["email"],
+                                             user_id=ME["user_id"], role="STUDENT"))
+    monkeypatch.setenv("PRAYOG_API_URL", "https://other.example")
+    stub_login(server)
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "pw-12345")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    assert run("login", "-e", "dishac22@iitk.ac.in", "-r", "student") == 0
+    assert credentials.load().api_url == "https://other.example"
+
+
 def test_login_refuses_plain_http_to_remote_server(run, server, monkeypatch, capsys):
     monkeypatch.setattr("sys.stdin", __import__("io").StringIO("pw-12345\n"))
     code = run("login", "-e", "a@iitk.ac.in", "-r", "student", "--api-url", "http://prayog.iitk.ac.in", "--password-stdin")
