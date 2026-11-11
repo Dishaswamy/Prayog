@@ -1,0 +1,8 @@
+[
+  {"name": "fake-a100-8x", "owner_lab_id": 1, "donation_mode": "shared",   "teaching_pool": false, "unit_count": 8},
+  {"name": "fake-a100-4x", "owner_lab_id": 1, "donation_mode": "shared",   "teaching_pool": false, "unit_count": 4},
+  {"name": "fake-v100-4x", "owner_lab_id": 1, "donation_mode": "reserved", "teaching_pool": false, "unit_count": 4},
+  {"name": "fake-rtx-2x",  "owner_lab_id": 1, "donation_mode": "shared",   "teaching_pool": false, "unit_count": 2},
+  {"name": "fake-t4-2x",   "owner_lab_id": 1, "donation_mode": "shared",   "teaching_pool": true,  "unit_count": 2},
+  {"name": "fake-t4-1x",   "owner_lab_id": 1, "donation_mode": "shared",   "teaching_pool": true,  "unit_count": 1}
+]
