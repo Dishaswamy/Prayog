@@ -29,6 +29,142 @@ This guide explains how to use Prayog, from requesting GPU access to running exp
 | A Professor | [Role-specific workflows](#6-role-specific-workflows) |
 | An administrator | [Role-specific workflows](#6-role-specific-workflows) |
 | Looking for technical details | [Further documentation](#9-further-documentation) |
+| Building, configuring or running the server, or running the tests | [Running Prayog yourself](#running-prayog-yourself) |
+
+---
+
+## Running Prayog yourself
+
+This section is for developers, reviewers and administrators who want to build and run the platform. The server is a FastAPI application, a scheduler process (the *tick*) and PostgreSQL 16. GPU nodes connect to it through a node agent.
+
+### Prerequisites
+
+- Git
+- **Option A:** Docker with Compose v2 (Docker Desktop on Windows and macOS)
+- **Option B:** Python 3.12, plus PostgreSQL 16 (or Docker to run PostgreSQL only)
+
+### Configure
+
+Copy the template and fill in real values. `.env` is git-ignored; never commit it.
+
+```bash
+cp .env.example .env              # Windows PowerShell: Copy-Item .env.example .env
+```
+
+| Variable | What to set |
+|---|---|
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Database account and name. With option A, the database is created with these values. |
+| `POSTGRES_HOST`, `POSTGRES_PORT` | `localhost` and `5432` for option B. Option A sets the host itself. |
+| `JWT_SECRET_KEY` | A long random string, for example from `python -c "import secrets; print(secrets.token_urlsafe(48))"`. The API refuses to start without it. |
+| `STEWARD_ENABLED` | `false` to start with. See [Optional: the Steward](#optional-the-steward). |
+
+### Option A: the whole platform with Docker Compose (recommended)
+
+```bash
+docker compose -f docker-compose.deploy.yml up -d --build
+```
+
+This starts four services:
+
+- `postgres`: PostgreSQL 16. It is not published to the host.
+- `migrate`: runs `alembic upgrade head` once, then exits.
+- `api`: the API and web app, with 4 workers on `127.0.0.1:8000`.
+- `tick`: the scheduler, which runs a scheduling pass every 10 seconds.
+
+Check it is up at `http://127.0.0.1:8000/health`, then open `http://127.0.0.1:8000/app`.
+
+Create the first administrator (admins cannot self-register):
+
+```bash
+docker compose -f docker-compose.deploy.yml exec api python -m scripts.create_admin admin@iitk.ac.in "<strong password>"
+```
+
+For a local trial, `docker compose -f docker-compose.deploy.yml exec api python -m scripts.seed_gpu_demo` adds sample labs and test accounts. Every test account's password is its user ID reversed, so never run it on a shared deployment.
+
+Stop with `docker compose -f docker-compose.deploy.yml down`. Add `-v` to also delete the database and stored artifacts.
+
+To serve the platform to other machines, put TLS in front of port 8000. [Deliverables/D3/10_Deployment_Guide.md](Deliverables/D3/10_Deployment_Guide.md) covers this, along with systemd services, nginx, backups and upgrades.
+
+### Option B: run from source (development)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate         # Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
+
+docker compose up -d postgres     # or use your own PostgreSQL 16
+
+cd backend
+alembic upgrade head              # create the schema
+alembic check                     # should report no new upgrade operations
+python -m scripts.create_admin admin@iitk.ac.in "<strong password>"
+uvicorn main:app --reload --port 8000
+```
+
+In a second terminal, from `backend/` with the same virtual environment, start the scheduler:
+
+```bash
+python -m logic.gpu.scheduler.run
+```
+
+Labs have no API yet. `python -m scripts.seed_gpu_demo` creates sample labs. For a real deployment, insert them once as described in the Deployment Guide, section 4.
+
+### Add a GPU node
+
+1. Sign in as the administrator and register the node in the web app's pool view, or with `POST /admin/nodes` (see [API_GPU.md](API_GPU.md)). The response shows a one-time enrolment token, valid for 24 hours.
+2. On the GPU machine, build the run image once, then start the agent with that token:
+
+   ```bash
+   docker build -t prayog-ml-runtime:python3.12 -f backend/worker/Dockerfile backend/worker
+   cd backend
+   python -m node_agent.agent --server http://<api-host>:8000 --units 4 \
+       --state-dir /var/lib/prayog-agent --runner docker --image prayog-ml-runtime:python3.12 \
+       --enrolment-token <token>
+   ```
+
+   The agent exchanges the token for its own credential on first contact, then heartbeats and pulls work. The node turns `AVAILABLE` in the admin view.
+
+To try the scheduler without a GPU, use the simulated agent instead:
+
+```bash
+python -m node_agent.simulated --server http://127.0.0.1:8000 --units 4 --state-dir .agent-state --enrolment-token <token>
+```
+
+### Optional: the Steward
+
+The Steward is off unless `STEWARD_ENABLED=true`. To turn it on:
+
+1. Set `STEWARD_DB_USER`, `STEWARD_DB_PASSWORD` and `STEWARD_PUBLIC_BASE_URL` in `.env`.
+2. From `backend/`, run `python -m scripts.setup_steward` once. It creates the Steward's own database role, which cannot bypass row-level security.
+3. Run the worker beside the API: `python -m integration.steward_worker`.
+
+The default reasoning adapter is rule-based and needs no API key (`STEWARD_INPROCESS_REASONING=heuristic`). See [steward/README.md](steward/README.md) for the other adapters.
+
+### Run the tests and coverage
+
+The backend tests need PostgreSQL, which you can start with `docker compose up -d postgres`, and the `.env` values above. Run them from the repository root:
+
+```bash
+pip install -e ./steward -e ./cli
+PYTHONPATH=backend PRAYOG_RUN_SCHEDULER_POSTGRES_TESTS=1 PRAYOG_RUN_PROFESSOR_POSTGRES_TESTS=1 \
+    pytest -q test_cases --cov=backend --cov-config=backend/.coveragerc --cov-report=term --cov-report=html
+```
+
+On Windows PowerShell, set the variables first:
+
+```powershell
+$env:PYTHONPATH="backend"; $env:PRAYOG_RUN_SCHEDULER_POSTGRES_TESTS="1"; $env:PRAYOG_RUN_PROFESSOR_POSTGRES_TESTS="1"
+pytest -q test_cases --cov=backend --cov-config=backend/.coveragerc --cov-report=term --cov-report=html
+```
+
+- The coverage report is written to `htmlcov/index.html`. CI fails the build below 80%.
+- The GPU scheduler tests create and use their own database, `prayog_scheduler_test`.
+- A few tests use Linux-only features (process groups, symlinks, file permissions), so run on Linux or rely on CI for a clean result.
+- Tests that start real Docker containers run only with `PRAYOG_RUN_DOCKER_SMOKE=1`. CI runs them on every pull request.
+
+CLI tests: `cd cli && pip install -e ".[test]" && pytest -q`.
+
+The same steps run in CI on every pull request; see [.github/workflows/mlflow-validation.yml](.github/workflows/mlflow-validation.yml).
 
 ---
 
@@ -506,17 +642,20 @@ The exact actions available in the portal depend on the server configuration and
 
 ## 7. Optional component: Steward
 
-Steward is Prayog's optional AI-assisted experiment support component. It is designed to analyse eligible failed rebuilds and provide diagnostic guidance.
+Steward is Prayog's optional AI-assisted experiment support component. It reads a user's own runs and logs, and gives diagnoses and advice.
 
 Steward is not required for core authentication, access approval, GPU scheduling, or experiment tracking. Prayog can operate without it.
 
 ### 7.1 Availability and usage
 
-Users do not need to install or run Steward separately. Its features are intended to be accessed through the Prayog web application when the component is enabled and configured.
+Users do not need to install or run Steward separately. When an administrator has enabled it (see [Optional: the Steward](#optional-the-steward)), its results appear in the web application's Steward area:
 
-**Current integration status:** The repository implements the rebuild eligibility checks and diagnostic-link mechanism, but does not yet include a configured Steward client or production downstream service integration. A diagnostic link allows authorised retrieval of a verified log; creating or using the link does not itself trigger an AI diagnosis.
+- **Failed run:** a diagnosis of the failure, and possibly a corrected job that the owner may approve.
+- **A GPU that fails for two or more users within 24 hours:** a hardware warning for the administrator.
+- **Failed rebuild:** a chat about the user's own records, through a single-use link.
+- **Successful rebuild:** optimisation advice.
 
-Only failed rebuilds with a verified log artifact are eligible for Steward diagnosis. First-time experiment failures are not eligible.
+Steward only reads and proposes. It never writes platform records, and a job it suggests runs only after its owner approves it.
 
 ### 7.2 Further documentation
 
